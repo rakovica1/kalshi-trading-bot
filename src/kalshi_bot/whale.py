@@ -7,7 +7,7 @@ def run_whale_strategy(
     client,
     prefixes=("KXNFL", "KXNBA", "KXBTC", "KXETH"),
     min_price=95,
-    min_volume=100000,
+    min_volume=10000,
     risk_pct=0.01,
     max_positions=10,
     daily_loss_pct=0.05,
@@ -25,7 +25,7 @@ def run_whale_strategy(
 
     Pipeline:
       1. Scan all markets
-      2. Filter to QUALIFIED (Tier 1 + top 100 $vol + $100k+ + <5% spread + ≤24h exp)
+      2. Filter to QUALIFIED (Tier 1 + top 100 $vol + $10k+ + <5% spread + ≤24h exp)
       3. Filter by expiration window (default: 24 hours)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)

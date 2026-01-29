@@ -218,10 +218,10 @@ def _sort_key(column, reverse=False):
 
 @cli.command("scan")
 @click.option("--min-price", default=99, type=click.IntRange(1, 99), help="Minimum bid price in cents.", show_default=True)
-@click.option("--min-volume", default=100000, type=int, help="Minimum 24h volume.", show_default=True)
+@click.option("--min-volume", default=10000, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
-@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 100 $vol + $100k+ + <5% spread + ≤24h exp).")
+@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 100 $vol + $10k+ + <5% spread + ≤24h exp).")
 @click.option("--sort-by", "sort_by", default=None, type=click.Choice(_SORT_COLUMNS, case_sensitive=False),
               help="Sort column: tier, price, volume, spread, rank, expiration, open_int.")
 @click.option("--reverse", "reverse_sort", is_flag=True, help="Reverse the sort order.")
@@ -249,7 +249,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
 
         qualified = [r for r in results if r.get("qualified")]
         non_qualified = [r for r in results if not r.get("qualified")]
-        click.echo(f"Qualified (Tier 1 + Top 100 + $100k+ + <5% spread + ≤24h exp): {len(qualified)}")
+        click.echo(f"Qualified (Tier 1 + Top 100 + $10k+ + <5% spread + ≤24h exp): {len(qualified)}")
 
         # Determine sort column
         if sort_by:
@@ -508,7 +508,7 @@ def stats(ctx):
 @cli.command("whale-trade")
 @click.option("--prefixes", default="KXNFL,KXNBA,KXBTC,KXETH", help="Comma-separated event ticker prefixes.", show_default=True)
 @click.option("--min-price", default=95, type=click.IntRange(1, 99), help="Minimum bid price in cents for scanner.", show_default=True)
-@click.option("--min-volume", default=100000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
+@click.option("--min-volume", default=10000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
 @click.option("--max-hours-to-expiration", default=24.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
@@ -529,7 +529,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
     24 hours (default), ranks them, picks the best one, and places a MARKET
     ORDER for instant execution at the current ask price.
 
-    Qualified = Tier 1 (>=98c) + top 100 by $vol + >=$100k daily + <5% spread + ≤24h expiration.
+    Qualified = Tier 1 (>=98c) + top 100 by $vol + >=$10k daily + <5% spread + ≤24h expiration.
 
     \b
     Expiration (default: 24 hours):
