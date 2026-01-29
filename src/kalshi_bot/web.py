@@ -150,12 +150,17 @@ def trades():
 @app.route("/scanner")
 def scanner():
     db.init_db()
+    # Use cached results if available; otherwise show empty page
+    # (scanning fetches ALL markets from API and can be slow)
     results = []
     scan_stats = {}
     error = None
     try:
-        client = _get_client()
-        results, scan_stats = scan(client, min_price=95, min_volume=1000, top_n=30, use_cache=True)
+        from kalshi_bot.scanner import _scan_cache
+        age = time.time() - _scan_cache["ts"]
+        if _scan_cache["stats"] and age < _scan_cache["ttl"]:
+            results = _scan_cache["results"]
+            scan_stats = _scan_cache["stats"]
     except Exception as e:
         error = str(e)
     return render_template("scanner.html", results=results, scan_stats=scan_stats, error=error)

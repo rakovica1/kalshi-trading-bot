@@ -158,8 +158,13 @@
   </div>
   {% else %}
   <div id="empty-state" class="text-center py-16">
+    {% if scan_stats %}
     <div class="text-slate-600 text-lg mb-2">No markets found</div>
     <p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (&ge;95c). Click Refresh to scan again.</p>
+    {% else %}
+    <div class="text-slate-600 text-lg mb-2">Click Refresh to scan markets</div>
+    <p class="text-slate-500 text-sm">Scans the top 30 most active markets (by 24h volume) for high-probability opportunities.</p>
+    {% endif %}
   </div>
   {% endif %}
 </div>
@@ -253,8 +258,8 @@ function updateDiagnostics(s) {
 function renderResults(results, count) {
   var container = document.getElementById('scan-results');
   if (results.length === 0) {
-    container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets found</div>'
-      + '<p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (\u226595c). Click Refresh to scan again.</p></div>';
+    container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets matched</div>'
+      + '<p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (\u226595c).</p></div>';
     return;
   }
 
