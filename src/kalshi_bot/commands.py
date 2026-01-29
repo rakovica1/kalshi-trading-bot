@@ -421,8 +421,9 @@ def stats(ctx):
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
 @click.option("--tier1-only/--all-tiers", default=True, help="Only trade qualified Tier 1 markets.", show_default=True)
+@click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
 @click.pass_context
-def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, tier1_only):
+def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, tier1_only, skip_confirm):
     """Run fully autonomous whale trading strategy.
 
     Scans all markets, filters to qualified opportunities, ranks them,
@@ -433,7 +434,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, ti
     Default is dry-run mode. Use --live to place real orders.
     """
     try:
-        if not dry_run:
+        if not dry_run and not skip_confirm:
             click.confirm(
                 "LIVE MODE: This will place real orders with real money. Continue?",
                 abort=True,
