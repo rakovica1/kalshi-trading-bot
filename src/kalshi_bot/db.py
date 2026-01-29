@@ -554,6 +554,16 @@ def get_position_tickers(db_path=DEFAULT_DB_PATH):
     return {r["ticker"] for r in rows}
 
 
+def get_first_balance(db_path=DEFAULT_DB_PATH):
+    """Return the very first balance snapshot ever recorded, or None."""
+    conn = _connect(db_path)
+    row = _fetchone(conn,
+        "SELECT balance_cents FROM balance_history ORDER BY id ASC LIMIT 1"
+    )
+    conn.close()
+    return row["balance_cents"] if row else None
+
+
 def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     """Return the earliest balance snapshot for today, or None."""
     conn = _connect(db_path)

@@ -137,10 +137,11 @@ def dashboard():
     # Re-fetch stats after auto-closing any settled positions
     stats = db.get_stats()
 
-    realized = stats["realized_pnl_cents"]
-    total_pnl = realized + total_unrealized
+    # Net P&L = current balance - first recorded balance (source of truth)
+    starting_balance = db.get_first_balance() or balance_cents
+    net_pnl = balance_cents - starting_balance
+
     total_fees = stats["total_fees_cents"]
-    net_pnl = total_pnl - total_fees
     total_invested = stats["total_invested_cents"]
     roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
 
@@ -151,9 +152,8 @@ def dashboard():
         "dashboard.html",
         balance_cents=balance_cents,
         balance_timestamp=balance_timestamp,
+        starting_balance_cents=starting_balance,
         unrealized_cents=total_unrealized,
-        realized_cents=realized,
-        total_pnl_cents=total_pnl,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
         total_invested_cents=total_invested,
