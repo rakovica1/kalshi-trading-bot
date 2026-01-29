@@ -154,7 +154,7 @@ def scanner():
     error = None
     try:
         client = _get_client()
-        results = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000)
+        results = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000, use_cache=True)
     except Exception as e:
         error = str(e)
     return render_template("scanner.html", results=results, error=error)
@@ -164,7 +164,7 @@ def scanner():
 def scanner_refresh():
     try:
         client = _get_client()
-        results = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000)
+        results = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000, use_cache=False)
         data = []
         for m in results:
             data.append({
