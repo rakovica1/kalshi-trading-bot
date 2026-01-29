@@ -272,9 +272,41 @@ def trades():
     ticker = request.args.get("ticker", "").strip() or None
     limit = request.args.get("limit", 50, type=int)
     trade_list = db.get_trade_history(limit=limit, ticker=ticker)
+
+    # Build settlement lookup from positions table
+    all_positions = db.get_all_positions()
+    # Map (ticker, side) -> position info
+    pos_map = {}
+    for p in all_positions:
+        key = (p["ticker"], p["side"])
+        pos_map[key] = p
+
     for t in trade_list:
         if t.get("created_at"):
             t["created_at"] = _utc_to_est(t["created_at"])
+
+        # Determine settlement status
+        fill_count = t.get("fill_count", 0) or 0
+        if fill_count <= 0 or t.get("status") == "failed":
+            t["settlement"] = "na"
+            t["settlement_label"] = "—"
+        else:
+            pos = pos_map.get((t["ticker"], t["side"]))
+            if pos and pos.get("is_closed"):
+                pnl = pos.get("realized_pnl_cents", 0)
+                if pnl > 0:
+                    t["settlement"] = "won"
+                    t["settlement_label"] = "WON · 100¢"
+                elif pnl < 0:
+                    t["settlement"] = "lost"
+                    t["settlement_label"] = "LOST · 0¢"
+                else:
+                    t["settlement"] = "even"
+                    t["settlement_label"] = "EVEN"
+            else:
+                t["settlement"] = "pending"
+                t["settlement_label"] = "Pending"
+
     return render_template(
         "trades.html",
         trades=trade_list,

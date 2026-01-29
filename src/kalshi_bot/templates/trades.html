@@ -28,6 +28,7 @@
         <th class="pb-3 pr-3 text-right">Price</th>
         <th class="pb-3 pr-3 text-right">Fee</th>
         <th class="pb-3 pr-3 text-right">Fills</th>
+        <th class="pb-3 pr-3">Settlement</th>
         <th class="pb-3">Status</th>
       </tr>
     </thead>
@@ -47,6 +48,19 @@
         <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.price_cents }}c</td>
         <td class="py-2.5 pr-3 text-right text-amber-400/70">${{ "%.2f"|format((t.fee_cents|default(0)) / 100) }}</td>
         <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.fill_count }}</td>
+        <td class="py-2.5 pr-3">
+          {% if t.settlement == 'won' %}
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/50 text-emerald-400">{{ t.settlement_label }}</span>
+          {% elif t.settlement == 'lost' %}
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-400">{{ t.settlement_label }}</span>
+          {% elif t.settlement == 'even' %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-400">{{ t.settlement_label }}</span>
+          {% elif t.settlement == 'pending' %}
+            <span class="text-xs text-amber-400/70">{{ t.settlement_label }}</span>
+          {% else %}
+            <span class="text-xs text-slate-600">{{ t.settlement_label }}</span>
+          {% endif %}
+        </td>
         <td class="py-2.5">
           {% if t.status == 'filled' %}
             <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">filled</span>
@@ -62,7 +76,7 @@
       {% if t.error_message %}
       <tr class="border-b border-slate-800/50">
         <td></td>
-        <td colspan="8" class="py-1 text-xs text-red-400/80">Error: {{ t.error_message }}</td>
+        <td colspan="9" class="py-1 text-xs text-red-400/80">Error: {{ t.error_message }}</td>
       </tr>
       {% endif %}
       {% endfor %}
