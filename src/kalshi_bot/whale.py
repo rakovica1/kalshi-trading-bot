@@ -1,21 +1,6 @@
-import time
-
 from kalshi_bot import db
 from kalshi_bot.scanner import scan, format_close_time, hours_until_close
 from kalshi_bot.sizing import calculate_position
-
-
-def _split_into_chunks(total, chunk_count):
-    """Split total contracts into chunk_count pieces (min 1 each)."""
-    if total <= 0:
-        return []
-    n = min(chunk_count, total)
-    base = total // n
-    remainder = total % n
-    chunks = [base] * n
-    for i in range(remainder):
-        chunks[i] += 1
-    return chunks
 
 
 def run_whale_strategy(
@@ -26,26 +11,33 @@ def run_whale_strategy(
     risk_pct=0.01,
     max_positions=10,
     daily_loss_pct=0.05,
-    chunk_count=3,
-    chunk_delay_sec=10,
     dry_run=True,
     tier1_only=True,
-    max_hours_to_expiration=None,
+    max_hours_to_expiration=1.0,
     log=print,
 ):
-    """Run the whale trading strategy.
+    """Last-Minute Sniper strategy.
 
-    1. Scans all markets automatically
-    2. Filters to QUALIFIED markets (Tier 1 + top 20 $vol + $50k + <5% spread)
-    3. Ranks by: highest price -> highest $volume -> tightest spread
-    4. Picks the #1 ranked market
-    5. Places the trade (or simulates in dry-run mode)
+    Ultra-short-term, instant-execution strategy targeting markets that
+    resolve within the hour. Uses MARKET orders at the current ask price
+    for immediate fills — no chunked/staggered execution.
+
+    Pipeline:
+      1. Scan all markets
+      2. Filter to QUALIFIED (Tier 1 + top 20 $vol + $50k + <5% spread)
+      3. Filter by expiration window (default: 1 hour)
+      4. Rank by: highest price -> highest $volume -> tightest spread
+      5. Select #1 ranked market
+      6. Place MARKET ORDER for instant execution
 
     Returns a summary dict with counts of actions taken.
     """
     mode = "DRY RUN" if dry_run else "LIVE"
+    exp_label = f"{max_hours_to_expiration}h" if max_hours_to_expiration is not None else "no limit"
     log(f"\n{'='*60}")
-    log(f"  WHALE STRATEGY [{mode}]")
+    log(f"  LAST-MINUTE SNIPER [{mode}]")
+    log(f"  Expiration window: {exp_label}")
+    log(f"  Order type: MARKET (instant execution at ask)")
     log(f"{'='*60}")
 
     # 1. Fetch balance
@@ -122,7 +114,7 @@ def run_whale_strategy(
         log(f"{'='*60}\n")
         return {"scanned": total_found, "skipped": len(held), "traded": 0, "orders": 0, "stopped_reason": None}
 
-    # 6b. Filter by expiration if max_hours set
+    # 7. Filter by expiration window
     if max_hours_to_expiration is not None:
         log(f"\n  Expiration filter: within {max_hours_to_expiration}h")
         before_exp = len(available)
@@ -131,7 +123,6 @@ def run_whale_strategy(
         for c in available:
             hrs = c.get("hours_left")
             if hrs is None:
-                # Unknown expiration — skip (can't verify it's within window)
                 expired_out.append((c, "unknown"))
             elif hrs <= 0:
                 expired_out.append((c, "closed"))
@@ -147,50 +138,65 @@ def run_whale_strategy(
                 log(f"    ... and {len(expired_out) - 5} more")
         available = filtered
         if not available:
-            log(f"\n  No markets expire within {max_hours_to_expiration}h. Nothing to trade.")
+            log(f"\n  No qualified markets expiring within {max_hours_to_expiration}h. Nothing to snipe.")
+            log(f"  Tip: Use --max-hours-to-expiration to widen the window.")
             log(f"{'='*60}\n")
             return {"scanned": total_found, "skipped": len(held) + before_exp, "traded": 0, "orders": 0, "stopped_reason": "no_expiring"}
 
-    # 7. Rank: highest price -> highest $volume -> tightest spread
+    # 8. Rank: highest price -> highest $volume -> tightest spread
     available.sort(key=lambda m: (
         -m["signal_price"],
         -m["dollar_24h"],
         m.get("spread_pct", 99),
     ))
 
-    log(f"\n  Ranking {len(available)} available qualified markets:")
-    log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'PRICE':>5} {'24H $':>10} {'SPREAD':>7} {'RANK':>5} {'CLOSES':>20}")
-    log(f"  {'-'*95}")
+    log(f"\n  Ranking {len(available)} sniping targets:")
+    log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'BID':>4} {'ASK':>4} {'24H $':>10} {'SPREAD':>7} {'EXPIRES':>10}")
+    log(f"  {'-'*85}")
     for i, m in enumerate(available):
         marker = " >> " if i == 0 else "    "
-        close_fmt = m.get("close_time_fmt") or format_close_time(m.get("close_time", ""))
+        hrs = m.get("hours_left")
+        exp_str = f"{hrs:.0f}h" if hrs is not None and hrs >= 1 else f"{int((hrs or 0) * 60)}m"
+        ask = m.get("signal_ask", 0)
         log(f"  {marker}{i+1:>1}. {m['ticker']:<35} {m['signal_side'].upper():<4} "
-            f"{m['signal_price']:>4}c ${m['dollar_24h']:>8,} "
-            f"{m.get('spread_pct', 0):>6.1f}% #{m.get('dollar_rank', 0):>3} {close_fmt:>20}")
+            f"{m['signal_price']:>3}c {ask:>3}c ${m['dollar_24h']:>8,} "
+            f"{m.get('spread_pct', 0):>6.1f}% {exp_str:>10}")
 
-    # 8. Select #1 ranked market
+    # 9. Select #1 ranked market
     selected = available[0]
     ticker = selected["ticker"]
     side = selected["signal_side"]
-    price = selected["signal_price"]
+    bid_price = selected["signal_price"]
+    ask_price = selected.get("signal_ask", 0)
     dollar_24h = selected["dollar_24h"]
     spread = selected.get("spread_pct", 0)
     sel_close = selected.get("close_time_fmt") or format_close_time(selected.get("close_time", ""))
+    hrs_left = selected.get("hours_left")
 
-    log(f"\n  Selected {ticker} at {price}c "
-        f"(${dollar_24h:,} volume, {spread:.1f}% spread, closes {sel_close})")
+    log(f"\n  TARGET: {ticker}")
+    log(f"  Side:    {side.upper()}")
+    log(f"  Bid:     {bid_price}c")
+    log(f"  Ask:     {ask_price}c (market order execution price)")
+    log(f"  Spread:  {spread:.1f}%")
+    log(f"  Expires: {sel_close}")
 
-    # 9. Calculate position size
-    total_contracts = calculate_position(balance_cents, price, risk_pct)
+    # Slippage warning for wide spreads
+    if spread >= 3.0:
+        log(f"\n  WARNING: Wide spread ({spread:.1f}%). Market order may execute "
+            f"at {ask_price}c vs bid {bid_price}c ({ask_price - bid_price}c slippage).")
+
+    # Use ask price for position sizing (worst-case cost)
+    exec_price = ask_price if ask_price > 0 else bid_price
+
+    # 10. Calculate position size (based on ask price for accurate cost)
+    total_contracts = calculate_position(balance_cents, exec_price, risk_pct)
     if total_contracts <= 0:
-        log(f"  SKIP: Insufficient balance for even 1 contract at {price}c")
+        log(f"  SKIP: Insufficient balance for even 1 contract at {exec_price}c")
         log(f"{'='*60}\n")
         return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
 
-    chunks = _split_into_chunks(total_contracts, chunk_count)
-    cost_cents = total_contracts * price
-    log(f"  Position: {total_contracts} contracts x {price}c = ${cost_cents / 100:.2f}")
-    log(f"  Execution: {len(chunks)} chunks ({', '.join(str(c) for c in chunks)})")
+    cost_cents = total_contracts * exec_price
+    log(f"\n  MARKET ORDER: {total_contracts} contracts x ~{exec_price}c = ~${cost_cents / 100:.2f}")
 
     summary = {
         "scanned": total_found,
@@ -201,78 +207,76 @@ def run_whale_strategy(
         "selected_ticker": ticker,
     }
 
-    # 10. Execute trade
+    # 11. Execute market order (single order, no chunking)
     if dry_run:
-        log(f"\n  DRY RUN — would place {len(chunks)} orders for {total_contracts} {side.upper()} contracts on {ticker} at {price}c")
+        log(f"\n  DRY RUN — would place MARKET ORDER for {total_contracts} "
+            f"{side.upper()} contracts on {ticker} at ~{exec_price}c (ask)")
         summary["traded"] = 1
-        summary["orders"] = len(chunks)
+        summary["orders"] = 1
     else:
-        log(f"\n  PLACING {len(chunks)} orders for {total_contracts} {side.upper()} on {ticker}...")
-        chunk_success = 0
-        for i, chunk_qty in enumerate(chunks):
-            try:
-                result = client.create_order(
-                    ticker=ticker,
-                    side=side,
-                    action="buy",
-                    count=chunk_qty,
-                    price=price,
-                )
+        log(f"\n  PLACING MARKET ORDER: {total_contracts} {side.upper()} on {ticker} at ~{exec_price}c...")
+        try:
+            result = client.create_order(
+                ticker=ticker,
+                side=side,
+                action="buy",
+                count=total_contracts,
+                price=exec_price,
+                order_type="market",
+            )
 
-                order_id = result.get("order_id")
-                fill_count = result.get("fill_count", 0)
-                remaining = result.get("remaining_count", 0)
+            order_id = result.get("order_id")
+            fill_count = result.get("fill_count", 0)
+            remaining = result.get("remaining_count", 0)
 
-                if fill_count > 0 and remaining == 0:
-                    status = "filled"
-                elif fill_count > 0:
-                    status = "partial"
-                else:
-                    status = "submitted"
+            if fill_count > 0 and remaining == 0:
+                status = "filled"
+            elif fill_count > 0:
+                status = "partial"
+            else:
+                status = "submitted"
 
-                db.log_trade(
-                    ticker=ticker,
-                    side=side,
-                    action="buy",
-                    count=chunk_qty,
-                    price_cents=price,
-                    status=status,
-                    order_id=order_id,
-                    fill_count=fill_count,
-                    remaining_count=remaining,
-                )
+            db.log_trade(
+                ticker=ticker,
+                side=side,
+                action="buy",
+                count=total_contracts,
+                price_cents=exec_price,
+                status=status,
+                order_id=order_id,
+                fill_count=fill_count,
+                remaining_count=remaining,
+            )
 
-                if fill_count > 0:
-                    db.update_position_on_buy(ticker, side, fill_count, price)
+            if fill_count > 0:
+                db.update_position_on_buy(ticker, side, fill_count, exec_price)
 
-                chunk_success += 1
-                log(f"    Chunk {i+1}/{len(chunks)}: {chunk_qty} contracts -> {status} (fills={fill_count})")
-
-            except Exception as e:
-                db.log_trade(
-                    ticker=ticker,
-                    side=side,
-                    action="buy",
-                    count=chunk_qty,
-                    price_cents=price,
-                    status="failed",
-                    error_message=str(e),
-                )
-                log(f"    Chunk {i+1}/{len(chunks)}: FAILED — {e}")
-
-            # Delay between chunks
-            if i < len(chunks) - 1:
-                time.sleep(chunk_delay_sec)
-
-        if chunk_success > 0:
+            log(f"  Order ID:  {order_id}")
+            log(f"  Status:    {status}")
+            log(f"  Filled:    {fill_count}/{total_contracts}")
             summary["traded"] = 1
-        summary["orders"] = len(chunks)
+            summary["orders"] = 1
 
-    # 11. Summary
+        except Exception as e:
+            db.log_trade(
+                ticker=ticker,
+                side=side,
+                action="buy",
+                count=total_contracts,
+                price_cents=exec_price,
+                status="failed",
+                error_message=str(e),
+            )
+            log(f"  ORDER FAILED: {e}")
+            summary["orders"] = 1
+
+    # 12. Summary
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
-    log(f"  Market:  {ticker} {side.upper()} @ {price}c")
-    log(f"  Scanned: {summary['scanned']}  Qualified: {len(candidates)}  "
+    log(f"  Strategy:  Last-Minute Sniper")
+    log(f"  Market:    {ticker} {side.upper()} @ ~{exec_price}c (market order)")
+    log(f"  Expires:   {sel_close}")
+    log(f"  Scanned:   {summary['scanned']}  Qualified: {len(candidates)}  "
         f"Traded: {summary['traded']}  Orders: {summary['orders']}")
     if summary["stopped_reason"]:
         log(f"  Stopped: {summary['stopped_reason']}")

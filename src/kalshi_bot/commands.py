@@ -511,39 +511,45 @@ def stats(ctx):
 @click.option("--min-volume", default=1000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
-@click.option("--max-hours-to-expiration", default=None, type=float, help="Only trade markets expiring within N hours (overrides --max-days).")
+@click.option("--max-hours-to-expiration", default=1.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
+@click.option("--no-expiration-limit", is_flag=True, help="Remove expiration filter (trade any expiration).")
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
 @click.option("--tier1-only/--all-tiers", default=True, help="Only trade qualified Tier 1 markets.", show_default=True)
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
 @click.pass_context
 def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
                 max_days_to_expiration, max_hours_to_expiration,
-                dry_run, tier1_only, skip_confirm):
-    """Run fully autonomous whale trading strategy.
+                no_expiration_limit, dry_run, tier1_only, skip_confirm):
+    """Last-Minute Sniper — ultra-short-term market order strategy.
 
-    Scans all markets, filters to qualified opportunities, ranks them,
-    picks the best one, and places the trade automatically.
+    Scans all markets, filters to qualified opportunities expiring within
+    1 hour (default), ranks them, picks the best one, and places a MARKET
+    ORDER for instant execution at the current ask price.
 
     Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$50k daily + <5% spread.
 
     \b
-    Expiration filters (faster capital turnover):
-      --max-days-to-expiration 7     Only markets closing within 7 days
-      --max-hours-to-expiration 48   Only markets closing within 48 hours
+    Expiration (default: 1 hour):
+      --max-hours-to-expiration 2    Widen to 2 hours
+      --max-days-to-expiration 1     Markets closing within 1 day
+      --no-expiration-limit          No expiration filter
 
     Default is dry-run mode. Use --live to place real orders.
     """
     try:
         if not dry_run and not skip_confirm:
             click.confirm(
-                "LIVE MODE: This will place real orders with real money. Continue?",
+                "LIVE MODE: This will place MARKET ORDERS with real money. Continue?",
                 abort=True,
             )
 
-        # --max-hours takes priority; convert --max-days to hours
-        max_hours = max_hours_to_expiration
-        if max_hours is None and max_days_to_expiration is not None:
+        # Determine expiration filter
+        if no_expiration_limit:
+            max_hours = None
+        elif max_days_to_expiration is not None:
             max_hours = max_days_to_expiration * 24
+        else:
+            max_hours = max_hours_to_expiration
 
         client = _get_client(ctx.obj["config_path"])
         prefix_list = tuple(p.strip() for p in prefixes.split(","))
