@@ -129,6 +129,14 @@ const positionData = [
   {% endfor %}
 ];
 
+// ---------- Helper: parse history point timestamp ----------
+function historyTime(h) {
+  // Candlestick data uses unix 'ts', snapshot data uses 'recorded_at' string
+  if (h.ts) return new Date(h.ts * 1000);
+  if (h.recorded_at) return new Date(h.recorded_at);
+  return new Date();
+}
+
 // ---------- Create charts ----------
 function createChart(index, data) {
   const ctx = document.getElementById('chart-' + index);
@@ -136,7 +144,7 @@ function createChart(index, data) {
 
   const entry = data.entry;
   const historyPoints = data.history.map(h => ({
-    x: new Date(h.recorded_at),
+    x: historyTime(h),
     y: h.bid_cents
   }));
 
@@ -152,7 +160,7 @@ function createChart(index, data) {
 
   // Ask line points (matching bid timestamps)
   const askPoints = data.history.map(h => ({
-    x: new Date(h.recorded_at),
+    x: historyTime(h),
     y: h.ask_cents
   }));
   if (data.ask > 0) {
@@ -382,12 +390,12 @@ async function refreshPrices() {
       if (!chart) return;
 
       const bidPoints = pos.history.map(h => ({
-        x: new Date(h.recorded_at), y: h.bid_cents
+        x: historyTime(h), y: h.bid_cents
       }));
       if (pos.current_bid > 0) bidPoints.push({ x: new Date(), y: pos.current_bid });
 
       const askPoints = pos.history.map(h => ({
-        x: new Date(h.recorded_at), y: h.ask_cents
+        x: historyTime(h), y: h.ask_cents
       }));
       if (pos.current_ask > 0) askPoints.push({ x: new Date(), y: pos.current_ask });
 

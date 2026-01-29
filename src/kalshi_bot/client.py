@@ -75,6 +75,37 @@ class KalshiBotClient:
                 break
         return all_positions
 
+    def get_market_candlesticks(self, ticker, series_ticker, start_ts, end_ts, period_interval=60) -> list:
+        """Fetch candlestick data for a market.
+
+        period_interval: 1 (1min), 60 (1h), or 1440 (1d).
+        Returns list of candlestick dicts.
+        """
+        resp = self._market_api.get_market_candlesticks_without_preload_content(
+            series_ticker=series_ticker,
+            ticker=ticker,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+        )
+        data = json.loads(resp.data)
+        return data.get("candlesticks", [])
+
+    def batch_get_market_candlesticks(self, tickers, start_ts, end_ts, period_interval=60) -> dict:
+        """Fetch candlestick data for multiple markets at once.
+
+        tickers: list of market ticker strings (max 100).
+        Returns dict mapping ticker -> list of candlestick dicts.
+        """
+        resp = self._market_api.batch_get_market_candlesticks_without_preload_content(
+            market_tickers=",".join(tickers),
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+        )
+        data = json.loads(resp.data)
+        return data.get("candlesticks", {})
+
     def create_order(self, ticker, side, action, count, price=None, order_type="limit") -> dict:
         """Place an order.
 

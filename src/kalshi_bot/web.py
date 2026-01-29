@@ -199,6 +199,92 @@ def trades():
 # Charts
 # ---------------------------------------------------------------------------
 
+def _fetch_candlestick_history(client, tickers, hours=24):
+    """Fetch candlestick history for a list of tickers via the Kalshi API.
+
+    Uses 1-minute candles for <6h, 1-hour candles otherwise.
+    Returns dict mapping ticker -> list of {ts, yes_bid, yes_ask, no_bid, no_ask}.
+    """
+    import time as _time
+    now = int(_time.time())
+    start = now - int(hours * 3600)
+    interval = 1 if hours <= 6 else 60
+
+    result = {}
+    try:
+        raw = client.batch_get_market_candlesticks(
+            tickers=tickers, start_ts=start, end_ts=now,
+            period_interval=interval,
+        )
+        # raw is dict: ticker -> list of candlestick dicts
+        for ticker, candles in raw.items():
+            points = []
+            for c in candles:
+                ts = c.get("end_period_ts", 0)
+                yes_bid_d = c.get("yes_bid") or {}
+                yes_ask_d = c.get("yes_ask") or {}
+                points.append({
+                    "ts": ts,
+                    "yes_bid": yes_bid_d.get("close", 0) or 0,
+                    "yes_ask": yes_ask_d.get("close", 0) or 0,
+                })
+            points.sort(key=lambda p: p["ts"])
+            result[ticker] = points
+    except Exception:
+        pass
+    return result
+
+
+def _build_position_data(client, open_positions, candle_history):
+    """Enrich open positions with current prices and chart history."""
+    enriched = []
+    for p in open_positions:
+        entry = p["avg_entry_price_cents"]
+        qty = p["quantity"]
+        try:
+            m = client.get_market(ticker=p["ticker"])
+            if p["side"] == "yes":
+                bid = m.get("yes_bid", 0) or 0
+                ask = m.get("yes_ask", 0) or 0
+            else:
+                bid = m.get("no_bid", 0) or 0
+                ask = m.get("no_ask", 0) or 0
+            close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
+            db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
+        except Exception:
+            bid = 0
+            ask = 0
+            close_time = ""
+        unrealized = int(qty * (bid - entry))
+
+        # Build history from candlestick data
+        history = []
+        candles = candle_history.get(p["ticker"], [])
+        for c in candles:
+            if p["side"] == "yes":
+                h_bid = c.get("yes_bid", 0)
+                h_ask = c.get("yes_ask", 0)
+            else:
+                # NO side: bid = 100 - yes_ask, ask = 100 - yes_bid
+                h_bid = max(0, 100 - (c.get("yes_ask", 0) or 0))
+                h_ask = max(0, 100 - (c.get("yes_bid", 0) or 0))
+            history.append({
+                "ts": c["ts"],
+                "bid_cents": h_bid,
+                "ask_cents": h_ask,
+            })
+
+        enriched.append({
+            **p,
+            "current_bid": bid,
+            "current_ask": ask,
+            "unrealized_cents": unrealized,
+            "close_time": close_time,
+            "history": history,
+        })
+    return enriched
+
+
 @app.route("/charts")
 def charts():
     db.init_db()
@@ -207,35 +293,9 @@ def charts():
     enriched = []
     try:
         client = _get_client()
-        for p in open_positions:
-            entry = p["avg_entry_price_cents"]
-            qty = p["quantity"]
-            try:
-                m = client.get_market(ticker=p["ticker"])
-                if p["side"] == "yes":
-                    bid = m.get("yes_bid", 0) or 0
-                    ask = m.get("yes_ask", 0) or 0
-                else:
-                    bid = m.get("no_bid", 0) or 0
-                    ask = m.get("no_ask", 0) or 0
-                close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
-                # Log snapshot for chart history
-                db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
-            except Exception:
-                bid = 0
-                ask = 0
-                close_time = ""
-            unrealized = int(qty * (bid - entry))
-            # Get existing price history
-            history = db.get_price_history(p["ticker"], p["side"], hours=24)
-            enriched.append({
-                **p,
-                "current_bid": bid,
-                "current_ask": ask,
-                "unrealized_cents": unrealized,
-                "close_time": close_time,
-                "history": history,
-            })
+        tickers = [p["ticker"] for p in open_positions]
+        candle_history = _fetch_candlestick_history(client, tickers, hours=24) if tickers else {}
+        enriched = _build_position_data(client, open_positions, candle_history)
     except Exception:
         enriched = [{
             **p,
@@ -257,41 +317,26 @@ def charts():
 
 @app.route("/api/charts/prices")
 def api_charts_prices():
-    """Return current prices + history for all open positions (JSON)."""
+    """Return current prices + candlestick history for all open positions."""
     db.init_db()
     open_positions = db.get_open_positions()
-    result = []
     try:
         client = _get_client()
-        for p in open_positions:
-            try:
-                m = client.get_market(ticker=p["ticker"])
-                if p["side"] == "yes":
-                    bid = m.get("yes_bid", 0) or 0
-                    ask = m.get("yes_ask", 0) or 0
-                else:
-                    bid = m.get("no_bid", 0) or 0
-                    ask = m.get("no_ask", 0) or 0
-                close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
-                db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
-            except Exception:
-                bid = 0
-                ask = 0
-                close_time = ""
-            entry = p["avg_entry_price_cents"]
-            qty = p["quantity"]
-            unrealized = int(qty * (bid - entry))
-            history = db.get_price_history(p["ticker"], p["side"], hours=24)
+        tickers = [p["ticker"] for p in open_positions]
+        candle_history = _fetch_candlestick_history(client, tickers, hours=24) if tickers else {}
+        enriched = _build_position_data(client, open_positions, candle_history)
+        result = []
+        for pos in enriched:
             result.append({
-                "ticker": p["ticker"],
-                "side": p["side"],
-                "entry_cents": entry,
-                "quantity": qty,
-                "current_bid": bid,
-                "current_ask": ask,
-                "unrealized_cents": unrealized,
-                "close_time": close_time,
-                "history": history,
+                "ticker": pos["ticker"],
+                "side": pos["side"],
+                "entry_cents": pos["avg_entry_price_cents"],
+                "quantity": pos["quantity"],
+                "current_bid": pos["current_bid"],
+                "current_ask": pos["current_ask"],
+                "unrealized_cents": pos["unrealized_cents"],
+                "close_time": pos["close_time"],
+                "history": pos["history"],
             })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
