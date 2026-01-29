@@ -172,7 +172,9 @@ def scanner_refresh():
                 "ticker": m.get("ticker", "?"),
                 "side": m["signal_side"],
                 "price": m["signal_price"],
+                "volume_24h": m.get("volume_24h", 0),
                 "volume": m.get("volume", 0),
+                "open_interest": m.get("open_interest", 0),
                 "event": m.get("event_ticker", ""),
                 "tier": m.get("tier", 3),
             })

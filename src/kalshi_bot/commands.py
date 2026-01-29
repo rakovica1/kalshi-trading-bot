@@ -181,7 +181,7 @@ def order(ctx, ticker, side, action, count, price, skip_confirm):
 
 @cli.command("scan")
 @click.option("--min-price", default=99, type=click.IntRange(1, 99), help="Minimum bid price in cents.", show_default=True)
-@click.option("--min-volume", default=100, type=int, help="Minimum volume.", show_default=True)
+@click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
 @click.pass_context
@@ -192,7 +192,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
 
         prefix_list = [p.strip() for p in prefixes.split(",")] if prefixes else None
 
-        click.echo(f"Scanning all open markets (min_price={min_price}c, min_volume={min_volume})...")
+        click.echo(f"Scanning all open markets (min_price={min_price}c, min_24h_vol={min_volume})...")
         results, _stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=5000)
 
         if not results:
@@ -205,22 +205,24 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
             balance_cents = data.get("balance", 0)
             click.echo(f"Balance: ${balance_cents / 100:.2f} (1% risk = ${balance_cents * 0.01 / 100:.2f})\n")
 
-        click.echo(f"{'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'VOLUME':>8} {'EVENT':>15} ", nl=False)
+        click.echo(f"{'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'24H VOL':>8} {'TOTAL VOL':>10} {'OI':>8} {'EVENT':>15} ", nl=False)
         if show_sizing:
             click.echo(f"{'CONTRACTS':>10}", nl=False)
         click.echo()
-        click.echo("-" * (75 + (10 if show_sizing else 0)))
+        click.echo("-" * (93 + (10 if show_sizing else 0)))
 
         for m in results:
             ticker = m.get("ticker", "?")
             side = m["signal_side"]
             price = m["signal_price"]
-            volume = m.get("volume", 0)
+            vol_24h = m.get("volume_24h", 0)
+            vol_total = m.get("volume", 0)
+            oi = m.get("open_interest", 0)
             event = m.get("event_ticker", "—")
             if len(event) > 15:
                 event = event[:14] + "~"
 
-            click.echo(f"  {ticker:<38} {side.upper():<5} {price:>4}c {volume:>8} {event:>15} ", nl=False)
+            click.echo(f"  {ticker:<38} {side.upper():<5} {price:>4}c {vol_24h:>8} {vol_total:>10} {oi:>8} {event:>15} ", nl=False)
 
             if show_sizing and balance_cents:
                 contracts = calculate_position(balance_cents, price)

@@ -18,11 +18,12 @@ def _fetch_all_markets(client, status="open", page_size=1000):
         data = json.loads(resp.data)
         page = data.get("markets", [])
         for m in page:
-            # Keep only the fields we need to minimise memory
             markets.append({
                 "ticker": m.get("ticker", "?"),
                 "event_ticker": m.get("event_ticker", ""),
+                "volume_24h": m.get("volume_24h", 0) or 0,
                 "volume": m.get("volume", 0) or 0,
+                "open_interest": m.get("open_interest", 0) or 0,
                 "yes_bid": m.get("yes_bid", 0) or 0,
                 "no_bid": m.get("no_bid", 0) or 0,
             })
@@ -55,9 +56,11 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
          use_cache=False, top_n=30):
     """Find markets where YES or NO bid is >= min_price.
 
-    Fetches ALL open markets from the API, sorts by volume descending,
-    then filters the top_n most liquid markets by prefix, volume, and price.
+    Fetches ALL open markets from the API, sorts by 24h volume descending,
+    then filters the top_n most active markets by prefix, volume, and price.
     Each result is assigned a tier (1/2/3) based on price.
+
+    min_volume applies to volume_24h (24-hour trading volume).
 
     Returns (results, stats) tuple.
     """
@@ -73,10 +76,10 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     all_markets = _fetch_all_markets(client)
     total_fetched = len(all_markets)
 
-    # 2. Sort by volume descending so we filter the most liquid first
-    all_markets.sort(key=lambda m: m["volume"], reverse=True)
+    # 2. Sort by 24h volume descending — most recent activity first
+    all_markets.sort(key=lambda m: m["volume_24h"], reverse=True)
 
-    # 3. Take only top_n by volume for filtering
+    # 3. Take only top_n by 24h volume for filtering
     candidates = all_markets[:top_n]
 
     results = []
@@ -92,7 +95,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
 
         passed_prefix += 1
 
-        if m["volume"] < min_volume:
+        if m["volume_24h"] < min_volume:
             continue
 
         passed_volume += 1
@@ -108,7 +111,9 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "event_ticker": m["event_ticker"],
                 "signal_side": "yes",
                 "signal_price": yes_bid,
+                "volume_24h": m["volume_24h"],
                 "volume": m["volume"],
+                "open_interest": m["open_interest"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
                 "tier": tier,
@@ -121,14 +126,16 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "event_ticker": m["event_ticker"],
                 "signal_side": "no",
                 "signal_price": no_bid,
+                "volume_24h": m["volume_24h"],
                 "volume": m["volume"],
+                "open_interest": m["open_interest"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
                 "tier": tier,
             })
 
-    # Sort by tier (best first), then price desc, then volume desc
-    results.sort(key=lambda x: (x["tier"], -x["signal_price"], -x.get("volume", 0)))
+    # Sort by tier (best first), then price desc, then 24h volume desc
+    results.sort(key=lambda x: (x["tier"], -x["signal_price"], -x["volume_24h"]))
 
     stats = {
         "total_fetched": total_fetched,

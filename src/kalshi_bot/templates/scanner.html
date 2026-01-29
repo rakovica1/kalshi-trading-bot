@@ -24,7 +24,7 @@
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
     </svg>
     <div class="text-slate-300 font-medium" id="loading-title">Scanning markets...</div>
-    <div class="text-slate-500 text-sm mt-1" id="loading-detail">Fetching top 30 markets by volume</div>
+    <div class="text-slate-500 text-sm mt-1" id="loading-detail">Fetching top 30 markets by 24h volume</div>
   </div>
 </div>
 
@@ -43,12 +43,12 @@
       <span class="text-slate-300 ml-1">{{ scan_stats.total_fetched }}</span>
     </div>
     <div>
-      <span class="text-slate-500">Top by volume examined:</span>
+      <span class="text-slate-500">Top by 24h vol examined:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.scanned }} of {{ scan_stats.top_n }}</span>
     </div>
     <div>
       <span class="text-slate-500">Sorting:</span>
-      <span class="text-slate-300 ml-1">volume descending</span>
+      <span class="text-slate-300 ml-1">24h volume descending</span>
     </div>
   </div>
   <div class="grid grid-cols-3 gap-3 text-xs">
@@ -57,7 +57,7 @@
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_prefix }}</span>
     </div>
     <div>
-      <span class="text-slate-500">Passed volume &ge;{{ "{:,}".format(scan_stats.min_volume) }}:</span>
+      <span class="text-slate-500">Passed 24h vol &ge;{{ "{:,}".format(scan_stats.min_volume) }}:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_volume }}</span>
     </div>
     <div>
@@ -98,7 +98,9 @@
           <th class="pb-3 pr-4">Ticker</th>
           <th class="pb-3 pr-4">Side</th>
           <th class="pb-3 pr-4 text-right">Price</th>
-          <th class="pb-3 pr-4 text-right">Volume</th>
+          <th class="pb-3 pr-4 text-right">24h Vol</th>
+          <th class="pb-3 pr-4 text-right">Total Vol</th>
+          <th class="pb-3 pr-4 text-right">Open Int</th>
           <th class="pb-3">Event</th>
         </tr>
       </thead>
@@ -108,7 +110,7 @@
         {% if m.tier != ns.current_tier %}
         {% set ns.current_tier = m.tier %}
         <tr>
-          <td colspan="6" class="pt-4 pb-2">
+          <td colspan="8" class="pt-4 pb-2">
             {% if m.tier == 1 %}
             <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
             {% elif m.tier == 2 %}
@@ -143,7 +145,9 @@
             {% if m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
             {{ m.signal_price }}c
           </td>
-          <td class="py-2.5 pr-4 text-right text-slate-400">{{ "{:,}".format(m.volume|default(0)) }}</td>
+          <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.volume|default(0)) }}</td>
+          <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
           <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
         </tr>
         {% endfor %}
@@ -153,7 +157,7 @@
   {% else %}
   <div id="empty-state" class="text-center py-16">
     <div class="text-slate-600 text-lg mb-2">No markets found</div>
-    <p class="text-slate-500 text-sm">No markets in the top 30 by volume matched the price filter (&ge;95c). Click Refresh to scan again.</p>
+    <p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (&ge;95c). Click Refresh to scan again.</p>
   </div>
   {% endif %}
 </div>
@@ -184,11 +188,11 @@ function tierHeading(tier) {
 }
 
 async function refreshScan() {
-  const btn = document.getElementById('refresh-btn');
-  const text = document.getElementById('refresh-text');
-  const icon = document.getElementById('refresh-icon');
-  const loading = document.getElementById('scan-loading');
-  const timeoutWarn = document.getElementById('timeout-warning');
+  var btn = document.getElementById('refresh-btn');
+  var text = document.getElementById('refresh-text');
+  var icon = document.getElementById('refresh-icon');
+  var loading = document.getElementById('scan-loading');
+  var timeoutWarn = document.getElementById('timeout-warning');
 
   btn.disabled = true;
   text.textContent = 'Scanning...';
@@ -196,13 +200,13 @@ async function refreshScan() {
   loading.classList.remove('hidden');
   timeoutWarn.classList.add('hidden');
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(function() { controller.abort(); }, 20000);
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
 
   try {
-    const res = await fetch('/scanner/refresh', { method: 'POST', signal: controller.signal });
+    var res = await fetch('/scanner/refresh', { method: 'POST', signal: controller.signal });
     clearTimeout(timeoutId);
-    const data = await res.json();
+    var data = await res.json();
 
     if (!data.ok) {
       alert('Scan error: ' + data.error);
@@ -216,8 +220,6 @@ async function refreshScan() {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
       timeoutWarn.classList.remove('hidden');
-      document.getElementById('loading-title').textContent = 'Timed out';
-      document.getElementById('loading-detail').textContent = 'Scan did not complete within 20 seconds';
     } else {
       alert('Network error: ' + err.message);
     }
@@ -226,8 +228,6 @@ async function refreshScan() {
     btn.disabled = false;
     text.textContent = 'Refresh';
     icon.classList.remove('animate-spin');
-    document.getElementById('loading-title').textContent = 'Scanning markets...';
-    document.getElementById('loading-detail').textContent = 'Fetching top 30 markets by volume';
   }
 }
 
@@ -237,12 +237,12 @@ function updateDiagnostics(s) {
   diag.innerHTML = '<div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>'
     + '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">'
     + '<div><span class="text-slate-500">Total markets fetched:</span> <span class="text-slate-300">' + s.total_fetched + '</span></div>'
-    + '<div><span class="text-slate-500">Top by volume examined:</span> <span class="text-slate-300">' + s.scanned + ' of ' + s.top_n + '</span></div>'
-    + '<div><span class="text-slate-500">Sorting:</span> <span class="text-slate-300">volume descending</span></div>'
+    + '<div><span class="text-slate-500">Top by 24h vol examined:</span> <span class="text-slate-300">' + s.scanned + ' of ' + s.top_n + '</span></div>'
+    + '<div><span class="text-slate-500">Sorting:</span> <span class="text-slate-300">24h volume descending</span></div>'
     + '</div>'
     + '<div class="grid grid-cols-3 gap-3 text-xs">'
     + '<div><span class="text-slate-500">Passed prefix filter:</span> <span class="text-slate-300">' + s.passed_prefix + '</span></div>'
-    + '<div><span class="text-slate-500">Passed volume \u2265' + s.min_volume.toLocaleString() + ':</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
+    + '<div><span class="text-slate-500">Passed 24h vol \u2265' + s.min_volume.toLocaleString() + ':</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
     + '<div><span class="text-slate-500">Passed price \u2265' + s.min_price + 'c:</span> <span class="text-slate-300">' + s.passed_price + '</span></div>'
     + '</div>'
     + '<div class="mt-2 text-xs text-slate-500">Prefixes: ' + (s.prefixes && s.prefixes.length ? s.prefixes.join(', ') : 'all (no prefix filter)') + '</div>';
@@ -252,7 +252,7 @@ function renderResults(results, count) {
   var container = document.getElementById('scan-results');
   if (results.length === 0) {
     container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets found</div>'
-      + '<p class="text-slate-500 text-sm">No markets in the top 30 by volume matched the price filter (\u226595c). Click Refresh to scan again.</p></div>';
+      + '<p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (\u226595c). Click Refresh to scan again.</p></div>';
     return;
   }
 
@@ -260,7 +260,9 @@ function renderResults(results, count) {
   html += '<div class="overflow-x-auto"><table class="w-full text-sm"><thead>';
   html += '<tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">';
   html += '<th class="pb-3 pr-4">Tier</th><th class="pb-3 pr-4">Ticker</th><th class="pb-3 pr-4">Side</th>';
-  html += '<th class="pb-3 pr-4 text-right">Price</th><th class="pb-3 pr-4 text-right">Volume</th><th class="pb-3">Event</th></tr></thead><tbody>';
+  html += '<th class="pb-3 pr-4 text-right">Price</th><th class="pb-3 pr-4 text-right">24h Vol</th>';
+  html += '<th class="pb-3 pr-4 text-right">Total Vol</th><th class="pb-3 pr-4 text-right">Open Int</th>';
+  html += '<th class="pb-3">Event</th></tr></thead><tbody>';
 
   var currentTier = 0;
   for (var i = 0; i < results.length; i++) {
@@ -269,7 +271,7 @@ function renderResults(results, count) {
 
     if (tier !== currentTier) {
       currentTier = tier;
-      html += '<tr><td colspan="6" class="pt-4 pb-2">' + tierHeading(tier) + '</td></tr>';
+      html += '<tr><td colspan="8" class="pt-4 pb-2">' + tierHeading(tier) + '</td></tr>';
     }
 
     var sideClass = m.side === 'yes' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400';
@@ -278,7 +280,9 @@ function renderResults(results, count) {
     html += '<td class="py-2.5 pr-4 font-mono text-xs text-slate-300">' + m.ticker + '</td>';
     html += '<td class="py-2.5 pr-4"><span class="px-2 py-0.5 rounded text-xs font-medium ' + sideClass + '">' + m.side.toUpperCase() + '</span></td>';
     html += '<td class="py-2.5 pr-4 text-right font-medium ' + tierPriceClass(tier) + '">' + m.price + 'c</td>';
-    html += '<td class="py-2.5 pr-4 text-right text-slate-400">' + m.volume.toLocaleString() + '</td>';
+    html += '<td class="py-2.5 pr-4 text-right text-white font-medium">' + (m.volume_24h || 0).toLocaleString() + '</td>';
+    html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.volume || 0).toLocaleString() + '</td>';
+    html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.open_interest || 0).toLocaleString() + '</td>';
     html += '<td class="py-2.5 text-slate-500 text-xs font-mono">' + (m.event || '') + '</td>';
     html += '</tr>';
   }
