@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 from pathlib import Path
@@ -29,6 +30,35 @@ def load_config_from_env():
 
     if env not in HOSTS:
         raise ValueError(f"KALSHI_ENV must be 'demo' or 'prod', got '{env}'")
+
+    # Handle base64-encoded PEM (no newline issues)
+    if not private_key.startswith("-----"):
+        try:
+            private_key = base64.b64decode(private_key).decode("utf-8")
+        except Exception:
+            pass
+
+    # Fix newlines that Railway may have stripped:
+    # "-----BEGIN ... KEY-----MIIEv..." -> proper PEM with line breaks
+    if "-----BEGIN" in private_key and "\n" not in private_key:
+        # Newlines were stripped — reconstruct proper PEM
+        private_key = private_key.replace("-----BEGIN ", "\n-----BEGIN ")
+        private_key = private_key.replace("-----END ", "\n-----END ")
+        private_key = private_key.replace("----- ", "-----\n")
+        private_key = private_key.replace(" -----", "\n-----")
+
+        # Re-wrap the base64 body to 64-char lines
+        lines = private_key.strip().split("\n")
+        rebuilt = [lines[0]]  # header
+        body = "".join(lines[1:-1])  # join all base64 content
+        for i in range(0, len(body), 64):
+            rebuilt.append(body[i:i+64])
+        rebuilt.append(lines[-1])  # footer
+        private_key = "\n".join(rebuilt) + "\n"
+
+    # Also handle literal \n escape sequences from env var
+    if "\\n" in private_key:
+        private_key = private_key.replace("\\n", "\n")
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
     tmp.write(private_key)
