@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+{% block title %}Charts - Nightrader{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Position Charts</h1>
+  <div class="flex items-center gap-3">
+    <span id="update-status" class="text-xs text-slate-500"></span>
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      Live &mdash; 60s refresh
+    </div>
+  </div>
+</div>
+
+{% if positions %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6" id="charts-grid">
+  {% for p in positions %}
+  <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden"
+       data-ticker="{{ p.ticker }}" data-side="{{ p.side }}" data-index="{{ loop.index0 }}">
+    <!-- Header -->
+    <div class="px-5 pt-4 pb-2 border-b border-slate-800/50">
+      <div class="flex items-center justify-between">
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-slate-200 truncate font-mono">{{ p.ticker }}</h2>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ 'bg-emerald-900/50 text-emerald-400' if p.side == 'yes' else 'bg-red-900/50 text-red-400' }}">
+              {{ p.side|upper }}
+            </span>
+            <span class="text-xs text-slate-500">{{ p.quantity }} contract{{ 's' if p.quantity != 1 }}</span>
+          </div>
+        </div>
+        <div class="text-right ml-4">
+          <div class="text-lg font-bold pnl-display {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
+            ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+          </div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wide">Unrealized P&amp;L</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="px-4 py-3" style="height: 260px;">
+      <canvas id="chart-{{ loop.index0 }}"></canvas>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-4 border-t border-slate-800/50 text-center">
+      <div class="px-3 py-3 border-r border-slate-800/30">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Entry</div>
+        <div class="text-sm font-semibold text-slate-300 entry-display">{{ "%.0f"|format(p.avg_entry_price_cents) }}&cent;</div>
+      </div>
+      <div class="px-3 py-3 border-r border-slate-800/30">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Bid / Ask</div>
+        <div class="text-sm font-semibold bid-ask-display">
+          <span class="text-slate-300">{{ p.current_bid }}&cent;</span>
+          <span class="text-slate-600">/</span>
+          <span class="text-slate-400">{{ p.current_ask }}&cent;</span>
+        </div>
+      </div>
+      <div class="px-3 py-3 border-r border-slate-800/30">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">P&amp;L / Contract</div>
+        {% set pnl_per = p.current_bid - p.avg_entry_price_cents %}
+        <div class="text-sm font-semibold per-contract-display {{ 'text-emerald-400' if pnl_per >= 0 else 'text-red-400' }}">
+          {{ "%+.0f"|format(pnl_per) }}&cent;
+        </div>
+      </div>
+      <div class="px-3 py-3">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Time Left</div>
+        <div class="text-sm font-semibold text-slate-300 time-left-display" data-close-time="{{ p.close_time }}">
+          &mdash;
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<p class="mt-4 text-sm text-slate-500">{{ positions|length }} open position{{ 's' if positions|length != 1 }}</p>
+
+{% else %}
+<div class="text-center py-16">
+  <div class="text-slate-600 text-lg mb-2">No open positions to chart</div>
+  <p class="text-slate-500 text-sm">Charts will appear here when you have open positions.</p>
+  <a href="/positions" class="inline-block mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">View Positions &rarr;</a>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+// ---------- Time left helper ----------
+function formatTimeLeft(closeTime) {
+  if (!closeTime) return '—';
+  const close = new Date(closeTime);
+  const now = new Date();
+  const ms = close - now;
+  if (ms <= 0) return 'Closed';
+  const hours = ms / 3600000;
+  if (hours < 1) return Math.round(hours * 60) + 'm';
+  if (hours < 48) return Math.round(hours) + 'h ' + Math.round((hours % 1) * 60) + 'm';
+  return (hours / 24).toFixed(1) + 'd';
+}
+
+// Update all time-left displays
+function updateTimers() {
+  document.querySelectorAll('.time-left-display').forEach(el => {
+    el.textContent = formatTimeLeft(el.dataset.closeTime);
+  });
+}
+updateTimers();
+setInterval(updateTimers, 30000);
+
+// ---------- Chart instances ----------
+const charts = {};
+
+// Initial data from server
+const positionData = [
+  {% for p in positions %}
+  {
+    ticker: {{ p.ticker|tojson }},
+    side: {{ p.side|tojson }},
+    entry: {{ p.avg_entry_price_cents }},
+    qty: {{ p.quantity }},
+    bid: {{ p.current_bid }},
+    ask: {{ p.current_ask }},
+    closeTime: {{ p.close_time|tojson }},
+    history: {{ p.history|tojson }}
+  }{{ "," if not loop.last }}
+  {% endfor %}
+];
+
+// ---------- Create charts ----------
+function createChart(index, data) {
+  const ctx = document.getElementById('chart-' + index);
+  if (!ctx) return;
+
+  const entry = data.entry;
+  const historyPoints = data.history.map(h => ({
+    x: new Date(h.recorded_at),
+    y: h.bid_cents
+  }));
+
+  // Add current point if we have a live bid
+  if (data.bid > 0) {
+    historyPoints.push({ x: new Date(), y: data.bid });
+  }
+
+  // If no history, create a single point at now
+  if (historyPoints.length === 0 && data.bid > 0) {
+    historyPoints.push({ x: new Date(), y: data.bid });
+  }
+
+  // Ask line points (matching bid timestamps)
+  const askPoints = data.history.map(h => ({
+    x: new Date(h.recorded_at),
+    y: h.ask_cents
+  }));
+  if (data.ask > 0) {
+    askPoints.push({ x: new Date(), y: data.ask });
+  }
+
+  // Determine Y-axis range
+  const allPrices = historyPoints.map(p => p.y).concat(askPoints.map(p => p.y)).concat([entry]);
+  const minPrice = Math.max(0, Math.min(...allPrices) - 3);
+  const maxPrice = Math.min(100, Math.max(...allPrices) + 3);
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'Bid',
+          data: historyPoints,
+          borderColor: '#6366f1',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.3,
+          fill: false,
+          order: 1,
+        },
+        {
+          label: 'Ask',
+          data: askPoints,
+          borderColor: 'rgba(148, 163, 184, 0.4)',
+          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          tension: 0.3,
+          fill: false,
+          order: 2,
+        },
+        {
+          label: 'Entry: ' + entry + '¢',
+          data: [],  // annotation line handled via plugin
+          borderColor: 'rgba(251, 191, 36, 0.6)',
+          borderWidth: 1,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          fill: false,
+          order: 3,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeInOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            tooltipFormat: 'MMM d, h:mm a',
+            displayFormats: { minute: 'h:mm a', hour: 'h a', day: 'MMM d' }
+          },
+          grid: { color: 'rgba(51, 65, 85, 0.3)' },
+          ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 },
+          border: { color: 'rgba(51, 65, 85, 0.5)' }
+        },
+        y: {
+          min: minPrice,
+          max: maxPrice,
+          grid: { color: 'rgba(51, 65, 85, 0.3)' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 10 },
+            callback: v => v + '¢'
+          },
+          border: { color: 'rgba(51, 65, 85, 0.5)' }
+        }
+      },
+      plugins: {
+        legend: { display: true, position: 'top', align: 'end',
+          labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12, padding: 10 }
+        },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          titleColor: '#e2e8f0',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(ctx) {
+              return ctx.dataset.label + ': ' + ctx.parsed.y + '¢';
+            }
+          }
+        }
+      }
+    },
+    plugins: [{
+      id: 'entryLine',
+      beforeDraw(chart) {
+        const yScale = chart.scales.y;
+        const yPos = yScale.getPixelForValue(entry);
+        if (yPos < yScale.top || yPos > yScale.bottom) return;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(chart.chartArea.left, yPos);
+        ctx.lineTo(chart.chartArea.right, yPos);
+        ctx.stroke();
+        // Label
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Entry: ' + entry + '¢', chart.chartArea.left + 4, yPos - 4);
+        ctx.restore();
+      }
+    },
+    {
+      id: 'profitZone',
+      beforeDatasetsDraw(chart) {
+        const yScale = chart.scales.y;
+        const entryY = yScale.getPixelForValue(entry);
+        const ctx = chart.ctx;
+        const area = chart.chartArea;
+        if (entryY > area.top && entryY < area.bottom) {
+          ctx.save();
+          // Green zone above entry (profit)
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.04)';
+          ctx.fillRect(area.left, area.top, area.right - area.left, entryY - area.top);
+          // Red zone below entry (loss)
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.04)';
+          ctx.fillRect(area.left, entryY, area.right - area.left, area.bottom - entryY);
+          ctx.restore();
+        }
+      }
+    },
+    {
+      id: 'currentPrice',
+      afterDatasetsDraw(chart) {
+        const meta = chart.getDatasetMeta(0);
+        if (meta.data.length === 0) return;
+        const last = meta.data[meta.data.length - 1];
+        if (!last) return;
+        const ctx = chart.ctx;
+        const bid = positionData[chart.canvas.id.split('-')[1]]?.bid || 0;
+        ctx.save();
+        // Outer ring
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = bid >= entry ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+        ctx.fill();
+        // Inner dot
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = bid >= entry ? '#10b981' : '#ef4444';
+        ctx.fill();
+        ctx.restore();
+      }
+    }]
+  });
+
+  charts[index] = chart;
+}
+
+// Initialize all charts
+positionData.forEach((data, i) => createChart(i, data));
+
+// ---------- Live refresh ----------
+let refreshTimer;
+
+async function refreshPrices() {
+  try {
+    const resp = await fetch('/api/charts/prices');
+    const json = await resp.json();
+    if (!json.ok) return;
+
+    document.getElementById('update-status').textContent =
+      'Updated ' + new Date().toLocaleTimeString();
+
+    json.positions.forEach(pos => {
+      // Find matching card
+      const card = document.querySelector(
+        `[data-ticker="${pos.ticker}"][data-side="${pos.side}"]`
+      );
+      if (!card) return;
+      const idx = parseInt(card.dataset.index);
+
+      // Update positionData
+      positionData[idx].bid = pos.current_bid;
+      positionData[idx].ask = pos.current_ask;
+      positionData[idx].history = pos.history;
+      positionData[idx].closeTime = pos.close_time;
+
+      // Update P&L display
+      const pnlEl = card.querySelector('.pnl-display');
+      const pnlVal = pos.unrealized_cents / 100;
+      pnlEl.textContent = '$' + (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(2);
+      pnlEl.className = 'text-lg font-bold pnl-display ' +
+        (pos.unrealized_cents >= 0 ? 'text-emerald-400' : 'text-red-400');
+
+      // Update bid/ask display
+      const bidAskEl = card.querySelector('.bid-ask-display');
+      bidAskEl.innerHTML =
+        '<span class="text-slate-300">' + pos.current_bid + '&cent;</span>' +
+        '<span class="text-slate-600">/</span>' +
+        '<span class="text-slate-400">' + pos.current_ask + '&cent;</span>';
+
+      // Update P&L per contract
+      const perEl = card.querySelector('.per-contract-display');
+      const perVal = pos.current_bid - pos.entry_cents;
+      perEl.textContent = (perVal >= 0 ? '+' : '') + perVal + '¢';
+      perEl.className = 'text-sm font-semibold per-contract-display ' +
+        (perVal >= 0 ? 'text-emerald-400' : 'text-red-400');
+
+      // Update close time
+      const timeEl = card.querySelector('.time-left-display');
+      timeEl.dataset.closeTime = pos.close_time;
+      timeEl.textContent = formatTimeLeft(pos.close_time);
+
+      // Update chart data
+      const chart = charts[idx];
+      if (!chart) return;
+
+      const bidPoints = pos.history.map(h => ({
+        x: new Date(h.recorded_at), y: h.bid_cents
+      }));
+      if (pos.current_bid > 0) bidPoints.push({ x: new Date(), y: pos.current_bid });
+
+      const askPoints = pos.history.map(h => ({
+        x: new Date(h.recorded_at), y: h.ask_cents
+      }));
+      if (pos.current_ask > 0) askPoints.push({ x: new Date(), y: pos.current_ask });
+
+      chart.data.datasets[0].data = bidPoints;
+      chart.data.datasets[1].data = askPoints;
+
+      // Recalculate Y-axis range
+      const entry = pos.entry_cents;
+      const allP = bidPoints.map(p => p.y).concat(askPoints.map(p => p.y)).concat([entry]);
+      chart.options.scales.y.min = Math.max(0, Math.min(...allP) - 3);
+      chart.options.scales.y.max = Math.min(100, Math.max(...allP) + 3);
+
+      chart.update('none');
+    });
+  } catch (e) {
+    console.error('Chart refresh error:', e);
+  }
+}
+
+// Auto-refresh every 60 seconds
+refreshTimer = setInterval(refreshPrices, 60000);
+</script>
+{% endblock %}

@@ -104,6 +104,15 @@ CREATE TABLE IF NOT EXISTS scan_meta (
     prefixes TEXT NOT NULL DEFAULT '',
     scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS price_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    side TEXT NOT NULL,
+    bid_cents INTEGER NOT NULL DEFAULT 0,
+    ask_cents INTEGER NOT NULL DEFAULT 0,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 _PG_TABLES = [
@@ -184,6 +193,14 @@ _PG_TABLES = [
         min_volume INTEGER NOT NULL DEFAULT 0,
         prefixes TEXT NOT NULL DEFAULT '',
         scanned_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS price_snapshots (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        side TEXT NOT NULL,
+        bid_cents INTEGER NOT NULL DEFAULT 0,
+        ask_cents INTEGER NOT NULL DEFAULT 0,
+        recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
     )""",
 ]
 
@@ -671,3 +688,66 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
 
     conn.close()
     return results, stats, scanned_at
+
+
+# ---------------------------------------------------------------------------
+# Price snapshots (for charts)
+# ---------------------------------------------------------------------------
+
+def log_price_snapshot(ticker, side, bid_cents, ask_cents, db_path=DEFAULT_DB_PATH):
+    """Record a price snapshot for charting."""
+    conn = _connect(db_path)
+    _execute(conn,
+        """INSERT INTO price_snapshots (ticker, side, bid_cents, ask_cents)
+           VALUES (?, ?, ?, ?)""",
+        (ticker, side, bid_cents, ask_cents),
+    )
+    if not _use_pg:
+        conn.commit()
+    conn.close()
+
+
+def get_price_history(ticker, side, hours=24, db_path=DEFAULT_DB_PATH):
+    """Return price snapshots for a ticker/side within the last N hours."""
+    conn = _connect(db_path)
+    if _use_pg:
+        sql = """SELECT bid_cents, ask_cents, recorded_at
+                 FROM price_snapshots
+                 WHERE ticker = %s AND side = %s
+                   AND recorded_at >= NOW() - INTERVAL '%s hours'
+                 ORDER BY recorded_at ASC"""
+        cur = conn.cursor()
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, (ticker, side, hours))
+        rows = [dict(r) for r in cur.fetchall()]
+    else:
+        sql = """SELECT bid_cents, ask_cents, recorded_at
+                 FROM price_snapshots
+                 WHERE ticker = ? AND side = ?
+                   AND recorded_at >= datetime('now', ?)
+                 ORDER BY recorded_at ASC"""
+        rows = _fetchall(conn, sql, (ticker, side, f"-{hours} hours"))
+    conn.close()
+    # Normalize recorded_at to string
+    for r in rows:
+        if hasattr(r["recorded_at"], "strftime"):
+            r["recorded_at"] = r["recorded_at"].strftime("%Y-%m-%dT%H:%M:%SZ")
+    return rows
+
+
+def cleanup_old_snapshots(hours=48, db_path=DEFAULT_DB_PATH):
+    """Delete price snapshots older than N hours."""
+    conn = _connect(db_path)
+    if _use_pg:
+        conn.cursor().execute(
+            "DELETE FROM price_snapshots WHERE recorded_at < NOW() - INTERVAL '%s hours'",
+            (hours,),
+        )
+    else:
+        _execute(conn,
+            "DELETE FROM price_snapshots WHERE recorded_at < datetime('now', ?)",
+            (f"-{hours} hours",),
+        )
+        conn.commit()
+    conn.close()

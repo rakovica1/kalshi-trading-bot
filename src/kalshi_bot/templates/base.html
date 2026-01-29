@@ -25,6 +25,7 @@
       <div class="text-lg font-bold text-white mb-6 tracking-tight">Nightrader</div>
       <a href="/" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Dashboard</a>
       <a href="/positions" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/positions' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Positions</a>
+      <a href="/charts" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/charts' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Charts</a>
       <a href="/trades" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/trades' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Trades</a>
       <a href="/scanner" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/scanner' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Scanner</a>
       <a href="/control" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/control' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">
@@ -43,6 +44,7 @@
     <div id="mobile-menu" class="hidden md:hidden fixed top-10 left-0 right-0 bg-slate-900 border-b border-slate-800 z-10 p-2">
       <a href="/" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Dashboard</a>
       <a href="/positions" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Positions</a>
+      <a href="/charts" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Charts</a>
       <a href="/trades" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Trades</a>
       <a href="/scanner" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Scanner</a>
       <a href="/control" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Execute</a>

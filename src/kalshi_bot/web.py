@@ -196,6 +196,109 @@ def trades():
 
 
 # ---------------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------------
+
+@app.route("/charts")
+def charts():
+    db.init_db()
+    open_positions = db.get_open_positions()
+
+    enriched = []
+    try:
+        client = _get_client()
+        for p in open_positions:
+            entry = p["avg_entry_price_cents"]
+            qty = p["quantity"]
+            try:
+                m = client.get_market(ticker=p["ticker"])
+                if p["side"] == "yes":
+                    bid = m.get("yes_bid", 0) or 0
+                    ask = m.get("yes_ask", 0) or 0
+                else:
+                    bid = m.get("no_bid", 0) or 0
+                    ask = m.get("no_ask", 0) or 0
+                close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
+                # Log snapshot for chart history
+                db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
+            except Exception:
+                bid = 0
+                ask = 0
+                close_time = ""
+            unrealized = int(qty * (bid - entry))
+            # Get existing price history
+            history = db.get_price_history(p["ticker"], p["side"], hours=24)
+            enriched.append({
+                **p,
+                "current_bid": bid,
+                "current_ask": ask,
+                "unrealized_cents": unrealized,
+                "close_time": close_time,
+                "history": history,
+            })
+    except Exception:
+        enriched = [{
+            **p,
+            "current_bid": 0,
+            "current_ask": 0,
+            "unrealized_cents": 0,
+            "close_time": "",
+            "history": [],
+        } for p in open_positions]
+
+    # Cleanup old snapshots periodically
+    try:
+        db.cleanup_old_snapshots(hours=48)
+    except Exception:
+        pass
+
+    return render_template("charts.html", positions=enriched)
+
+
+@app.route("/api/charts/prices")
+def api_charts_prices():
+    """Return current prices + history for all open positions (JSON)."""
+    db.init_db()
+    open_positions = db.get_open_positions()
+    result = []
+    try:
+        client = _get_client()
+        for p in open_positions:
+            try:
+                m = client.get_market(ticker=p["ticker"])
+                if p["side"] == "yes":
+                    bid = m.get("yes_bid", 0) or 0
+                    ask = m.get("yes_ask", 0) or 0
+                else:
+                    bid = m.get("no_bid", 0) or 0
+                    ask = m.get("no_ask", 0) or 0
+                close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
+                db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
+            except Exception:
+                bid = 0
+                ask = 0
+                close_time = ""
+            entry = p["avg_entry_price_cents"]
+            qty = p["quantity"]
+            unrealized = int(qty * (bid - entry))
+            history = db.get_price_history(p["ticker"], p["side"], hours=24)
+            result.append({
+                "ticker": p["ticker"],
+                "side": p["side"],
+                "entry_cents": entry,
+                "quantity": qty,
+                "current_bid": bid,
+                "current_ask": ask,
+                "unrealized_cents": unrealized,
+                "close_time": close_time,
+                "history": history,
+            })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+    return jsonify({"ok": True, "positions": result})
+
+
+# ---------------------------------------------------------------------------
 # Scanner
 # ---------------------------------------------------------------------------
 
