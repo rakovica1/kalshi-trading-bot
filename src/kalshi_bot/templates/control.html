@@ -56,7 +56,10 @@ let lastLogCount = 0;
 
 function pollLogs() {
   fetch('/control/logs')
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok || !r.headers.get('content-type').includes('json')) throw new Error('not json');
+      return r.json();
+    })
     .then(data => {
       const box = document.getElementById('log-box');
       const dot = document.getElementById('status-dot');
