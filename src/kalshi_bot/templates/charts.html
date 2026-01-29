@@ -35,7 +35,7 @@
         <div class="text-right ml-4">
           <!-- Big P&L with direction arrow -->
           <div class="flex items-center justify-end gap-1.5">
-            <span class="text-lg direction-arrow {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">{{ '&#9650;' if is_winning else '&#9660;' }}</span>
+            <span class="text-lg direction-arrow {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">{{ '▲' if is_winning else '▼' }}</span>
             <span class="text-xl font-bold pnl-display {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">
               ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
             </span>
@@ -240,12 +240,17 @@ function createChart(index, data) {
         {
           label: 'Ask',
           data: askPoints,
-          borderColor: 'rgba(148, 163, 184, 0.3)',
+          borderColor: 'rgba(96, 165, 250, 0.6)',
           backgroundColor: 'transparent',
-          borderWidth: 1,
-          borderDash: [3, 3],
-          pointRadius: 0,
-          pointHoverRadius: 3,
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: function(ctx) {
+            return ctx.dataIndex === ctx.dataset.data.length - 1 ? 3 : 0;
+          },
+          pointBackgroundColor: 'rgba(96, 165, 250, 0.8)',
+          pointBorderColor: 'rgba(96, 165, 250, 0.3)',
+          pointBorderWidth: 2,
+          pointHoverRadius: 4,
           tension: 0.3,
           fill: false,
           order: 2,
@@ -275,10 +280,22 @@ function createChart(index, data) {
           type: 'time',
           time: {
             tooltipFormat: 'MMM d, h:mm a',
-            displayFormats: { minute: 'h:mm a', hour: 'h a', day: 'MMM d' }
+            displayFormats: {
+              second: 'h:mm a',
+              minute: 'h:mm a',
+              hour: 'ha',
+              day: 'MMM d'
+            }
           },
           grid: { color: 'rgba(51, 65, 85, 0.25)' },
-          ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 },
+          ticks: {
+            color: '#64748b',
+            font: { size: 9 },
+            maxTicksLimit: 6,
+            autoSkip: true,
+            autoSkipPadding: 20,
+            maxRotation: 0,
+          },
           border: { color: 'rgba(51, 65, 85, 0.4)' }
         },
         y: {
@@ -476,7 +493,7 @@ async function refreshPrices() {
       // Update arrow
       const arrowEl = card.querySelector('.direction-arrow');
       if (arrowEl) {
-        arrowEl.innerHTML = isWinning ? '&#9650;' : '&#9660;';
+        arrowEl.textContent = isWinning ? '▲' : '▼';
         arrowEl.className = 'text-lg direction-arrow ' + (isWinning ? 'text-emerald-400' : 'text-red-400');
       }
 
