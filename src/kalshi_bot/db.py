@@ -1,8 +1,11 @@
+import os
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path("kalshi_bot.db")
+# Use KALSHI_DB_PATH env var if set (e.g. /data/kalshi_bot.db on Railway volume),
+# otherwise fall back to local file.
+DEFAULT_DB_PATH = Path(os.environ.get("KALSHI_DB_PATH", "kalshi_bot.db"))
 _today = lambda: date.today().isoformat()
 
 SCHEMA = """
@@ -94,6 +97,8 @@ def _connect(db_path=DEFAULT_DB_PATH):
 
 def init_db(db_path=DEFAULT_DB_PATH):
     """Create all tables if they don't exist."""
+    db_path = Path(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = _connect(db_path)
     conn.executescript(SCHEMA)
     # Migrate: add columns that may not exist in older databases
