@@ -51,7 +51,7 @@
 </div>
 
 <!-- Secondary stats -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
   <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
     <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Open Positions</div>
     <div class="text-xl font-semibold text-white">{{ open_count }}</div>
@@ -65,6 +65,14 @@
   <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
     <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Win Rate</div>
     <div class="text-xl font-semibold text-white">{{ "%.1f"|format(win_rate) }}%</div>
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">ROI</div>
+    <div class="text-xl font-semibold {{ 'text-emerald-400' if roi_pct >= 0 else 'text-red-400' }}">
+      {{ "%+.1f"|format(roi_pct) }}%
+    </div>
+    <div class="text-[11px] text-slate-500 mt-1">of ${{ "%.2f"|format(total_invested_cents / 100) }} invested</div>
   </div>
 </div>
 

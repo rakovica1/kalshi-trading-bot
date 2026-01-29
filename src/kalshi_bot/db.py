@@ -625,6 +625,13 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed'"
     )["total"]
 
+    # Total invested = sum of (fill_count × price_cents) for all filled buy trades
+    total_invested = _fetchone(conn,
+        """SELECT COALESCE(SUM(fill_count * price_cents), 0) as total
+           FROM trades
+           WHERE action = 'buy' AND status != 'failed' AND fill_count > 0"""
+    )["total"]
+
     conn.close()
 
     closed = wins + losses + breakeven
@@ -645,6 +652,7 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "gross_loss_cents": gross_loss,
         "profit_factor": profit_factor,
         "total_fees_cents": total_fees,
+        "total_invested_cents": total_invested,
     }
 
 
