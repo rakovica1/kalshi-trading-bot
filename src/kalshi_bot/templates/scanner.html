@@ -188,7 +188,10 @@
           <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">T3</span>
           {% endif %}
         </td>
-        <td class="py-2.5 pr-4 font-mono text-xs text-slate-300">{{ m.ticker }}</td>
+        <td class="py-2.5 pr-4">
+          <div class="text-xs text-slate-200">{{ m.ticker|decode_ticker }}</div>
+          <div class="text-[10px] font-mono text-slate-500 mt-0.5">{{ m.ticker }}</div>
+        </td>
         <td class="py-2.5 pr-4">
           <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/50 text-emerald-400' if m.signal_side == 'yes' else 'bg-red-900/50 text-red-400' }}">
             {{ m.signal_side|upper }}

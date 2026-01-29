@@ -17,9 +17,11 @@ from kalshi_bot.config import load_config
 from kalshi_bot.client import create_client
 from kalshi_bot.whale import run_whale_strategy
 from kalshi_bot.scanner import scan
+from kalshi_bot.ticker import decode_ticker
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "kalshi-bot-dev-key")
+app.jinja_env.filters["decode_ticker"] = decode_ticker
 
 # ---------------------------------------------------------------------------
 # Shared state for background whale-trade
