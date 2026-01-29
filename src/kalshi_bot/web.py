@@ -299,13 +299,36 @@ def control_start():
     dry_run = request.form.get("dry_run") == "on"
     tier1_only = request.form.get("tier1_only") == "on"
     continuous = request.form.get("continuous") == "on"
-    max_positions = request.form.get("max_positions", 1, type=int)
-    cooldown_raw = request.form.get("cooldown_minutes", "1").strip()
-    cooldown_minutes = float(cooldown_raw) if cooldown_raw else 1.0
+
+    # Parse max_positions — default to 5 if missing or invalid
+    try:
+        max_positions = int(request.form.get("max_positions", "5"))
+        if max_positions < 1:
+            max_positions = 1
+        elif max_positions > 50:
+            max_positions = 50
+    except (ValueError, TypeError):
+        max_positions = 5
+
+    # Parse cooldown
+    try:
+        cooldown_minutes = float(request.form.get("cooldown_minutes", "1"))
+        if cooldown_minutes < 0.1:
+            cooldown_minutes = 0.1
+    except (ValueError, TypeError):
+        cooldown_minutes = 1.0
+
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
-    max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
-    max_hours = float(max_hours_raw) if max_hours_raw else 1.0
+
+    # Parse max hours — default to 1.0 if empty
+    try:
+        max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
+        max_hours = float(max_hours_raw) if max_hours_raw else 1.0
+        if max_hours < 0.1:
+            max_hours = 0.1
+    except (ValueError, TypeError):
+        max_hours = 1.0
 
     def _log(msg):
         _whale_state["logs"].append(msg)
@@ -314,6 +337,10 @@ def control_start():
         try:
             db.init_db()
             client = _get_client()
+
+            _log(f"Config: max_positions={max_positions}, max_hours={max_hours}, "
+                 f"cooldown={cooldown_minutes}min, continuous={continuous}, "
+                 f"tier1_only={tier1_only}, dry_run={dry_run}")
 
             strategy_kwargs = dict(
                 prefixes=prefixes,
