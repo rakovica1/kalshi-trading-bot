@@ -300,7 +300,7 @@ def control_start():
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
     max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
-    max_hours = float(max_hours_raw) if max_hours_raw else None
+    max_hours = float(max_hours_raw) if max_hours_raw else 1.0
 
     def _log(msg):
         _whale_state["logs"].append(msg)

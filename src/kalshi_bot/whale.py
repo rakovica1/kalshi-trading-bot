@@ -26,9 +26,9 @@ def run_whale_strategy(
       1. Scan all markets
       2. Filter to QUALIFIED (Tier 1 + top 20 $vol + $50k + <5% spread)
       3. Filter by expiration window (default: 1 hour)
-      4. Rank by: highest price -> highest $volume -> tightest spread
-      5. Select #1 ranked market
-      6. Place MARKET ORDER for instant execution
+      4. Rank by: soonest expiration -> highest price -> highest $volume
+      5. Select #1 ranked market (closest to resolving)
+      6. Place MARKET ORDER for instant execution (price clamped to 99c max)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -143,11 +143,11 @@ def run_whale_strategy(
             log(f"{'='*60}\n")
             return {"scanned": total_found, "skipped": len(held) + before_exp, "traded": 0, "orders": 0, "stopped_reason": "no_expiring"}
 
-    # 8. Rank: highest price -> highest $volume -> tightest spread
+    # 8. Rank: soonest expiration -> highest price -> highest $volume
     available.sort(key=lambda m: (
+        m.get("hours_left") if m.get("hours_left") is not None else 9999,
         -m["signal_price"],
         -m["dollar_24h"],
-        m.get("spread_pct", 99),
     ))
 
     log(f"\n  Ranking {len(available)} sniping targets:")
@@ -186,7 +186,11 @@ def run_whale_strategy(
             f"at {ask_price}c vs bid {bid_price}c ({ask_price - bid_price}c slippage).")
 
     # Use ask price for position sizing (worst-case cost)
+    # Kalshi max valid price is 99c — clamp to avoid rejection
     exec_price = ask_price if ask_price > 0 else bid_price
+    if exec_price > 99:
+        log(f"  Note: Clamping price from {exec_price}c to 99c (Kalshi max)")
+        exec_price = 99
 
     # 10. Calculate position size (based on ask price for accurate cost)
     total_contracts = calculate_position(balance_cents, exec_price, risk_pct)
