@@ -98,11 +98,15 @@ def _market_position_value(market_data, side):
 @app.route("/")
 def dashboard():
     db.init_db()
+    balance_cents = 0
+    balance_timestamp = None
     try:
         client = _get_client()
         bal_data = client.get_balance()
-        balance_cents = bal_data.get("balance", 0)
+        # Include payout_available (settled contract payouts pending credit)
+        balance_cents = bal_data.get("balance", 0) + bal_data.get("payout_available", 0)
         db.log_balance(balance_cents)
+        balance_timestamp = datetime.now(timezone.utc).astimezone(_EST).strftime("%I:%M:%S %p EST")
     except Exception as e:
         balance_cents = 0
 
@@ -146,6 +150,7 @@ def dashboard():
     return render_template(
         "dashboard.html",
         balance_cents=balance_cents,
+        balance_timestamp=balance_timestamp,
         unrealized_cents=total_unrealized,
         realized_cents=realized,
         total_pnl_cents=total_pnl,
