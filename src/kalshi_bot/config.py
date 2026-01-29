@@ -54,7 +54,7 @@ def load_config_from_env():
         logger.warning("PEM FIX: replacing literal \\n with real newlines")
         private_key = private_key.replace("\\n", "\n")
 
-    # Handle base64-encoded PEM (no newline issues)
+    # Handle base64-encoded PEM (the whole file was base64-encoded)
     if not private_key.startswith("-----"):
         try:
             decoded = base64.b64decode(private_key).decode("utf-8")
@@ -64,11 +64,22 @@ def load_config_from_env():
         except Exception:
             pass
 
-    # Fix newlines that Railway may have stripped:
+    # Add PEM header/footer if missing (Railway stripped them)
+    stripped = private_key.strip()
+    if not stripped.startswith("-----BEGIN"):
+        logger.warning("PEM FIX: adding missing header/footer")
+        # Clean up the base64 body: remove spaces, wrap to 64-char lines
+        body = stripped.replace(" ", "").replace("\n", "")
+        lines = ["-----BEGIN PRIVATE KEY-----"]
+        for i in range(0, len(body), 64):
+            lines.append(body[i:i + 64])
+        lines.append("-----END PRIVATE KEY-----")
+        private_key = "\n".join(lines) + "\n"
+
+    # Fix newlines that Railway may have stripped from a complete PEM:
     # "-----BEGIN ... KEY-----MIIEv..." -> proper PEM with line breaks
     if "-----BEGIN" in private_key and "\n" not in private_key:
         logger.warning("PEM FIX: reconstructing newlines (all on one line)")
-        # Split on the header/footer markers
         import re
         match = re.match(
             r'(-----BEGIN [A-Z ]+-----)(.+)(-----END [A-Z ]+-----)',
@@ -76,12 +87,10 @@ def load_config_from_env():
         )
         if match:
             header, body, footer = match.groups()
-            # Remove any spaces from body
             body = body.replace(" ", "")
-            # Re-wrap to 64-char lines
             lines = [header]
             for i in range(0, len(body), 64):
-                lines.append(body[i:i+64])
+                lines.append(body[i:i + 64])
             lines.append(footer)
             private_key = "\n".join(lines) + "\n"
 
