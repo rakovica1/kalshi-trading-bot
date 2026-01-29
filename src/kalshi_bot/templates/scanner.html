@@ -49,20 +49,16 @@
     <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scan Scope</div>
     <dl class="space-y-2 text-xs">
       <div class="flex justify-between">
-        <dt class="text-slate-500">Total markets fetched</dt>
+        <dt class="text-slate-500">Kalshi market catalog</dt>
         <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.total_fetched) }}</dd>
       </div>
       <div class="flex justify-between">
-        <dt class="text-slate-500">Prefixes</dt>
-        <dd class="text-slate-300 font-medium">{{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all (no filter)' }}</dd>
+        <dt class="text-slate-500">Top markets analyzed (by vol)</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.scanned) }}</dd>
       </div>
       <div class="flex justify-between">
-        <dt class="text-slate-500">Top 24h vol examined</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.scanned) }} of {{ "{:,}".format(scan_stats.top_n) }}</dd>
-      </div>
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Sorting</dt>
-        <dd class="text-slate-300 font-medium">24h volume desc</dd>
+        <dt class="text-slate-500">Prefix filter</dt>
+        <dd class="text-slate-300 font-medium">{{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'none (all markets)' }}</dd>
       </div>
     </dl>
   </div>
