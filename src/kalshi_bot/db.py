@@ -3,12 +3,24 @@ import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
-# Use KALSHI_DB_PATH env var if set (e.g. /data/kalshi_bot.db on Railway volume),
-# otherwise fall back to local file.
+# ---------------------------------------------------------------------------
+# Database backend selection
+# ---------------------------------------------------------------------------
+# If DATABASE_URL is set (e.g. on Railway), use PostgreSQL.
+# Otherwise fall back to local SQLite.
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+_use_pg = bool(DATABASE_URL)
+
 DEFAULT_DB_PATH = Path(os.environ.get("KALSHI_DB_PATH", "kalshi_bot.db"))
 _today = lambda: date.today().isoformat()
 
-SCHEMA = """
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
+
+SCHEMA_SQLITE = """
 CREATE TABLE IF NOT EXISTS trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id TEXT,
@@ -88,39 +100,191 @@ CREATE TABLE IF NOT EXISTS scan_meta (
 );
 """
 
+_PG_TABLES = [
+    """CREATE TABLE IF NOT EXISTS trades (
+        id SERIAL PRIMARY KEY,
+        order_id TEXT,
+        ticker TEXT NOT NULL,
+        side TEXT NOT NULL,
+        action TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        price_cents INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        fill_count INTEGER DEFAULT 0,
+        remaining_count INTEGER DEFAULT 0,
+        error_message TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS positions (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        side TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 0,
+        avg_entry_price_cents REAL NOT NULL DEFAULT 0,
+        total_cost_cents INTEGER NOT NULL DEFAULT 0,
+        realized_pnl_cents INTEGER NOT NULL DEFAULT 0,
+        is_closed INTEGER NOT NULL DEFAULT 0,
+        opened_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        closed_at TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS balance_history (
+        id SERIAL PRIMARY KEY,
+        balance_cents INTEGER NOT NULL,
+        recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS daily_pnl (
+        id SERIAL PRIMARY KEY,
+        date TEXT NOT NULL UNIQUE,
+        starting_balance_cents INTEGER,
+        ending_balance_cents INTEGER,
+        realized_pnl_cents INTEGER DEFAULT 0,
+        trades_count INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0
+    )""",
+    """CREATE TABLE IF NOT EXISTS scan_results (
+        id SERIAL PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        event_ticker TEXT,
+        signal_side TEXT NOT NULL,
+        signal_price INTEGER NOT NULL,
+        tier INTEGER NOT NULL DEFAULT 3,
+        volume_24h INTEGER NOT NULL DEFAULT 0,
+        dollar_24h INTEGER NOT NULL DEFAULT 0,
+        volume INTEGER NOT NULL DEFAULT 0,
+        open_interest INTEGER NOT NULL DEFAULT 0,
+        spread_pct REAL NOT NULL DEFAULT 0,
+        dollar_rank INTEGER NOT NULL DEFAULT 0,
+        qualified INTEGER NOT NULL DEFAULT 0,
+        close_time TEXT NOT NULL DEFAULT '',
+        scanned_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS scan_meta (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        total_fetched INTEGER NOT NULL DEFAULT 0,
+        top_n INTEGER NOT NULL DEFAULT 0,
+        scanned INTEGER NOT NULL DEFAULT 0,
+        passed_prefix INTEGER NOT NULL DEFAULT 0,
+        passed_volume INTEGER NOT NULL DEFAULT 0,
+        passed_price INTEGER NOT NULL DEFAULT 0,
+        qualified INTEGER NOT NULL DEFAULT 0,
+        min_price INTEGER NOT NULL DEFAULT 0,
+        min_volume INTEGER NOT NULL DEFAULT 0,
+        prefixes TEXT NOT NULL DEFAULT '',
+        scanned_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+]
+
+
+# ---------------------------------------------------------------------------
+# Connection helpers
+# ---------------------------------------------------------------------------
+
+def _q(sql):
+    """Translate ? placeholders to %s for PostgreSQL."""
+    if _use_pg:
+        return sql.replace("?", "%s")
+    return sql
+
+
+def _now_sql():
+    """Return the SQL expression for current timestamp."""
+    return "NOW()" if _use_pg else "datetime('now')"
+
 
 def _connect(db_path=DEFAULT_DB_PATH):
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    if _use_pg:
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.autocommit = True
+        return conn
+    else:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
 
+
+def _execute(conn, sql, params=None):
+    """Execute a query with automatic placeholder translation."""
+    if _use_pg:
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        cur = conn.cursor()
+    cur.execute(_q(sql), params or ())
+    return cur
+
+
+def _fetchone(conn, sql, params=None):
+    """Execute and return one row as a dict."""
+    cur = _execute(conn, sql, params)
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return dict(row)
+
+
+def _fetchall(conn, sql, params=None):
+    """Execute and return all rows as a list of dicts."""
+    cur = _execute(conn, sql, params)
+    return [dict(r) for r in cur.fetchall()]
+
+
+# ---------------------------------------------------------------------------
+# Init & migration
+# ---------------------------------------------------------------------------
 
 def init_db(db_path=DEFAULT_DB_PATH):
     """Create all tables if they don't exist."""
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = _connect(db_path)
-    conn.executescript(SCHEMA)
-    # Migrate: add columns that may not exist in older databases
-    _migrate_columns(conn, "scan_results", {
-        "spread_pct": "REAL NOT NULL DEFAULT 0",
-        "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
-        "qualified": "INTEGER NOT NULL DEFAULT 0",
-        "close_time": "TEXT NOT NULL DEFAULT ''",
-    })
-    _migrate_columns(conn, "scan_meta", {
-        "qualified": "INTEGER NOT NULL DEFAULT 0",
-    })
-    conn.close()
+    if _use_pg:
+        conn = _connect()
+        for stmt in _PG_TABLES:
+            conn.cursor().execute(stmt)
+        _migrate_columns(conn, "scan_results", {
+            "spread_pct": "REAL NOT NULL DEFAULT 0",
+            "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
+            "qualified": "INTEGER NOT NULL DEFAULT 0",
+            "close_time": "TEXT NOT NULL DEFAULT ''",
+        })
+        _migrate_columns(conn, "scan_meta", {
+            "qualified": "INTEGER NOT NULL DEFAULT 0",
+        })
+        conn.close()
+    else:
+        db_path = Path(db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = _connect(db_path)
+        conn.executescript(SCHEMA_SQLITE)
+        _migrate_columns(conn, "scan_results", {
+            "spread_pct": "REAL NOT NULL DEFAULT 0",
+            "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
+            "qualified": "INTEGER NOT NULL DEFAULT 0",
+            "close_time": "TEXT NOT NULL DEFAULT ''",
+        })
+        _migrate_columns(conn, "scan_meta", {
+            "qualified": "INTEGER NOT NULL DEFAULT 0",
+        })
+        conn.close()
 
 
 def _migrate_columns(conn, table, columns):
     """Add columns to a table if they don't already exist."""
-    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if _use_pg:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = %s AND table_schema = 'public'",
+            (table,),
+        )
+        existing = {row[0] for row in cur.fetchall()}
+    else:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
     for col, typedef in columns.items():
         if col not in existing:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}")
+            conn.cursor().execute(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}")
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +306,7 @@ def log_trade(
 ):
     """Record an order attempt."""
     conn = _connect(db_path)
-    conn.execute(
+    _execute(conn,
         """INSERT INTO trades
            (order_id, ticker, side, action, count, price_cents, status,
             fill_count, remaining_count, error_message)
@@ -150,7 +314,8 @@ def log_trade(
         (order_id, ticker, side, action, count, price_cents, status,
          fill_count, remaining_count, error_message),
     )
-    conn.commit()
+    if not _use_pg:
+        conn.commit()
     conn.close()
 
 
@@ -158,16 +323,16 @@ def get_trade_history(limit=50, ticker=None, db_path=DEFAULT_DB_PATH):
     """Return recent trades as a list of dicts."""
     conn = _connect(db_path)
     if ticker:
-        rows = conn.execute(
+        rows = _fetchall(conn,
             "SELECT * FROM trades WHERE ticker = ? ORDER BY id DESC LIMIT ?",
             (ticker, limit),
-        ).fetchall()
+        )
     else:
-        rows = conn.execute(
+        rows = _fetchall(conn,
             "SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,)
-        ).fetchall()
+        )
     conn.close()
-    return [dict(r) for r in rows]
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -177,10 +342,10 @@ def get_trade_history(limit=50, ticker=None, db_path=DEFAULT_DB_PATH):
 def update_position_on_buy(ticker, side, qty, price_cents, db_path=DEFAULT_DB_PATH):
     """Update or create position after a buy fill."""
     conn = _connect(db_path)
-    row = conn.execute(
+    row = _fetchone(conn,
         "SELECT * FROM positions WHERE ticker = ? AND side = ? AND is_closed = 0",
         (ticker, side),
-    ).fetchone()
+    )
 
     if row:
         old_qty = row["quantity"]
@@ -188,7 +353,7 @@ def update_position_on_buy(ticker, side, qty, price_cents, db_path=DEFAULT_DB_PA
         new_qty = old_qty + qty
         new_cost = old_cost + (qty * price_cents)
         new_avg = new_cost / new_qty if new_qty > 0 else 0
-        conn.execute(
+        _execute(conn,
             """UPDATE positions
                SET quantity = ?, avg_entry_price_cents = ?, total_cost_cents = ?
                WHERE id = ?""",
@@ -196,27 +361,27 @@ def update_position_on_buy(ticker, side, qty, price_cents, db_path=DEFAULT_DB_PA
         )
     else:
         total_cost = qty * price_cents
-        conn.execute(
+        _execute(conn,
             """INSERT INTO positions
                (ticker, side, quantity, avg_entry_price_cents, total_cost_cents)
                VALUES (?, ?, ?, ?, ?)""",
             (ticker, side, qty, price_cents, total_cost),
         )
 
-    conn.commit()
+    if not _use_pg:
+        conn.commit()
     conn.close()
 
 
 def update_position_on_sell(ticker, side, qty, sell_price_cents, db_path=DEFAULT_DB_PATH):
     """Update position after a sell fill. Calculates realized PnL."""
     conn = _connect(db_path)
-    row = conn.execute(
+    row = _fetchone(conn,
         "SELECT * FROM positions WHERE ticker = ? AND side = ? AND is_closed = 0",
         (ticker, side),
-    ).fetchone()
+    )
 
     if not row:
-        # No tracked position — just log it, don't error
         conn.close()
         return 0
 
@@ -229,22 +394,23 @@ def update_position_on_sell(ticker, side, qty, sell_price_cents, db_path=DEFAULT
     total_pnl = row["realized_pnl_cents"] + pnl
 
     if new_qty <= 0:
-        conn.execute(
-            """UPDATE positions
+        _execute(conn,
+            f"""UPDATE positions
                SET quantity = 0, total_cost_cents = 0, realized_pnl_cents = ?,
-                   is_closed = 1, closed_at = datetime('now')
+                   is_closed = 1, closed_at = {_now_sql()}
                WHERE id = ?""",
             (total_pnl, row["id"]),
         )
     else:
-        conn.execute(
+        _execute(conn,
             """UPDATE positions
                SET quantity = ?, total_cost_cents = ?, realized_pnl_cents = ?
                WHERE id = ?""",
             (new_qty, new_cost, total_pnl, row["id"]),
         )
 
-    conn.commit()
+    if not _use_pg:
+        conn.commit()
     conn.close()
     return pnl
 
@@ -252,21 +418,21 @@ def update_position_on_sell(ticker, side, qty, sell_price_cents, db_path=DEFAULT
 def get_open_positions(db_path=DEFAULT_DB_PATH):
     """Return all open positions."""
     conn = _connect(db_path)
-    rows = conn.execute(
+    rows = _fetchall(conn,
         "SELECT * FROM positions WHERE is_closed = 0 AND quantity > 0 ORDER BY opened_at DESC"
-    ).fetchall()
+    )
     conn.close()
-    return [dict(r) for r in rows]
+    return rows
 
 
 def get_all_positions(db_path=DEFAULT_DB_PATH):
     """Return all positions (open and closed)."""
     conn = _connect(db_path)
-    rows = conn.execute(
+    rows = _fetchall(conn,
         "SELECT * FROM positions ORDER BY opened_at DESC"
-    ).fetchall()
+    )
     conn.close()
-    return [dict(r) for r in rows]
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -276,11 +442,12 @@ def get_all_positions(db_path=DEFAULT_DB_PATH):
 def log_balance(balance_cents, db_path=DEFAULT_DB_PATH):
     """Record a balance snapshot."""
     conn = _connect(db_path)
-    conn.execute(
+    _execute(conn,
         "INSERT INTO balance_history (balance_cents) VALUES (?)",
         (balance_cents,),
     )
-    conn.commit()
+    if not _use_pg:
+        conn.commit()
     conn.close()
 
 
@@ -291,9 +458,9 @@ def log_balance(balance_cents, db_path=DEFAULT_DB_PATH):
 def get_position_tickers(db_path=DEFAULT_DB_PATH):
     """Return set of tickers that have open positions."""
     conn = _connect(db_path)
-    rows = conn.execute(
+    rows = _fetchall(conn,
         "SELECT DISTINCT ticker FROM positions WHERE is_closed = 0 AND quantity > 0"
-    ).fetchall()
+    )
     conn.close()
     return {r["ticker"] for r in rows}
 
@@ -301,9 +468,11 @@ def get_position_tickers(db_path=DEFAULT_DB_PATH):
 def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     """Return the earliest balance snapshot for today, or None."""
     conn = _connect(db_path)
-    row = conn.execute(
-        "SELECT balance_cents FROM balance_history WHERE date(recorded_at) = date('now') ORDER BY id ASC LIMIT 1"
-    ).fetchone()
+    if _use_pg:
+        sql = "SELECT balance_cents FROM balance_history WHERE recorded_at::date = CURRENT_DATE ORDER BY id ASC LIMIT 1"
+    else:
+        sql = "SELECT balance_cents FROM balance_history WHERE date(recorded_at) = date('now') ORDER BY id ASC LIMIT 1"
+    row = _fetchone(conn, sql)
     conn.close()
     return row["balance_cents"] if row else None
 
@@ -311,9 +480,9 @@ def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
 def count_open_positions(db_path=DEFAULT_DB_PATH):
     """Return number of open positions."""
     conn = _connect(db_path)
-    row = conn.execute(
+    row = _fetchone(conn,
         "SELECT COUNT(*) as n FROM positions WHERE is_closed = 0 AND quantity > 0"
-    ).fetchone()
+    )
     conn.close()
     return row["n"]
 
@@ -326,48 +495,42 @@ def get_stats(db_path=DEFAULT_DB_PATH):
     """Return aggregate trading statistics."""
     conn = _connect(db_path)
 
-    total = conn.execute(
+    total = _fetchone(conn,
         "SELECT COUNT(*) as n FROM trades WHERE status != 'failed'"
-    ).fetchone()["n"]
+    )["n"]
 
-    filled = conn.execute(
+    filled = _fetchone(conn,
         "SELECT COUNT(*) as n FROM trades WHERE status IN ('filled', 'partial') AND fill_count > 0"
-    ).fetchone()["n"]
+    )["n"]
 
-    failed = conn.execute(
+    failed = _fetchone(conn,
         "SELECT COUNT(*) as n FROM trades WHERE status = 'failed'"
-    ).fetchone()["n"]
+    )["n"]
 
-    # Realized P&L from closed positions
-    pnl_row = conn.execute(
+    realized_pnl = _fetchone(conn,
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) as total FROM positions WHERE is_closed = 1"
-    ).fetchone()
-    realized_pnl = pnl_row["total"]
+    )["total"]
 
-    # Open position P&L
-    open_pnl_row = conn.execute(
+    open_realized = _fetchone(conn,
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) as total FROM positions WHERE is_closed = 0"
-    ).fetchone()
-    open_realized = open_pnl_row["total"]
+    )["total"]
 
-    # Win/loss from closed positions
-    wins = conn.execute(
+    wins = _fetchone(conn,
         "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents > 0"
-    ).fetchone()["n"]
-    losses = conn.execute(
+    )["n"]
+    losses = _fetchone(conn,
         "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents < 0"
-    ).fetchone()["n"]
-    breakeven = conn.execute(
+    )["n"]
+    breakeven = _fetchone(conn,
         "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents = 0"
-    ).fetchone()["n"]
+    )["n"]
 
-    # Gross profit / gross loss for profit factor
-    gross_profit = conn.execute(
+    gross_profit = _fetchone(conn,
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) as s FROM positions WHERE is_closed = 1 AND realized_pnl_cents > 0"
-    ).fetchone()["s"]
-    gross_loss = abs(conn.execute(
+    )["s"]
+    gross_loss = abs(_fetchone(conn,
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) as s FROM positions WHERE is_closed = 1 AND realized_pnl_cents < 0"
-    ).fetchone()["s"])
+    )["s"])
 
     conn.close()
 
@@ -398,9 +561,9 @@ def get_stats(db_path=DEFAULT_DB_PATH):
 def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
     """Replace scan_results table with fresh results from CLI scan."""
     conn = _connect(db_path)
-    conn.execute("DELETE FROM scan_results")
+    _execute(conn, "DELETE FROM scan_results")
     for m in results:
-        conn.execute(
+        _execute(conn,
             """INSERT INTO scan_results
                (ticker, event_ticker, signal_side, signal_price, tier,
                 volume_24h, dollar_24h, volume, open_interest,
@@ -414,10 +577,9 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
              1 if m.get("qualified") else 0,
              m.get("close_time", "")),
         )
-    # Upsert scan metadata
-    conn.execute("DELETE FROM scan_meta")
+    _execute(conn, "DELETE FROM scan_meta")
     prefixes_str = ",".join(stats.get("prefixes", []))
-    conn.execute(
+    _execute(conn,
         """INSERT INTO scan_meta
            (id, total_fetched, top_n, scanned, passed_prefix, passed_volume,
             passed_price, qualified, min_price, min_volume, prefixes)
@@ -429,7 +591,8 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
          stats.get("min_price", 0), stats.get("min_volume", 0),
          prefixes_str),
     )
-    conn.commit()
+    if not _use_pg:
+        conn.commit()
     conn.close()
 
 
@@ -437,15 +600,17 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
     """Read last scan results from DB. Returns (results, stats, scanned_at)."""
     conn = _connect(db_path)
 
-    rows = conn.execute(
+    results = _fetchall(conn,
         "SELECT * FROM scan_results ORDER BY tier ASC, signal_price DESC, volume_24h DESC"
-    ).fetchall()
-    results = [dict(r) for r in rows]
+    )
 
-    meta_row = conn.execute("SELECT * FROM scan_meta WHERE id = 1").fetchone()
-    if meta_row:
-        meta = dict(meta_row)
+    meta = _fetchone(conn, "SELECT * FROM scan_meta WHERE id = 1")
+    if meta:
         prefixes_raw = meta.get("prefixes", "")
+        scanned_at = meta["scanned_at"]
+        # Convert datetime to string if PostgreSQL returns a datetime object
+        if hasattr(scanned_at, "strftime"):
+            scanned_at = scanned_at.strftime("%Y-%m-%d %H:%M:%S")
         stats = {
             "total_fetched": meta["total_fetched"],
             "top_n": meta["top_n"],
@@ -458,7 +623,6 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
             "min_volume": meta["min_volume"],
             "prefixes": [p for p in prefixes_raw.split(",") if p],
         }
-        scanned_at = meta["scanned_at"]
     else:
         stats = {}
         scanned_at = None

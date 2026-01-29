@@ -162,13 +162,16 @@ def positions():
 _EST = timezone(timedelta(hours=-5))
 
 
-def _utc_to_est(utc_str):
-    """Convert a 'YYYY-MM-DD HH:MM:SS' UTC string to EST."""
+def _utc_to_est(val):
+    """Convert a UTC timestamp (string or datetime) to EST display string."""
     try:
-        dt = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        if isinstance(val, datetime):
+            dt = val.replace(tzinfo=timezone.utc) if val.tzinfo is None else val
+        else:
+            dt = datetime.strptime(str(val), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         return dt.astimezone(_EST).strftime("%Y-%m-%d %I:%M:%S %p EST")
     except Exception:
-        return utc_str
+        return str(val)
 
 
 @app.route("/trades")
