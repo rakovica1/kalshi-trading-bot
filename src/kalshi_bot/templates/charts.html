@@ -99,10 +99,76 @@
 <p class="mt-4 text-sm text-slate-500">{{ positions|length }} open position{{ 's' if positions|length != 1 }}</p>
 
 {% else %}
+{% if not closed_positions %}
 <div class="text-center py-16">
   <div class="text-slate-600 text-lg mb-2">No open positions to chart</div>
   <p class="text-slate-500 text-sm">Charts will appear here when you have open positions.</p>
   <a href="/positions" class="inline-block mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">View Positions &rarr;</a>
+</div>
+{% endif %}
+{% endif %}
+
+{% if closed_positions %}
+<!-- Closed Positions (collapsible) -->
+<div class="mt-8">
+  <button id="toggle-closed-charts" onclick="document.getElementById('closed-charts-section').classList.toggle('hidden'); this.querySelector('.toggle-arrow').classList.toggle('rotate-90');"
+    class="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-4">
+    <span class="toggle-arrow text-xs transition-transform">&rsaquo;</span>
+    Show Closed Positions ({{ closed_positions|length }})
+  </button>
+  <div id="closed-charts-section" class="hidden">
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {% for p in closed_positions %}
+      {% set pnl_per = p.unrealized_cents %}
+      {% set is_winning = pnl_per >= 0 %}
+      <div class="bg-slate-900/60 border border-slate-800/60 rounded-lg overflow-hidden opacity-75">
+        <!-- Header -->
+        <div class="px-5 pt-4 pb-3 border-b border-slate-800/50">
+          <div class="flex items-center justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-slate-300 truncate">{{ p.ticker|decode_ticker }}</h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 shrink-0">SETTLED</span>
+              </div>
+              <div class="text-[10px] font-mono text-slate-600 truncate">{{ p.ticker }}</div>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ 'bg-emerald-900/30 text-emerald-500/70' if p.side == 'yes' else 'bg-red-900/30 text-red-500/70' }}">
+                  {{ p.side|upper }}
+                </span>
+                <span class="text-xs text-slate-600">{{ p.quantity }} contract{{ 's' if p.quantity != 1 }}</span>
+              </div>
+            </div>
+            <div class="text-right ml-4">
+              <div class="flex items-center justify-end gap-1.5">
+                <span class="text-lg {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">{{ '▲' if is_winning else '▼' }}</span>
+                <span class="text-xl font-bold {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">
+                  ${{ "%+.2f"|format(pnl_per / 100) }}
+                </span>
+              </div>
+              <div class="text-[10px] text-slate-600 uppercase tracking-wide">Realized P&amp;L</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats bar (simplified for settled) -->
+        <div class="grid grid-cols-3 border-t border-slate-800/50 text-center">
+          <div class="px-2 py-3 border-r border-slate-800/30">
+            <div class="text-[10px] text-slate-600 uppercase tracking-wide mb-0.5">Entry</div>
+            <div class="text-sm font-semibold text-amber-400/70">{{ "%.0f"|format(p.avg_entry_price_cents) }}&cent;</div>
+          </div>
+          <div class="px-2 py-3 border-r border-slate-800/30">
+            <div class="text-[10px] text-slate-600 uppercase tracking-wide mb-0.5">Settlement</div>
+            <div class="text-sm font-semibold {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">{{ p.current_bid }}&cent;</div>
+          </div>
+          <div class="px-2 py-3">
+            <div class="text-[10px] text-slate-600 uppercase tracking-wide mb-0.5">Status</div>
+            <div class="text-sm font-semibold text-slate-400">Settled</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 {% endif %}
 
@@ -115,7 +181,7 @@ function formatTimeLeft(closeTime) {
   const close = new Date(closeTime);
   const now = new Date();
   const ms = close - now;
-  if (ms <= 0) return 'Closed';
+  if (ms <= 0) return 'Settled';
   const hours = ms / 3600000;
   if (hours < 1) return Math.round(hours * 60) + 'm';
   if (hours < 48) {
@@ -135,7 +201,7 @@ function updateTimers() {
     const ms = new Date(el.dataset.closeTime) - new Date();
     const hours = ms / 3600000;
     el.className = 'text-sm font-semibold time-left-display';
-    if (hours <= 0) el.classList.add('text-slate-500');
+    if (hours <= 0) el.classList.add('text-blue-400');
     else if (hours < 1) el.classList.add('text-red-400');
     else if (hours < 6) el.classList.add('text-amber-400');
     else el.classList.add('text-slate-300');

@@ -481,6 +481,49 @@ def get_all_positions(db_path=DEFAULT_DB_PATH):
     return rows
 
 
+def get_closed_positions(db_path=DEFAULT_DB_PATH):
+    """Return all closed positions."""
+    conn = _connect(db_path)
+    rows = _fetchall(conn,
+        "SELECT * FROM positions WHERE is_closed = 1 ORDER BY closed_at DESC"
+    )
+    conn.close()
+    return rows
+
+
+def close_position_settled(ticker, side, settlement_value_cents, db_path=DEFAULT_DB_PATH):
+    """Close a position that has been settled by the market.
+
+    settlement_value_cents: 100 if position side won, 0 if lost.
+    Returns realized PnL in cents, or None if no matching position found.
+    """
+    conn = _connect(db_path)
+    row = _fetchone(conn,
+        "SELECT * FROM positions WHERE ticker = ? AND side = ? AND is_closed = 0 AND quantity > 0",
+        (ticker, side),
+    )
+    if not row:
+        conn.close()
+        return None
+
+    avg_entry = row["avg_entry_price_cents"]
+    qty = row["quantity"]
+    pnl = int(qty * (settlement_value_cents - avg_entry))
+    total_pnl = row["realized_pnl_cents"] + pnl
+
+    _execute(conn,
+        f"""UPDATE positions
+           SET quantity = 0, total_cost_cents = 0, realized_pnl_cents = ?,
+               is_closed = 1, closed_at = {_now_sql()}
+           WHERE id = ?""",
+        (total_pnl, row["id"]),
+    )
+    if not _use_pg:
+        conn.commit()
+    conn.close()
+    return pnl
+
+
 # ---------------------------------------------------------------------------
 # Balance
 # ---------------------------------------------------------------------------

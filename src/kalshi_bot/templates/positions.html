@@ -14,7 +14,7 @@
         <th class="pb-3 pr-4 text-right">Qty</th>
         <th class="pb-3 pr-4 text-right">Entry</th>
         <th class="pb-3 pr-4 text-right">Current</th>
-        <th class="pb-3 pr-4 text-right">Expires</th>
+        <th class="pb-3 pr-4 text-right">Status</th>
         <th class="pb-3 text-right">Unrealized P&amp;L</th>
       </tr>
     </thead>
@@ -37,9 +37,13 @@
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.quantity }}</td>
         <td class="py-3 pr-4 text-right text-slate-400">{{ "%.0f"|format(p.avg_entry_price_cents) }}c</td>
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.current_price }}c</td>
-        <td class="py-3 pr-4 text-right expires-cell" data-close-time="{{ p.close_time }}">
-          <div class="text-xs expires-time"></div>
-          <div class="text-[10px] mt-0.5 expires-relative"></div>
+        <td class="py-3 pr-4 text-right expires-cell" data-close-time="{{ p.close_time }}" data-settled="{{ 'true' if p.is_settled else 'false' }}">
+          {% if p.is_settled %}
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-900/50 text-blue-400">SETTLED</span>
+          {% else %}
+            <div class="text-xs expires-time"></div>
+            <div class="text-[10px] mt-0.5 expires-relative"></div>
+          {% endif %}
         </td>
         <td class="py-3 text-right font-medium {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
           ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
@@ -54,6 +58,62 @@
 <div class="text-center py-16">
   <div class="text-slate-600 text-lg mb-2">No open positions</div>
   <p class="text-slate-500 text-sm">Positions will appear here when you place trades.</p>
+</div>
+{% endif %}
+
+{% if closed_positions %}
+<!-- Closed Positions (collapsible) -->
+<div class="mt-8">
+  <button id="toggle-closed" onclick="document.getElementById('closed-section').classList.toggle('hidden'); this.querySelector('.toggle-arrow').classList.toggle('rotate-90');"
+    class="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-4">
+    <span class="toggle-arrow text-xs transition-transform">&rsaquo;</span>
+    Show Closed Positions ({{ closed_positions|length }})
+  </button>
+  <div id="closed-section" class="hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
+            <th class="pb-3 pr-4">Ticker</th>
+            <th class="pb-3 pr-4">Opened</th>
+            <th class="pb-3 pr-4">Closed</th>
+            <th class="pb-3 pr-4">Side</th>
+            <th class="pb-3 pr-4 text-right">Entry</th>
+            <th class="pb-3 pr-4 text-right">Status</th>
+            <th class="pb-3 text-right">Realized P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in closed_positions %}
+          <tr class="border-b border-slate-800/50 hover:bg-slate-900/30 opacity-70">
+            <td class="py-3 pr-4">
+              <div class="text-sm text-slate-300">{{ p.ticker|decode_ticker }}</div>
+              <div class="text-[10px] font-mono text-slate-600 mt-0.5">{{ p.ticker }}</div>
+            </td>
+            <td class="py-3 pr-4">
+              <div class="text-xs text-slate-500">{{ p.opened_at_display }}</div>
+            </td>
+            <td class="py-3 pr-4">
+              <div class="text-xs text-slate-500">{{ p.closed_at_display }}</div>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/30 text-emerald-500/70' if p.side == 'yes' else 'bg-red-900/30 text-red-500/70' }}">
+                {{ p.side|upper }}
+              </span>
+            </td>
+            <td class="py-3 pr-4 text-right text-slate-500">{{ "%.0f"|format(p.avg_entry_price_cents) }}c</td>
+            <td class="py-3 pr-4 text-right">
+              <span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-800 text-slate-400">SETTLED</span>
+            </td>
+            <td class="py-3 text-right font-medium {{ 'text-emerald-400/70' if p.realized_pnl_cents >= 0 else 'text-red-400/70' }}">
+              ${{ "%+.2f"|format(p.realized_pnl_cents / 100) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endif %}
 
@@ -119,11 +179,13 @@ function updateAll() {
     el.textContent = formatTimeAgo(el.dataset.utc);
   });
 
-  // Expires
+  // Expires (skip settled cells)
   document.querySelectorAll('.expires-cell').forEach(cell => {
+    if (cell.dataset.settled === 'true') return;
     const info = formatExpires(cell.dataset.closeTime);
     const timeEl = cell.querySelector('.expires-time');
     const relEl = cell.querySelector('.expires-relative');
+    if (!timeEl || !relEl) return;
 
     timeEl.textContent = info.time;
     relEl.textContent = info.relative;

@@ -71,6 +71,26 @@ def _get_client():
     return app.config["kalshi_client"]
 
 
+def _market_position_value(market_data, side):
+    """Determine current value per contract for a position.
+
+    For settled markets, returns 100 if position side matches result, 0 otherwise.
+    For active markets, returns the current bid price.
+    """
+    result = market_data.get("result", "")
+    status = market_data.get("status", "")
+
+    # Market is settled/finalized
+    if result:
+        return (100, True) if result == side else (0, True)
+
+    # Active market — use current bid
+    if side == "yes":
+        return (market_data.get("yes_bid", 0) or 0, False)
+    else:
+        return (market_data.get("no_bid", 0) or 0, False)
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -89,22 +109,29 @@ def dashboard():
     open_positions = db.get_open_positions()
     stats = db.get_stats()
 
-    # Unrealized P&L from open positions
+    # Unrealized P&L from open positions (and auto-close settled ones)
     total_unrealized = 0
     try:
         client = _get_client()
         for p in open_positions:
             try:
                 m = client.get_market(ticker=p["ticker"])
-                if p["side"] == "yes":
-                    current = m.get("yes_bid", 0) or 0
+                current, is_settled = _market_position_value(m, p["side"])
+                if is_settled:
+                    # Auto-close settled position in DB with correct P&L
+                    db.close_position_settled(
+                        p["ticker"], p["side"],
+                        settlement_value_cents=current,
+                    )
                 else:
-                    current = m.get("no_bid", 0) or 0
-                total_unrealized += int(p["quantity"] * (current - p["avg_entry_price_cents"]))
+                    total_unrealized += int(p["quantity"] * (current - p["avg_entry_price_cents"]))
             except Exception:
                 pass
     except Exception:
         pass
+
+    # Re-fetch stats after auto-closing any settled positions
+    stats = db.get_stats()
 
     realized = stats["realized_pnl_cents"]
     total_pnl = realized + total_unrealized
@@ -119,7 +146,7 @@ def dashboard():
         total_pnl_cents=total_pnl,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
-        open_count=len(open_positions),
+        open_count=db.count_open_positions(),
         total_trades=stats["total_orders"],
         win_rate=stats["win_rate"],
         profit_factor=stats["profit_factor"],
@@ -142,17 +169,19 @@ def positions():
             entry = p["avg_entry_price_cents"]
             qty = p["quantity"]
             close_time = ""
+            is_settled = False
             try:
                 m = client.get_market(ticker=p["ticker"])
-                if p["side"] == "yes":
-                    current = m.get("yes_bid", 0) or 0
-                else:
-                    current = m.get("no_bid", 0) or 0
+                current, is_settled = _market_position_value(m, p["side"])
                 close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
+                if is_settled:
+                    db.close_position_settled(
+                        p["ticker"], p["side"],
+                        settlement_value_cents=current,
+                    )
             except Exception:
                 current = 0
             unrealized = int(qty * (current - entry))
-            # Format opened_at for display
             opened_at = p.get("opened_at", "")
             if opened_at and isinstance(opened_at, str):
                 opened_at_display = _utc_to_est(opened_at)
@@ -166,6 +195,7 @@ def positions():
                 "unrealized_cents": unrealized,
                 "opened_at_display": opened_at_display,
                 "close_time": close_time,
+                "is_settled": is_settled,
             })
     except Exception:
         enriched = [{
@@ -174,9 +204,34 @@ def positions():
             "unrealized_cents": 0,
             "opened_at_display": _utc_to_est(p.get("opened_at", "")),
             "close_time": "",
+            "is_settled": False,
         } for p in open_positions]
 
-    return render_template("positions.html", positions=enriched)
+    # Fetch closed positions
+    closed_positions = db.get_closed_positions()
+    closed_enriched = []
+    for p in closed_positions:
+        opened_at = p.get("opened_at", "")
+        if opened_at and isinstance(opened_at, str):
+            opened_at_display = _utc_to_est(opened_at)
+        elif hasattr(opened_at, "strftime"):
+            opened_at_display = _utc_to_est(opened_at)
+        else:
+            opened_at_display = str(opened_at)
+        closed_at = p.get("closed_at", "")
+        if closed_at and isinstance(closed_at, str):
+            closed_at_display = _utc_to_est(closed_at)
+        elif hasattr(closed_at, "strftime"):
+            closed_at_display = _utc_to_est(closed_at)
+        else:
+            closed_at_display = str(closed_at) if closed_at else ""
+        closed_enriched.append({
+            **p,
+            "opened_at_display": opened_at_display,
+            "closed_at_display": closed_at_display,
+        })
+
+    return render_template("positions.html", positions=enriched, closed_positions=closed_enriched)
 
 
 # ---------------------------------------------------------------------------
@@ -264,16 +319,23 @@ def _build_position_data(client, open_positions, candle_history):
     for p in open_positions:
         entry = p["avg_entry_price_cents"]
         qty = p["quantity"]
+        is_settled = False
         try:
             m = client.get_market(ticker=p["ticker"])
-            if p["side"] == "yes":
-                bid = m.get("yes_bid", 0) or 0
-                ask = m.get("yes_ask", 0) or 0
+            bid, is_settled = _market_position_value(m, p["side"])
+            if is_settled:
+                ask = bid  # settled: bid == ask == settlement value
+                db.close_position_settled(
+                    p["ticker"], p["side"],
+                    settlement_value_cents=bid,
+                )
             else:
-                bid = m.get("no_bid", 0) or 0
-                ask = m.get("no_ask", 0) or 0
+                if p["side"] == "yes":
+                    ask = m.get("yes_ask", 0) or 0
+                else:
+                    ask = m.get("no_ask", 0) or 0
+                db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
             close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
-            db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
         except Exception:
             bid = 0
             ask = 0
@@ -317,6 +379,7 @@ def _build_position_data(client, open_positions, candle_history):
             "history": history,
             "bid_high": bid_high,
             "bid_low": bid_low,
+            "is_settled": is_settled,
         })
     return enriched
 
@@ -340,7 +403,31 @@ def charts():
             "unrealized_cents": 0,
             "close_time": "",
             "history": [],
+            "is_settled": False,
         } for p in open_positions]
+
+    # Separate open vs just-settled positions
+    active_positions = [p for p in enriched if not p.get("is_settled")]
+    just_settled = [p for p in enriched if p.get("is_settled")]
+
+    # Fetch previously closed positions from DB
+    closed_positions = db.get_closed_positions()
+    closed_enriched = []
+    for p in closed_positions:
+        closed_enriched.append({
+            **p,
+            "current_bid": 100 if p["realized_pnl_cents"] >= 0 else 0,
+            "current_ask": 100 if p["realized_pnl_cents"] >= 0 else 0,
+            "unrealized_cents": p["realized_pnl_cents"],
+            "close_time": "",
+            "history": [],
+            "bid_high": 0,
+            "bid_low": 0,
+            "is_settled": True,
+        })
+
+    # Merge just-settled with closed
+    all_closed = just_settled + closed_enriched
 
     # Cleanup old snapshots periodically
     try:
@@ -348,7 +435,7 @@ def charts():
     except Exception:
         pass
 
-    return render_template("charts.html", positions=enriched)
+    return render_template("charts.html", positions=active_positions, closed_positions=all_closed)
 
 
 @app.route("/api/charts/prices")
@@ -363,6 +450,8 @@ def api_charts_prices():
         enriched = _build_position_data(client, open_positions, candle_history)
         result = []
         for pos in enriched:
+            if pos.get("is_settled"):
+                continue  # Don't include settled positions in live refresh
             result.append({
                 "ticker": pos["ticker"],
                 "side": pos["side"],
