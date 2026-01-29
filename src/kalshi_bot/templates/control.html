@@ -19,9 +19,9 @@
     </span>
   </div>
 
-  <div class="flex flex-wrap gap-3">
-    <!-- Start form -->
-    <form method="post" action="/control/start" class="flex flex-wrap items-end gap-3" id="start-form">
+  <!-- Settings -->
+  <form method="post" action="/control/start" id="start-form">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
       <div>
         <label class="block text-xs text-slate-500 mb-1">Prefixes</label>
         <input type="text" name="prefixes" value="KXNFL,KXNBA,KXBTC,KXETH"
@@ -57,20 +57,20 @@
           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
         Dry Run
       </label>
+    </div>
+
+    <div class="flex items-center gap-3">
       <button type="submit" id="start-btn" {{ 'disabled' if running }}
-        class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
+        class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
         Start
       </button>
-    </form>
-
-    <!-- Stop button -->
-    <form method="post" action="/control/stop">
-      <button type="submit" id="stop-btn" {{ '' if running else 'disabled' }}
-        class="px-4 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
+      <button type="button" id="stop-btn" onclick="document.getElementById('stop-form').submit()" {{ '' if running else 'disabled' }}
+        class="px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
         Stop
       </button>
-    </form>
-  </div>
+    </div>
+  </form>
+  <form method="post" action="/control/stop" id="stop-form" class="hidden"></form>
 </div>
 
 <!-- Log viewer -->

@@ -28,7 +28,7 @@ def run_whale_strategy(
       3. Filter by expiration window (default: 1 hour)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
-      6. Place MARKET ORDER for instant execution (price clamped to 99c max)
+      6. Place true MARKET ORDER (no price limit, fills at best available)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -185,22 +185,19 @@ def run_whale_strategy(
         log(f"\n  WARNING: Wide spread ({spread:.1f}%). Market order may execute "
             f"at {ask_price}c vs bid {bid_price}c ({ask_price - bid_price}c slippage).")
 
-    # Use ask price for position sizing (worst-case cost)
-    # Kalshi max valid price is 99c — clamp to avoid rejection
-    exec_price = ask_price if ask_price > 0 else bid_price
-    if exec_price > 99:
-        log(f"  Note: Clamping price from {exec_price}c to 99c (Kalshi max)")
-        exec_price = 99
+    # Use ask price for position sizing estimate (actual fill price determined by order book)
+    est_price = ask_price if ask_price > 0 else bid_price
 
-    # 10. Calculate position size (based on ask price for accurate cost)
-    total_contracts = calculate_position(balance_cents, exec_price, risk_pct)
+    # 10. Calculate position size (based on ask price for conservative estimate)
+    total_contracts = calculate_position(balance_cents, est_price, risk_pct)
     if total_contracts <= 0:
-        log(f"  SKIP: Insufficient balance for even 1 contract at {exec_price}c")
+        log(f"  SKIP: Insufficient balance for even 1 contract at ~{est_price}c")
         log(f"{'='*60}\n")
         return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
 
-    cost_cents = total_contracts * exec_price
-    log(f"\n  MARKET ORDER: {total_contracts} contracts x ~{exec_price}c = ~${cost_cents / 100:.2f}")
+    est_cost = total_contracts * est_price
+    log(f"\n  MARKET ORDER: {total_contracts} contracts (est ~{est_price}c each = ~${est_cost / 100:.2f})")
+    log(f"  Note: True market order — fills at best available prices (no price limit)")
 
     summary = {
         "scanned": total_found,
@@ -211,21 +208,20 @@ def run_whale_strategy(
         "selected_ticker": ticker,
     }
 
-    # 11. Execute market order (single order, no chunking)
+    # 11. Execute market order (single order, no chunking, no price limit)
     if dry_run:
         log(f"\n  DRY RUN — would place MARKET ORDER for {total_contracts} "
-            f"{side.upper()} contracts on {ticker} at ~{exec_price}c (ask)")
+            f"{side.upper()} contracts on {ticker} (est ~{est_price}c)")
         summary["traded"] = 1
         summary["orders"] = 1
     else:
-        log(f"\n  PLACING MARKET ORDER: {total_contracts} {side.upper()} on {ticker} at ~{exec_price}c...")
+        log(f"\n  PLACING MARKET ORDER: {total_contracts} {side.upper()} on {ticker}...")
         try:
             result = client.create_order(
                 ticker=ticker,
                 side=side,
                 action="buy",
                 count=total_contracts,
-                price=exec_price,
                 order_type="market",
             )
 
@@ -240,12 +236,13 @@ def run_whale_strategy(
             else:
                 status = "submitted"
 
+            # Use est_price for logging; actual fill price determined by exchange
             db.log_trade(
                 ticker=ticker,
                 side=side,
                 action="buy",
                 count=total_contracts,
-                price_cents=exec_price,
+                price_cents=est_price,
                 status=status,
                 order_id=order_id,
                 fill_count=fill_count,
@@ -253,7 +250,7 @@ def run_whale_strategy(
             )
 
             if fill_count > 0:
-                db.update_position_on_buy(ticker, side, fill_count, exec_price)
+                db.update_position_on_buy(ticker, side, fill_count, est_price)
 
             log(f"  Order ID:  {order_id}")
             log(f"  Status:    {status}")
@@ -267,7 +264,7 @@ def run_whale_strategy(
                 side=side,
                 action="buy",
                 count=total_contracts,
-                price_cents=exec_price,
+                price_cents=est_price,
                 status="failed",
                 error_message=str(e),
             )
@@ -278,7 +275,7 @@ def run_whale_strategy(
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
     log(f"  Strategy:  Last-Minute Sniper")
-    log(f"  Market:    {ticker} {side.upper()} @ ~{exec_price}c (market order)")
+    log(f"  Market:    {ticker} {side.upper()} (market order, est ~{est_price}c)")
     log(f"  Expires:   {sel_close}")
     log(f"  Scanned:   {summary['scanned']}  Qualified: {len(candidates)}  "
         f"Traded: {summary['traded']}  Orders: {summary['orders']}")

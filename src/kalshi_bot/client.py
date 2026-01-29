@@ -75,21 +75,28 @@ class KalshiBotClient:
                 break
         return all_positions
 
-    def create_order(self, ticker, side, action, count, price, order_type="limit") -> dict:
-        price_param = {}
-        if side == "yes":
-            price_param["yes_price"] = price
-        else:
-            price_param["no_price"] = price
+    def create_order(self, ticker, side, action, count, price=None, order_type="limit") -> dict:
+        """Place an order.
 
-        req = CreateOrderRequest(
-            ticker=ticker,
-            side=side,
-            action=action,
-            count=count,
-            type=order_type,
-            **price_param,
-        )
+        For limit orders, price (1-99 cents) is required.
+        For market orders, price is ignored — Kalshi fills at best available.
+        """
+        kwargs = {
+            "ticker": ticker,
+            "side": side,
+            "action": action,
+            "count": count,
+            "type": order_type,
+        }
+
+        # Only set price for limit orders — market orders must not include price
+        if order_type != "market" and price is not None:
+            if side == "yes":
+                kwargs["yes_price"] = price
+            else:
+                kwargs["no_price"] = price
+
+        req = CreateOrderRequest(**kwargs)
 
         resp = self._orders_api.create_order_without_preload_content(
             create_order_request=req
