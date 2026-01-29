@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Login - Control Panel{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-16">
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+    <h1 class="text-lg font-bold text-white mb-1">Control Panel</h1>
+    <p class="text-sm text-slate-500 mb-6">Enter the password to access trading controls.</p>
+
+    {% if error %}
+    <div class="bg-red-900/30 border border-red-800 rounded-md p-3 mb-4 text-sm text-red-400">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/control/login">
+      <label class="block text-xs text-slate-500 mb-1">Password</label>
+      <input type="password" name="password" autofocus required
+        class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-brand-500 mb-4">
+      <button type="submit"
+        class="w-full px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded text-sm text-white font-medium">
+        Log In
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

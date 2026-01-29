@@ -6,7 +6,10 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s: %(message)s")
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+import functools
+import hmac
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
 
 from kalshi_bot import db
 from kalshi_bot.config import load_config
@@ -39,6 +42,22 @@ _scan_state = {
     "error": None,
 }
 _scan_lock = threading.Lock()
+
+
+def _require_control_password(f):
+    """Decorator: require CONTROL_PASSWORD session auth for protected routes."""
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        password = os.environ.get("CONTROL_PASSWORD", "")
+        if not password:
+            # No password configured — block access entirely
+            abort(403)
+        if not session.get("control_authed"):
+            if request.is_json or request.headers.get("X-Requested-With"):
+                return jsonify({"ok": False, "error": "Authentication required"}), 401
+            return redirect(url_for("control_login"))
+        return f(*args, **kwargs)
+    return wrapper
 
 
 def _get_client():
@@ -210,10 +229,35 @@ def scanner_status():
 
 
 # ---------------------------------------------------------------------------
+# Control Panel — auth
+# ---------------------------------------------------------------------------
+
+@app.route("/control/login", methods=["GET", "POST"])
+def control_login():
+    password = os.environ.get("CONTROL_PASSWORD", "")
+    if not password:
+        abort(403)
+    if request.method == "POST":
+        submitted = request.form.get("password", "")
+        if hmac.compare_digest(submitted, password):
+            session["control_authed"] = True
+            return redirect(url_for("control"))
+        return render_template("login.html", error="Incorrect password")
+    return render_template("login.html", error=None)
+
+
+@app.route("/control/logout", methods=["POST"])
+def control_logout():
+    session.pop("control_authed", None)
+    return redirect(url_for("control_login"))
+
+
+# ---------------------------------------------------------------------------
 # Control Panel
 # ---------------------------------------------------------------------------
 
 @app.route("/control")
+@_require_control_password
 def control():
     with _whale_lock:
         running = _whale_state["running"]
@@ -221,6 +265,7 @@ def control():
 
 
 @app.route("/control/start", methods=["POST"])
+@_require_control_password
 def control_start():
     with _whale_lock:
         if _whale_state["running"]:
@@ -262,6 +307,7 @@ def control_start():
 
 
 @app.route("/control/stop", methods=["POST"])
+@_require_control_password
 def control_stop():
     with _whale_lock:
         _whale_state["stop_requested"] = True
@@ -270,6 +316,7 @@ def control_stop():
 
 
 @app.route("/control/logs")
+@_require_control_password
 def control_logs():
     with _whale_lock:
         running = _whale_state["running"]

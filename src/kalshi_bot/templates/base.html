@@ -27,7 +27,10 @@
       <a href="/positions" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/positions' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Positions</a>
       <a href="/trades" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/trades' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Trades</a>
       <a href="/scanner" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/scanner' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Scanner</a>
-      <a href="/control" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/control' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Control Panel</a>
+      <a href="/control" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/control' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">
+        <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        Control Panel
+      </a>
     </nav>
 
     <!-- Mobile nav -->
