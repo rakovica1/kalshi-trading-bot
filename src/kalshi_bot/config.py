@@ -36,13 +36,18 @@ def load_config_from_env():
 
     # Debug: show what Railway passed (redacted for security)
     raw = private_key
-    logger.warning(f"PEM DEBUG: len={len(raw)}")
-    logger.warning(f"PEM DEBUG: first 50 chars: {repr(raw[:50])}")
-    logger.warning(f"PEM DEBUG: last 50 chars:  {repr(raw[-50:])}")
-    logger.warning(f"PEM DEBUG: has real newlines: {'\\n' in raw}")
-    logger.warning(f"PEM DEBUG: has literal backslash-n: {'\\\\n' in repr(raw)}")
-    logger.warning(f"PEM DEBUG: starts with -----: {raw.startswith('-----')}")
-    logger.warning(f"PEM DEBUG: newline count: {raw.count(chr(10))}")
+    has_newlines = "\n" in raw
+    has_literal_backslash_n = "\\n" in raw
+    newline_count = raw.count("\n")
+    first50 = repr(raw[:50])
+    last50 = repr(raw[-50:])
+    logger.warning("PEM DEBUG: len=%d", len(raw))
+    logger.warning("PEM DEBUG: first 50 chars: %s", first50)
+    logger.warning("PEM DEBUG: last 50 chars:  %s", last50)
+    logger.warning("PEM DEBUG: has real newlines: %s", has_newlines)
+    logger.warning("PEM DEBUG: has literal backslash-n: %s", has_literal_backslash_n)
+    logger.warning("PEM DEBUG: starts with -----: %s", raw.startswith("-----"))
+    logger.warning("PEM DEBUG: newline count: %d", newline_count)
 
     # Handle literal \n escape sequences from env var (check FIRST)
     if "\\n" in private_key:
