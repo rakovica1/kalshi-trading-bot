@@ -648,6 +648,74 @@ def get_stats(db_path=DEFAULT_DB_PATH):
     }
 
 
+def get_daily_pnl(days=30, db_path=DEFAULT_DB_PATH):
+    """Return daily P&L breakdown for the last N days.
+
+    Combines realized P&L from closed positions (by closed_at date)
+    with fees from trades (by created_at date).
+    Returns list of dicts sorted by date ascending.
+    """
+    conn = _connect(db_path)
+
+    if _use_pg:
+        date_fn = "closed_at::date"
+        trade_date_fn = "created_at::date"
+        day_filter = f"closed_at >= NOW() - INTERVAL '{days} days'"
+        trade_day_filter = f"created_at >= NOW() - INTERVAL '{days} days'"
+    else:
+        date_fn = "date(closed_at)"
+        trade_date_fn = "date(created_at)"
+        day_filter = f"closed_at >= datetime('now', '-{days} days')"
+        trade_day_filter = f"created_at >= datetime('now', '-{days} days')"
+
+    # Realized P&L by close date
+    pnl_rows = _fetchall(conn, f"""
+        SELECT {date_fn} as day,
+               COALESCE(SUM(realized_pnl_cents), 0) as realized_cents,
+               COUNT(*) as positions_closed
+        FROM positions
+        WHERE is_closed = 1 AND {day_filter}
+        GROUP BY {date_fn}
+        ORDER BY day ASC
+    """)
+
+    # Fees and trade count by trade date
+    fee_rows = _fetchall(conn, f"""
+        SELECT {trade_date_fn} as day,
+               COALESCE(SUM(fee_cents), 0) as fees_cents,
+               COUNT(*) as trade_count
+        FROM trades
+        WHERE status != 'failed' AND {trade_day_filter}
+        GROUP BY {trade_date_fn}
+        ORDER BY day ASC
+    """)
+
+    conn.close()
+
+    # Merge into a single dict keyed by date string
+    daily = {}
+    for row in pnl_rows:
+        d = str(row["day"])
+        daily.setdefault(d, {"date": d, "realized_cents": 0, "fees_cents": 0,
+                             "trade_count": 0, "positions_closed": 0})
+        daily[d]["realized_cents"] = row["realized_cents"]
+        daily[d]["positions_closed"] = row["positions_closed"]
+
+    for row in fee_rows:
+        d = str(row["day"])
+        daily.setdefault(d, {"date": d, "realized_cents": 0, "fees_cents": 0,
+                             "trade_count": 0, "positions_closed": 0})
+        daily[d]["fees_cents"] = row["fees_cents"]
+        daily[d]["trade_count"] = row["trade_count"]
+
+    # Sort by date and compute net P&L
+    result = sorted(daily.values(), key=lambda x: x["date"])
+    for r in result:
+        r["net_cents"] = r["realized_cents"] - r["fees_cents"]
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Scan results (written by CLI, read by web dashboard)
 # ---------------------------------------------------------------------------

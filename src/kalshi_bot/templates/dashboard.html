@@ -68,6 +68,32 @@
   </div>
 </div>
 
+<!-- Daily P&L Chart -->
+{% if daily_pnl %}
+<div class="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Daily Performance</h2>
+    <div class="flex gap-1" id="period-selector">
+      <button data-days="7" class="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">7d</button>
+      <button data-days="30" class="px-2.5 py-1 rounded text-xs text-slate-200 bg-slate-800">30d</button>
+      <button data-days="0" class="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">All</button>
+    </div>
+  </div>
+  <div style="height: 320px;">
+    <canvas id="daily-pnl-chart"></canvas>
+  </div>
+
+  <!-- Summary stats below chart -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-800/50" id="pnl-summary">
+  </div>
+</div>
+{% else %}
+<div class="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">Daily Performance</h2>
+  <p class="text-slate-500 text-sm">No trading data yet. P&amp;L history will appear here after positions are settled.</p>
+</div>
+{% endif %}
+
 <!-- Quick links -->
 <div class="flex flex-wrap gap-3">
   <a href="/positions" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">View Positions &rarr;</a>
@@ -76,4 +102,184 @@
   <a href="/scanner" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Run Scanner &rarr;</a>
   <a href="/control" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-md text-sm text-white">Execute Trade &rarr;</a>
 </div>
+
+{% if daily_pnl %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const allData = {{ daily_pnl|tojson }};
+let dailyChart = null;
+let currentDays = 30;
+
+function filterData(days) {
+  if (days === 0 || days >= allData.length) return allData;
+  return allData.slice(-days);
+}
+
+function computeCumulative(data) {
+  let cum = 0;
+  return data.map(d => { cum += d.net_cents; return cum; });
+}
+
+function buildChart(days) {
+  currentDays = days;
+  const data = filterData(days);
+  const labels = data.map(d => d.date);
+  const netValues = data.map(d => d.net_cents / 100);
+  const cumValues = computeCumulative(data).map(v => v / 100);
+  const barColors = netValues.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)');
+  const barBorders = netValues.map(v => v >= 0 ? '#10b981' : '#ef4444');
+
+  if (dailyChart) dailyChart.destroy();
+
+  const ctx = document.getElementById('daily-pnl-chart');
+  dailyChart = new Chart(ctx, {
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Daily Net P&L',
+          data: netValues,
+          backgroundColor: barColors,
+          borderColor: barBorders,
+          borderWidth: 1,
+          borderRadius: 3,
+          order: 2,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Cumulative P&L',
+          data: cumValues,
+          borderColor: 'rgba(96, 165, 250, 0.8)',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointBackgroundColor: 'rgba(96, 165, 250, 1)',
+          tension: 0.3,
+          order: 1,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { color: 'rgba(51, 65, 85, 0.25)' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 9 },
+            maxTicksLimit: 10,
+            maxRotation: 0,
+          },
+          border: { color: 'rgba(51, 65, 85, 0.4)' }
+        },
+        y: {
+          position: 'left',
+          grid: { color: 'rgba(51, 65, 85, 0.25)' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 10 },
+            callback: v => '$' + v.toFixed(2),
+          },
+          border: { color: 'rgba(51, 65, 85, 0.4)' }
+        },
+        y2: {
+          position: 'right',
+          grid: { display: false },
+          ticks: {
+            color: '#60a5fa',
+            font: { size: 10 },
+            callback: v => '$' + v.toFixed(2),
+          },
+          border: { color: 'rgba(96, 165, 250, 0.3)' }
+        }
+      },
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: {
+            color: '#94a3b8', font: { size: 10 }, boxWidth: 14, padding: 12,
+            usePointStyle: false,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#e2e8f0',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: true,
+          callbacks: {
+            title: function(items) {
+              const d = data[items[0].dataIndex];
+              return d.date;
+            },
+            afterBody: function(items) {
+              const d = data[items[0].dataIndex];
+              const lines = [];
+              lines.push('Realized: $' + (d.realized_cents / 100).toFixed(2));
+              lines.push('Fees: -$' + (d.fees_cents / 100).toFixed(2));
+              lines.push('Trades: ' + d.trade_count);
+              lines.push('Positions closed: ' + d.positions_closed);
+              return lines;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Update summary stats
+  updateSummary(data);
+}
+
+function updateSummary(data) {
+  if (data.length === 0) {
+    document.getElementById('pnl-summary').innerHTML = '';
+    return;
+  }
+
+  const nets = data.map(d => d.net_cents);
+  const best = Math.max(...nets) / 100;
+  const worst = Math.min(...nets) / 100;
+  const avg = nets.reduce((a, b) => a + b, 0) / nets.length / 100;
+  const totalNet = nets.reduce((a, b) => a + b, 0) / 100;
+
+  const stat = (label, value, color) =>
+    '<div>' +
+      '<div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">' + label + '</div>' +
+      '<div class="text-sm font-semibold ' + color + '">$' + (value >= 0 ? '+' : '') + value.toFixed(2) + '</div>' +
+    '</div>';
+
+  document.getElementById('pnl-summary').innerHTML =
+    stat('Best Day', best, best >= 0 ? 'text-emerald-400' : 'text-red-400') +
+    stat('Worst Day', worst, worst >= 0 ? 'text-emerald-400' : 'text-red-400') +
+    stat('Avg Daily', avg, avg >= 0 ? 'text-emerald-400' : 'text-red-400') +
+    '<div>' +
+      '<div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Days Traded</div>' +
+      '<div class="text-sm font-semibold text-slate-300">' + data.length + '</div>' +
+    '</div>';
+}
+
+// Period selector
+document.querySelectorAll('#period-selector button').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#period-selector button').forEach(b => {
+      b.className = 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors';
+    });
+    this.className = 'px-2.5 py-1 rounded text-xs text-slate-200 bg-slate-800';
+    buildChart(parseInt(this.dataset.days));
+  });
+});
+
+// Initial render
+buildChart(30);
+</script>
+{% endif %}
 {% endblock %}

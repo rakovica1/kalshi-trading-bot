@@ -138,6 +138,9 @@ def dashboard():
     total_fees = stats["total_fees_cents"]
     net_pnl = total_pnl - total_fees
 
+    # Daily P&L history for chart
+    daily_pnl = db.get_daily_pnl(days=90)
+
     return render_template(
         "dashboard.html",
         balance_cents=balance_cents,
@@ -150,6 +153,7 @@ def dashboard():
         total_trades=stats["total_orders"],
         win_rate=stats["win_rate"],
         profit_factor=stats["profit_factor"],
+        daily_pnl=daily_pnl,
     )
 
 
