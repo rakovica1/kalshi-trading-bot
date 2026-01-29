@@ -332,12 +332,14 @@ def control_start():
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
 
     # Store form values so the UI preserves them after redirect
+    # Display whole-number floats as integers (1.0 -> 1, 0.5 -> 0.5)
+    _cd = int(cooldown_minutes) if cooldown_minutes == int(cooldown_minutes) else cooldown_minutes
     with _whale_lock:
         _whale_state["settings"] = {
             "prefixes": ",".join(prefixes),
             "max_positions": max_positions,
             "max_hours": None,  # set below after parsing
-            "cooldown_minutes": cooldown_minutes,
+            "cooldown_minutes": _cd,
             "continuous": continuous,
             "tier1_only": tier1_only,
             "dry_run": dry_run,
@@ -352,8 +354,9 @@ def control_start():
     except (ValueError, TypeError):
         max_hours = 1.0
 
+    _mh = int(max_hours) if max_hours == int(max_hours) else max_hours
     with _whale_lock:
-        _whale_state["settings"]["max_hours"] = max_hours
+        _whale_state["settings"]["max_hours"] = _mh
 
     def _log(msg):
         _whale_state["logs"].append(msg)

@@ -221,7 +221,7 @@ def _sort_key(column, reverse=False):
 @click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
-@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 20 $vol + $50k+ + <5% spread).")
+@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 20 $vol + $1k+ + <5% spread).")
 @click.option("--sort-by", "sort_by", default=None, type=click.Choice(_SORT_COLUMNS, case_sensitive=False),
               help="Sort column: tier, price, volume, spread, rank, expiration, open_int.")
 @click.option("--reverse", "reverse_sort", is_flag=True, help="Reverse the sort order.")
@@ -249,7 +249,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
 
         qualified = [r for r in results if r.get("qualified")]
         non_qualified = [r for r in results if not r.get("qualified")]
-        click.echo(f"Qualified (Tier 1 + Top 20 + $50k+ + <5% spread): {len(qualified)}")
+        click.echo(f"Qualified (Tier 1 + Top 20 + $1k+ + <5% spread): {len(qualified)}")
 
         # Determine sort column
         if sort_by:
@@ -529,7 +529,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
     1 hour (default), ranks them, picks the best one, and places a MARKET
     ORDER for instant execution at the current ask price.
 
-    Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$50k daily + <5% spread.
+    Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$1k daily + <5% spread.
 
     \b
     Expiration (default: 1 hour):
