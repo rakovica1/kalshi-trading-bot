@@ -1,0 +1,5 @@
+kalshi_python_sync
+pyyaml
+click
+flask
+gunicorn
