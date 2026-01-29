@@ -28,7 +28,7 @@ def run_whale_strategy(
       3. Filter by expiration window (default: 1 hour)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
-      6. Place true MARKET ORDER (no price limit, fills at best available)
+      6. Place aggressive limit order at 99c (fills at best available)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -37,7 +37,7 @@ def run_whale_strategy(
     log(f"\n{'='*60}")
     log(f"  LAST-MINUTE SNIPER [{mode}]")
     log(f"  Expiration window: {exp_label}")
-    log(f"  Order type: MARKET (instant execution at ask)")
+    log(f"  Order type: Aggressive limit @ 99c (instant fill)")
     log(f"{'='*60}")
 
     # 1. Fetch balance
@@ -196,8 +196,8 @@ def run_whale_strategy(
         return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
 
     est_cost = total_contracts * est_price
-    log(f"\n  MARKET ORDER: {total_contracts} contracts (est ~{est_price}c each = ~${est_cost / 100:.2f})")
-    log(f"  Note: True market order — fills at best available prices (no price limit)")
+    log(f"\n  ORDER: {total_contracts} contracts @ 99c limit (fills at best available)")
+    log(f"  Est cost: ~{est_price}c each = ~${est_cost / 100:.2f}")
 
     summary = {
         "scanned": total_found,
@@ -208,14 +208,14 @@ def run_whale_strategy(
         "selected_ticker": ticker,
     }
 
-    # 11. Execute market order (single order, no chunking, no price limit)
+    # 11. Execute order (aggressive limit at 99c for instant fill)
     if dry_run:
-        log(f"\n  DRY RUN — would place MARKET ORDER for {total_contracts} "
-            f"{side.upper()} contracts on {ticker} (est ~{est_price}c)")
+        log(f"\n  DRY RUN — would place {total_contracts} "
+            f"{side.upper()} contracts on {ticker} @ 99c limit (est ~{est_price}c)")
         summary["traded"] = 1
         summary["orders"] = 1
     else:
-        log(f"\n  PLACING MARKET ORDER: {total_contracts} {side.upper()} on {ticker}...")
+        log(f"\n  PLACING ORDER: {total_contracts} {side.upper()} on {ticker} @ 99c limit...")
         try:
             result = client.create_order(
                 ticker=ticker,
@@ -281,7 +281,7 @@ def run_whale_strategy(
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
     log(f"  Strategy:  Last-Minute Sniper")
-    log(f"  Market:    {ticker} {side.upper()} (market order, est ~{est_price}c)")
+    log(f"  Market:    {ticker} {side.upper()} @ 99c limit (est ~{est_price}c)")
     log(f"  Expires:   {sel_close}")
     log(f"  Scanned:   {summary['scanned']}  Qualified: {len(candidates)}  "
         f"Traded: {summary['traded']}  Orders: {summary['orders']}")

@@ -218,7 +218,7 @@ def _sort_key(column, reverse=False):
 
 @cli.command("scan")
 @click.option("--min-price", default=99, type=click.IntRange(1, 99), help="Minimum bid price in cents.", show_default=True)
-@click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
+@click.option("--min-volume", default=1000, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
 @click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 20 $vol + $1k+ + <5% spread).")

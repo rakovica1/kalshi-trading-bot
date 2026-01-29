@@ -79,8 +79,12 @@ class KalshiBotClient:
         """Place an order.
 
         For limit orders, price (1-99 cents) is required.
-        For market orders, price is ignored — Kalshi fills at best available.
+        For "market" orders, we send an aggressive limit at 99c to fill
+        immediately — Kalshi requires a price field on all orders.
         """
+        # For market-style orders, use 99c (max valid) to fill at best available
+        effective_price = price if price is not None else 99
+
         kwargs = {
             "ticker": ticker,
             "side": side,
@@ -89,12 +93,10 @@ class KalshiBotClient:
             "type": order_type,
         }
 
-        # Only set price for limit orders — market orders must not include price
-        if order_type != "market" and price is not None:
-            if side == "yes":
-                kwargs["yes_price"] = price
-            else:
-                kwargs["no_price"] = price
+        if side == "yes":
+            kwargs["yes_price"] = effective_price
+        else:
+            kwargs["no_price"] = effective_price
 
         req = CreateOrderRequest(**kwargs)
 
