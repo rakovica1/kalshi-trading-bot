@@ -294,9 +294,14 @@ def control_start():
         _whale_state["stop_requested"] = False
         _whale_state["logs"].clear()
 
+    import time as _time
+
     dry_run = request.form.get("dry_run") == "on"
     tier1_only = request.form.get("tier1_only") == "on"
+    continuous = request.form.get("continuous") == "on"
     max_positions = request.form.get("max_positions", 1, type=int)
+    cooldown_raw = request.form.get("cooldown_minutes", "1").strip()
+    cooldown_minutes = float(cooldown_raw) if cooldown_raw else 1.0
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
     max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
@@ -309,9 +314,8 @@ def control_start():
         try:
             db.init_db()
             client = _get_client()
-            _log(f"Starting whale strategy ({'DRY RUN' if dry_run else 'LIVE'})...")
-            run_whale_strategy(
-                client,
+
+            strategy_kwargs = dict(
                 prefixes=prefixes,
                 dry_run=dry_run,
                 tier1_only=tier1_only,
@@ -319,7 +323,71 @@ def control_start():
                 max_hours_to_expiration=max_hours,
                 log=_log,
             )
-            _log("Strategy run complete.")
+
+            if not continuous:
+                _log(f"Starting sniper ({'DRY RUN' if dry_run else 'LIVE'})...")
+                run_whale_strategy(client, **strategy_kwargs)
+                _log("Strategy run complete.")
+                return
+
+            # --- Continuous mode ---
+            cooldown_sec = cooldown_minutes * 60
+            trades_placed = 0
+            _log(f"[CONTINUOUS] Starting ({'DRY RUN' if dry_run else 'LIVE'}) — "
+                 f"max {max_positions} positions, {cooldown_minutes}min cooldown")
+
+            round_num = 0
+            while True:
+                with _whale_lock:
+                    if _whale_state["stop_requested"]:
+                        _log(f"[CONTINUOUS] Stop requested. Finishing.")
+                        break
+
+                round_num += 1
+                open_count = db.count_open_positions()
+
+                if open_count >= max_positions:
+                    _log(f"[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                    break
+
+                remaining = max_positions - open_count
+                _log(f"[CONTINUOUS] Round {round_num} — "
+                     f"{open_count}/{max_positions} filled, "
+                     f"{remaining} slot{'s' if remaining != 1 else ''} remaining")
+
+                result = run_whale_strategy(client, **strategy_kwargs)
+
+                if result.get("traded", 0) > 0:
+                    trades_placed += 1
+                    open_now = db.count_open_positions()
+                    _log(f"[CONTINUOUS] Trade {trades_placed} complete. "
+                         f"{open_now}/{max_positions} positions filled.")
+                    if open_now >= max_positions:
+                        _log(f"[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                        break
+                else:
+                    reason = result.get("stopped_reason")
+                    if reason == "daily_loss":
+                        _log(f"[CONTINUOUS] Daily loss limit hit. Stopping.")
+                        break
+                    if reason == "max_positions":
+                        _log(f"[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                        break
+
+                _log(f"[CONTINUOUS] Waiting {cooldown_minutes} min before next scan...")
+                # Sleep in small increments so stop signal is responsive
+                for _ in range(int(cooldown_sec)):
+                    with _whale_lock:
+                        if _whale_state["stop_requested"]:
+                            _log(f"[CONTINUOUS] Stop requested during cooldown.")
+                            break
+                    _time.sleep(1)
+                else:
+                    continue
+                break  # stop was requested during cooldown
+
+            _log(f"[CONTINUOUS] Done — {round_num} rounds, {trades_placed} trades placed, "
+                 f"{db.count_open_positions()}/{max_positions} positions")
         except Exception as e:
             _log(f"ERROR: {e}")
         finally:

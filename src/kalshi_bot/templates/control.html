@@ -37,6 +37,16 @@
         <input type="number" name="max_hours_to_expiration" value="1" placeholder="1" min="1" step="1"
           class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-28 focus:outline-none focus:border-brand-500">
       </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Cooldown (min)</label>
+        <input type="number" name="cooldown_minutes" value="1" min="0.5" step="0.5"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+      </div>
+      <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
+        <input type="checkbox" name="continuous"
+          class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
+        Continuous
+      </label>
       <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
         <input type="checkbox" name="tier1_only" checked
           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">

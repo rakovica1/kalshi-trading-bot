@@ -513,13 +513,16 @@ def stats(ctx):
 @click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
 @click.option("--max-hours-to-expiration", default=1.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
 @click.option("--no-expiration-limit", is_flag=True, help="Remove expiration filter (trade any expiration).")
+@click.option("--continuous/--once", default=False, help="Loop: scan and trade until max-positions reached or Ctrl+C.", show_default=True)
+@click.option("--cooldown-minutes", default=1.0, type=float, help="Minutes to wait between trades in continuous mode.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
 @click.option("--tier1-only/--all-tiers", default=True, help="Only trade qualified Tier 1 markets.", show_default=True)
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
 @click.pass_context
 def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
                 max_days_to_expiration, max_hours_to_expiration,
-                no_expiration_limit, dry_run, tier1_only, skip_confirm):
+                no_expiration_limit, continuous, cooldown_minutes,
+                dry_run, tier1_only, skip_confirm):
     """Last-Minute Sniper — ultra-short-term market order strategy.
 
     Scans all markets, filters to qualified opportunities expiring within
@@ -534,14 +537,23 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
       --max-days-to-expiration 1     Markets closing within 1 day
       --no-expiration-limit          No expiration filter
 
+    \b
+    Continuous mode:
+      --continuous                   Loop until max-positions or Ctrl+C
+      --cooldown-minutes 1           Wait between trades (default: 1 min)
+
     Default is dry-run mode. Use --live to place real orders.
     """
+    import time as _time
+    trades_placed = 0
+
     try:
         if not dry_run and not skip_confirm:
-            click.confirm(
-                "LIVE MODE: This will place MARKET ORDERS with real money. Continue?",
-                abort=True,
-            )
+            msg = "LIVE MODE: This will place MARKET ORDERS with real money."
+            if continuous:
+                msg += f" CONTINUOUS mode will keep trading up to {max_positions} positions."
+            msg += " Continue?"
+            click.confirm(msg, abort=True)
 
         # Determine expiration filter
         if no_expiration_limit:
@@ -554,8 +566,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
         client = _get_client(ctx.obj["config_path"])
         prefix_list = tuple(p.strip() for p in prefixes.split(","))
 
-        run_whale_strategy(
-            client,
+        strategy_kwargs = dict(
             prefixes=prefix_list,
             min_price=min_price,
             min_volume=min_volume,
@@ -565,8 +576,70 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
             max_hours_to_expiration=max_hours,
             log=click.echo,
         )
+
+        if not continuous:
+            run_whale_strategy(client, **strategy_kwargs)
+            return
+
+        # --- Continuous mode ---
+        cooldown_sec = cooldown_minutes * 60
+
+        click.echo(f"\n{'#'*60}")
+        click.echo(f"  CONTINUOUS MODE")
+        click.echo(f"  Max positions: {max_positions}")
+        click.echo(f"  Cooldown: {cooldown_minutes} min between trades")
+        click.echo(f"  Press Ctrl+C to stop")
+        click.echo(f"{'#'*60}")
+
+        round_num = 0
+        while True:
+            round_num += 1
+            open_count = db.count_open_positions()
+
+            if open_count >= max_positions:
+                click.echo(f"\n[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                break
+
+            remaining = max_positions - open_count
+            click.echo(f"\n[CONTINUOUS] Round {round_num} — "
+                        f"{open_count}/{max_positions} positions filled, "
+                        f"{remaining} slot{'s' if remaining != 1 else ''} remaining")
+
+            result = run_whale_strategy(client, **strategy_kwargs)
+
+            if result.get("traded", 0) > 0:
+                trades_placed += 1
+                open_now = db.count_open_positions()
+                click.echo(f"\n[CONTINUOUS] Trade {trades_placed} complete. "
+                            f"{open_now}/{max_positions} positions filled.")
+
+                if open_now >= max_positions:
+                    click.echo(f"[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                    break
+            else:
+                reason = result.get("stopped_reason")
+                if reason == "daily_loss":
+                    click.echo(f"\n[CONTINUOUS] Daily loss limit hit. Stopping.")
+                    break
+                if reason == "max_positions":
+                    click.echo(f"\n[CONTINUOUS] All {max_positions} positions filled. Stopping.")
+                    break
+
+            click.echo(f"\n[CONTINUOUS] Waiting {cooldown_minutes} min before next scan...")
+            _time.sleep(cooldown_sec)
+
+        click.echo(f"\n{'#'*60}")
+        click.echo(f"  CONTINUOUS MODE COMPLETE")
+        click.echo(f"  Rounds: {round_num}  Trades placed: {trades_placed}")
+        click.echo(f"  Open positions: {db.count_open_positions()}/{max_positions}")
+        click.echo(f"{'#'*60}\n")
+
     except click.Abort:
         click.echo("Aborted.")
+    except KeyboardInterrupt:
+        click.echo(f"\n\n[CONTINUOUS] Stopped by user (Ctrl+C).")
+        click.echo(f"  Trades placed this session: {trades_placed}")
+        click.echo(f"  Open positions: {db.count_open_positions()}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
