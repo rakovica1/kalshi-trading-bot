@@ -150,13 +150,13 @@ def hours_until_close(raw):
 
 
 # Qualification thresholds for premium trade execution
-QUALIFIED_MIN_DOLLAR_24H = 1_000
+QUALIFIED_MIN_DOLLAR_24H = 100_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
 QUALIFIED_TOP_N_DOLLAR = 100
 QUALIFIED_MAX_HOURS = 24.0
 
 
-def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
+def scan(client, min_price=95, ticker_prefixes=None, min_volume=100000,
          use_cache=False, top_n=30, stop_check=None):
     """Find markets where YES or NO bid is >= min_price.
 
@@ -167,7 +167,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     Each result also gets a `qualified` flag: True when ALL of these hold:
       - Tier 1 (price >= 98c)
       - Top 100 by 24h dollar volume
-      - >= $1,000 in 24h dollar volume
+      - >= $100,000 in 24h dollar volume
       - Bid/ask spread < 5%
       - Expires within 24 hours
 
