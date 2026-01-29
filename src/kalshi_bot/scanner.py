@@ -59,11 +59,14 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
 def _assign_tier(price):
     """Assign a tier based on signal price.
 
-    Tier 1 (Best):  98-99c+
-    Tier 2 (Good):  96-97c
-    Tier 3 (Okay):  95c
+    Tier 0 (Skip):  99c — unprofitable (0¢ profit after 1¢ fee)
+    Tier 1 (Best):  98c — 1¢ profit after fees
+    Tier 2 (Good):  96-97c — 2-3¢ profit
+    Tier 3 (Okay):  95c — 4¢ profit
     """
-    if price >= 98:
+    if price >= 99:
+        return 0
+    elif price == 98:
         return 1
     elif price >= 96:
         return 2
@@ -294,7 +297,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             count_spread += 1
         if is_expiring:
             count_expires += 1
-        r["qualified"] = is_top_n and is_dollar and is_spread and is_expiring
+        is_profitable = r["tier"] > 0
+        r["qualified"] = is_profitable and is_top_n and is_dollar and is_spread and is_expiring
         if r["qualified"]:
             qualified_count += 1
 

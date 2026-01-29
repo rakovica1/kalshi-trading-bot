@@ -106,6 +106,8 @@ def dashboard():
 
     realized = stats["realized_pnl_cents"]
     total_pnl = realized + total_unrealized
+    total_fees = stats["total_fees_cents"]
+    net_pnl = total_pnl - total_fees
 
     return render_template(
         "dashboard.html",
@@ -113,6 +115,8 @@ def dashboard():
         unrealized_cents=total_unrealized,
         realized_cents=realized,
         total_pnl_cents=total_pnl,
+        total_fees_cents=total_fees,
+        net_pnl_cents=net_pnl,
         open_count=len(open_positions),
         total_trades=stats["total_orders"],
         win_rate=stats["win_rate"],

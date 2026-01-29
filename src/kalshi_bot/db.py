@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS trades (
     action TEXT NOT NULL,
     count INTEGER NOT NULL,
     price_cents INTEGER NOT NULL,
+    fee_cents INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL,
     fill_count INTEGER DEFAULT 0,
     remaining_count INTEGER DEFAULT 0,
@@ -114,6 +115,7 @@ _PG_TABLES = [
         action TEXT NOT NULL,
         count INTEGER NOT NULL,
         price_cents INTEGER NOT NULL,
+        fee_cents INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL,
         fill_count INTEGER DEFAULT 0,
         remaining_count INTEGER DEFAULT 0,
@@ -252,6 +254,9 @@ def init_db(db_path=DEFAULT_DB_PATH):
         conn = _connect()
         for stmt in _PG_TABLES:
             conn.cursor().execute(stmt)
+        _migrate_columns(conn, "trades", {
+            "fee_cents": "INTEGER NOT NULL DEFAULT 0",
+        })
         _migrate_columns(conn, "scan_results", {
             "spread_pct": "REAL NOT NULL DEFAULT 0",
             "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
@@ -272,6 +277,9 @@ def init_db(db_path=DEFAULT_DB_PATH):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = _connect(db_path)
         conn.executescript(SCHEMA_SQLITE)
+        _migrate_columns(conn, "trades", {
+            "fee_cents": "INTEGER NOT NULL DEFAULT 0",
+        })
         _migrate_columns(conn, "scan_results", {
             "spread_pct": "REAL NOT NULL DEFAULT 0",
             "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
@@ -322,16 +330,17 @@ def log_trade(
     fill_count=0,
     remaining_count=0,
     error_message=None,
+    fee_cents=0,
     db_path=DEFAULT_DB_PATH,
 ):
     """Record an order attempt."""
     conn = _connect(db_path)
     _execute(conn,
         """INSERT INTO trades
-           (order_id, ticker, side, action, count, price_cents, status,
+           (order_id, ticker, side, action, count, price_cents, fee_cents, status,
             fill_count, remaining_count, error_message)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (order_id, ticker, side, action, count, price_cents, status,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (order_id, ticker, side, action, count, price_cents, fee_cents, status,
          fill_count, remaining_count, error_message),
     )
     if not _use_pg:
@@ -552,6 +561,10 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "SELECT COALESCE(SUM(realized_pnl_cents), 0) as s FROM positions WHERE is_closed = 1 AND realized_pnl_cents < 0"
     )["s"])
 
+    total_fees = _fetchone(conn,
+        "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed'"
+    )["total"]
+
     conn.close()
 
     closed = wins + losses + breakeven
@@ -571,6 +584,7 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "gross_profit_cents": gross_profit,
         "gross_loss_cents": gross_loss,
         "profit_factor": profit_factor,
+        "total_fees_cents": total_fees,
     }
 
 

@@ -249,7 +249,10 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
 
         qualified = [r for r in results if r.get("qualified")]
         non_qualified = [r for r in results if not r.get("qualified")]
-        click.echo(f"Qualified (Top 200 + $10k+ + <5% spread + ≤24h exp): {len(qualified)}")
+        tier0_count = sum(1 for r in results if r.get("tier") == 0)
+        click.echo(f"Qualified (Top 200 + $10k+ + <5% spread + ≤24h exp + profitable): {len(qualified)}")
+        if tier0_count:
+            click.echo(f"Excluded: {tier0_count} market{'s' if tier0_count != 1 else ''} at 99¢ (break-even after 1¢ fee)")
 
         # Determine sort column
         if sort_by:

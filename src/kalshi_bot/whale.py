@@ -118,6 +118,18 @@ def run_whale_strategy(
         log(f"{'='*60}\n")
         return {"scanned": total_found, "skipped": len(held), "traded": 0, "orders": 0, "stopped_reason": None}
 
+    # 6b. Skip 99¢ markets (unprofitable after 1¢ fee)
+    before_fee_filter = len(available)
+    available = [c for c in available if c["signal_price"] < 99]
+    fee_filtered = before_fee_filter - len(available)
+    if fee_filtered:
+        log(f"\n  Skipping {fee_filtered} market{'s' if fee_filtered != 1 else ''} at 99¢ (unprofitable after 1¢ fee)")
+
+    if not available:
+        log(f"\n  All remaining markets are at 99¢ (unprofitable after fees). Nothing to trade.")
+        log(f"{'='*60}\n")
+        return {"scanned": total_found, "skipped": len(held) + fee_filtered, "traded": 0, "orders": 0, "stopped_reason": None}
+
     # 7. Filter by expiration window
     if max_hours_to_expiration is not None:
         log(f"\n  Expiration filter: within {max_hours_to_expiration}h")
@@ -261,6 +273,7 @@ def run_whale_strategy(
                 order_id=order_id,
                 fill_count=fill_count,
                 remaining_count=remaining,
+                fee_cents=total_contracts * 1,
             )
 
             if fill_count > 0:
@@ -277,6 +290,7 @@ def run_whale_strategy(
                 price_cents=est_price,
                 status="failed",
                 error_message=str(e),
+                fee_cents=total_contracts * 1,
             )
             log(f"  ORDER FAILED: {e}")
             summary["orders"] = 1

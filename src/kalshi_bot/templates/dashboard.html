@@ -25,9 +25,27 @@
   </div>
 
   <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
-    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Total P&amp;L</div>
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Gross P&amp;L</div>
     <div class="text-2xl font-bold {{ 'text-emerald-400' if total_pnl_cents >= 0 else 'text-red-400' }}">
       ${{ "%+.2f"|format(total_pnl_cents / 100) }}
+    </div>
+  </div>
+</div>
+
+<!-- Fees & Net P&L -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+  <div class="bg-slate-900 border border-amber-900/50 rounded-lg p-5">
+    <div class="text-xs text-amber-500/70 uppercase tracking-wide mb-1">Total Fees</div>
+    <div class="text-2xl font-bold text-amber-400">
+      -${{ "%.2f"|format(total_fees_cents / 100) }}
+    </div>
+    <div class="text-[11px] text-slate-500 mt-1">Fee: 1&cent; per contract</div>
+  </div>
+
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Net P&amp;L</div>
+    <div class="text-2xl font-bold {{ 'text-emerald-400' if net_pnl_cents >= 0 else 'text-red-400' }}">
+      ${{ "%+.2f"|format(net_pnl_cents / 100) }}
     </div>
   </div>
 </div>

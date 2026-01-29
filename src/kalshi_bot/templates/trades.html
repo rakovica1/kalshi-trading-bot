@@ -26,6 +26,7 @@
         <th class="pb-3 pr-3">Action</th>
         <th class="pb-3 pr-3 text-right">Qty</th>
         <th class="pb-3 pr-3 text-right">Price</th>
+        <th class="pb-3 pr-3 text-right">Fee</th>
         <th class="pb-3 pr-3 text-right">Fills</th>
         <th class="pb-3">Status</th>
       </tr>
@@ -41,6 +42,7 @@
         </td>
         <td class="py-2.5 pr-3 text-right text-slate-300">{{ t.count }}</td>
         <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.price_cents }}c</td>
+        <td class="py-2.5 pr-3 text-right text-amber-400/70">${{ "%.2f"|format((t.fee_cents|default(0)) / 100) }}</td>
         <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.fill_count }}</td>
         <td class="py-2.5">
           {% if t.status == 'filled' %}
@@ -57,7 +59,7 @@
       {% if t.error_message %}
       <tr class="border-b border-slate-800/50">
         <td></td>
-        <td colspan="7" class="py-1 text-xs text-red-400/80">Error: {{ t.error_message }}</td>
+        <td colspan="8" class="py-1 text-xs text-red-400/80">Error: {{ t.error_message }}</td>
       </tr>
       {% endif %}
       {% endfor %}

@@ -118,15 +118,19 @@
 <div class="flex flex-wrap gap-4 mb-4 text-xs">
   <div class="flex items-center gap-1.5">
     <span class="inline-block w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50"></span>
-    <span class="text-slate-400">Tier 1 — Best (98-99c+)</span>
+    <span class="text-slate-400">Tier 1 — 98&cent; (1&cent; profit after fees)</span>
   </div>
   <div class="flex items-center gap-1.5">
     <span class="inline-block w-3 h-3 rounded bg-yellow-500/30 border border-yellow-500/50"></span>
-    <span class="text-slate-400">Tier 2 — Good (96-97c)</span>
+    <span class="text-slate-400">Tier 2 — 96-97&cent; (2-3&cent; profit)</span>
   </div>
   <div class="flex items-center gap-1.5">
     <span class="inline-block w-3 h-3 rounded bg-orange-500/30 border border-orange-500/50"></span>
-    <span class="text-slate-400">Tier 3 — Okay (95c)</span>
+    <span class="text-slate-400">Tier 3 — 95&cent; (4&cent; profit)</span>
+  </div>
+  <div class="flex items-center gap-1.5">
+    <span class="inline-block w-3 h-3 rounded bg-slate-600/30 border border-slate-600/50"></span>
+    <span class="text-slate-500">99&cent; markets excluded (break-even after 1&cent; fee)</span>
   </div>
   <div class="flex items-center gap-1.5">
     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
@@ -163,7 +167,8 @@
     <tbody>
       {% for m in markets %}
       <tr class="border-b
-        {% if m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
+        {% if m.tier == 0 %}border-slate-800/40 bg-slate-900/30 hover:bg-slate-900/50 opacity-50
+        {% elif m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
         {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
         {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
         {% endif %}">
@@ -173,7 +178,9 @@
           {% endif %}
         </td>
         <td class="py-2.5 pr-4">
-          {% if m.tier == 1 %}
+          {% if m.tier == 0 %}
+          <span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-600/20 text-slate-500 border border-slate-600/30">T0</span>
+          {% elif m.tier == 1 %}
           <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">T1</span>
           {% elif m.tier == 2 %}
           <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">T2</span>
@@ -188,7 +195,7 @@
           </span>
         </td>
         <td class="py-2.5 pr-4 text-right font-medium
-          {% if m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
+          {% if m.tier == 0 %}text-slate-500{% elif m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
           {{ m.signal_price }}c
         </td>
         <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
