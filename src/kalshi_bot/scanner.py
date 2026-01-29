@@ -2,11 +2,12 @@ import json
 import time
 
 
-def _iter_markets(client, status="open", page_size=200):
-    """Yield markets one page at a time to avoid loading all into memory."""
+def _iter_markets(client, status="open", page_size=200, max_markets=500):
+    """Yield markets one page at a time, up to max_markets total."""
     cursor = None
+    count = 0
     while True:
-        kwargs = {"limit": page_size, "status": status}
+        kwargs = {"limit": min(page_size, max_markets - count), "status": status}
         if cursor:
             kwargs["cursor"] = cursor
         resp = client._market_api.get_markets_without_preload_content(**kwargs)
@@ -14,30 +15,40 @@ def _iter_markets(client, status="open", page_size=200):
         markets = data.get("markets", [])
         for m in markets:
             yield m
+            count += 1
+            if count >= max_markets:
+                return
         cursor = data.get("cursor")
         if not cursor or not markets:
             break
 
 
-# Simple in-memory cache: (timestamp, results)
-_scan_cache = {"ts": 0, "results": [], "ttl": 120}
+# Simple in-memory cache: (timestamp, results, scanned_count)
+_scan_cache = {"ts": 0, "results": [], "scanned": 0, "ttl": 120}
+
+MAX_MARKETS = 500
 
 
-def scan(client, min_price=99, ticker_prefixes=None, min_volume=100, use_cache=False):
+def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
+         use_cache=False, max_markets=MAX_MARKETS):
     """Find markets where YES or NO bid is >= min_price.
 
     Streams markets in pages to keep memory low.
+    Returns (results, scanned_count) tuple.
     """
     # Return cached results if fresh enough
     if use_cache and _scan_cache["results"]:
         age = time.time() - _scan_cache["ts"]
         if age < _scan_cache["ttl"]:
-            return _scan_cache["results"]
+            return _scan_cache["results"], _scan_cache["scanned"]
 
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
     results = []
+    scanned = 0
 
-    for m in _iter_markets(client, page_size=200):
+    for m in _iter_markets(client, page_size=200, max_markets=max_markets):
+        scanned += 1
+
         if m.get("volume", 0) < min_volume:
             continue
 
@@ -50,7 +61,6 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100, use_cache=F
         no_bid = m.get("no_bid", 0) or 0
 
         if yes_bid >= min_price:
-            # Only keep the fields we need, not the entire market dict
             results.append({
                 "ticker": m.get("ticker", "?"),
                 "event_ticker": m.get("event_ticker", ""),
@@ -76,5 +86,6 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100, use_cache=F
     # Update cache
     _scan_cache["ts"] = time.time()
     _scan_cache["results"] = results
+    _scan_cache["scanned"] = scanned
 
-    return results
+    return results, scanned
