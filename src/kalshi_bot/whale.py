@@ -263,21 +263,26 @@ def run_whale_strategy(
             # Use Kalshi's actual status
             status = api_status
 
+            # Use actual fees from Kalshi API; fallback to 1¢ per filled contract
+            actual_fees = taker_fees if taker_fees > 0 else fill_count * 1
+            # Use actual fill cost for entry price if available
+            actual_entry = int(taker_fill_cost / fill_count) if fill_count > 0 and taker_fill_cost > 0 else est_price
+
             db.log_trade(
                 ticker=ticker,
                 side=side,
                 action="buy",
                 count=total_contracts,
-                price_cents=est_price,
+                price_cents=actual_entry,
                 status=status,
                 order_id=order_id,
                 fill_count=fill_count,
                 remaining_count=remaining,
-                fee_cents=total_contracts * 1,
+                fee_cents=actual_fees,
             )
 
             if fill_count > 0:
-                db.update_position_on_buy(ticker, side, fill_count, est_price)
+                db.update_position_on_buy(ticker, side, fill_count, actual_entry)
             summary["traded"] = 1
             summary["orders"] = 1
 
@@ -290,7 +295,7 @@ def run_whale_strategy(
                 price_cents=est_price,
                 status="failed",
                 error_message=str(e),
-                fee_cents=total_contracts * 1,
+                fee_cents=0,
             )
             log(f"  ORDER FAILED: {e}")
             summary["orders"] = 1

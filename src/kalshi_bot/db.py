@@ -622,7 +622,7 @@ def get_stats(db_path=DEFAULT_DB_PATH):
     )["s"])
 
     total_fees = _fetchone(conn,
-        "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed'"
+        "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed' AND fill_count > 0"
     )["total"]
 
     # Total invested = sum of (fill_count × price_cents) for trades with actual fills
