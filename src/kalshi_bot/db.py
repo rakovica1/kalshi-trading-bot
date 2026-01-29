@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS scan_results (
     dollar_24h INTEGER NOT NULL DEFAULT 0,
     volume INTEGER NOT NULL DEFAULT 0,
     open_interest INTEGER NOT NULL DEFAULT 0,
+    spread_pct REAL NOT NULL DEFAULT 0,
+    dollar_rank INTEGER NOT NULL DEFAULT 0,
+    qualified INTEGER NOT NULL DEFAULT 0,
     scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -73,6 +76,7 @@ CREATE TABLE IF NOT EXISTS scan_meta (
     passed_prefix INTEGER NOT NULL DEFAULT 0,
     passed_volume INTEGER NOT NULL DEFAULT 0,
     passed_price INTEGER NOT NULL DEFAULT 0,
+    qualified INTEGER NOT NULL DEFAULT 0,
     min_price INTEGER NOT NULL DEFAULT 0,
     min_volume INTEGER NOT NULL DEFAULT 0,
     prefixes TEXT NOT NULL DEFAULT '',
@@ -92,7 +96,24 @@ def init_db(db_path=DEFAULT_DB_PATH):
     """Create all tables if they don't exist."""
     conn = _connect(db_path)
     conn.executescript(SCHEMA)
+    # Migrate: add columns that may not exist in older databases
+    _migrate_columns(conn, "scan_results", {
+        "spread_pct": "REAL NOT NULL DEFAULT 0",
+        "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
+        "qualified": "INTEGER NOT NULL DEFAULT 0",
+    })
+    _migrate_columns(conn, "scan_meta", {
+        "qualified": "INTEGER NOT NULL DEFAULT 0",
+    })
     conn.close()
+
+
+def _migrate_columns(conn, table, columns):
+    """Add columns to a table if they don't already exist."""
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for col, typedef in columns.items():
+        if col not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typedef}")
 
 
 # ---------------------------------------------------------------------------
@@ -375,12 +396,15 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
         conn.execute(
             """INSERT INTO scan_results
                (ticker, event_ticker, signal_side, signal_price, tier,
-                volume_24h, dollar_24h, volume, open_interest)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                volume_24h, dollar_24h, volume, open_interest,
+                spread_pct, dollar_rank, qualified)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (m["ticker"], m.get("event_ticker", ""), m["signal_side"],
              m["signal_price"], m.get("tier", 3),
              m.get("volume_24h", 0), m.get("dollar_24h", 0),
-             m.get("volume", 0), m.get("open_interest", 0)),
+             m.get("volume", 0), m.get("open_interest", 0),
+             m.get("spread_pct", 0), m.get("dollar_rank", 0),
+             1 if m.get("qualified") else 0),
         )
     # Upsert scan metadata
     conn.execute("DELETE FROM scan_meta")
@@ -388,11 +412,12 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
     conn.execute(
         """INSERT INTO scan_meta
            (id, total_fetched, top_n, scanned, passed_prefix, passed_volume,
-            passed_price, min_price, min_volume, prefixes)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            passed_price, qualified, min_price, min_volume, prefixes)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (stats.get("total_fetched", 0), stats.get("top_n", 0),
          stats.get("scanned", 0), stats.get("passed_prefix", 0),
          stats.get("passed_volume", 0), stats.get("passed_price", 0),
+         stats.get("qualified", 0),
          stats.get("min_price", 0), stats.get("min_volume", 0),
          prefixes_str),
     )
@@ -420,6 +445,7 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
             "passed_prefix": meta["passed_prefix"],
             "passed_volume": meta["passed_volume"],
             "passed_price": meta["passed_price"],
+            "qualified": meta.get("qualified", 0),
             "min_price": meta["min_price"],
             "min_volume": meta["min_volume"],
             "prefixes": [p for p in prefixes_raw.split(",") if p],

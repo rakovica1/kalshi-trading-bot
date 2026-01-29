@@ -59,7 +59,7 @@
       <span class="text-slate-300 ml-1">24h volume descending</span>
     </div>
   </div>
-  <div class="grid grid-cols-3 gap-3 text-xs">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
     <div>
       <span class="text-slate-500">Passed prefix filter:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_prefix }}</span>
@@ -72,6 +72,10 @@
       <span class="text-slate-500">Passed price &ge;{{ scan_stats.min_price }}c:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_price }}</span>
     </div>
+    <div>
+      <span class="text-brand-400 font-medium">Qualified for trading:</span>
+      <span class="text-brand-300 ml-1 font-medium">{{ scan_stats.qualified|default(0) }}</span>
+    </div>
   </div>
   <div class="mt-2 text-xs text-slate-500">
     Prefixes: {{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all (no prefix filter)' }}
@@ -80,7 +84,7 @@
 {% endif %}
 
 <!-- Tier legend -->
-<div class="flex gap-4 mb-4 text-xs">
+<div class="flex flex-wrap gap-4 mb-4 text-xs">
   <div class="flex items-center gap-1.5">
     <span class="inline-block w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50"></span>
     <span class="text-slate-400">Tier 1 — Best (98-99c+)</span>
@@ -93,6 +97,10 @@
     <span class="inline-block w-3 h-3 rounded bg-orange-500/30 border border-orange-500/50"></span>
     <span class="text-slate-400">Tier 3 — Okay (95c)</span>
   </div>
+  <div class="flex items-center gap-1.5">
+    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
+    <span class="text-slate-400">Tier 1 + Top 20 $vol + $50k+ + &lt;5% spread</span>
+  </div>
 </div>
 
 {% if results %}
@@ -101,13 +109,15 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
+        <th class="pb-3 pr-3"></th>
         <th class="pb-3 pr-4">Tier</th>
         <th class="pb-3 pr-4">Ticker</th>
         <th class="pb-3 pr-4">Side</th>
         <th class="pb-3 pr-4 text-right">Price</th>
-        <th class="pb-3 pr-4 text-right">24h Vol</th>
         <th class="pb-3 pr-4 text-right">24h $</th>
-        <th class="pb-3 pr-4 text-right">Total Vol</th>
+        <th class="pb-3 pr-4 text-right">Rank</th>
+        <th class="pb-3 pr-4 text-right">Spread</th>
+        <th class="pb-3 pr-4 text-right">24h Vol</th>
         <th class="pb-3 pr-4 text-right">Open Int</th>
         <th class="pb-3">Event</th>
       </tr>
@@ -118,7 +128,7 @@
       {% if m.tier != ns.current_tier %}
       {% set ns.current_tier = m.tier %}
       <tr>
-        <td colspan="9" class="pt-4 pb-2">
+        <td colspan="11" class="pt-4 pb-2">
           {% if m.tier == 1 %}
           <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
           {% elif m.tier == 2 %}
@@ -134,6 +144,11 @@
         {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
         {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
         {% endif %}">
+        <td class="py-2.5 pr-3 text-center">
+          {% if m.qualified %}
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
+          {% endif %}
+        </td>
         <td class="py-2.5 pr-4">
           {% if m.tier == 1 %}
           <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">T1</span>
@@ -153,9 +168,10 @@
           {% if m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
           {{ m.signal_price }}c
         </td>
-        <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
         <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
-        <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.volume|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-400">#{{ m.dollar_rank|default(0) }}</td>
+        <td class="py-2.5 pr-4 text-right {{ 'text-emerald-400' if m.spread_pct|default(0) < 5 else 'text-red-400' }}">{{ "%.1f"|format(m.spread_pct|default(0)) }}%</td>
+        <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
         <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
       </tr>

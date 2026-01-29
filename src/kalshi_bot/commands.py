@@ -184,8 +184,9 @@ def order(ctx, ticker, side, action, count, price, skip_confirm):
 @click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
+@click.option("--tier1-only", is_flag=True, help="Only show qualified Tier 1 markets (top 20 by $vol, >=$50k, <5% spread).")
 @click.pass_context
-def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
+def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, tier1_only):
     """Scan for high-probability markets."""
     try:
         client = _get_client(ctx.obj["config_path"])
@@ -199,6 +200,13 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
         db.save_scan_results(results, scan_stats)
         click.echo(f"Saved {len(results)} results to database for web dashboard.")
 
+        qualified_count = scan_stats.get("qualified", 0)
+        click.echo(f"Qualified (Tier 1 + Top 20 + $50k+ + <5% spread): {qualified_count}")
+
+        if tier1_only:
+            results = [r for r in results if r.get("qualified")]
+            click.echo(f"Showing only qualified markets ({len(results)})")
+
         if not results:
             click.echo("No markets found matching criteria.")
             return
@@ -209,11 +217,11 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
             balance_cents = data.get("balance", 0)
             click.echo(f"Balance: ${balance_cents / 100:.2f} (1% risk = ${balance_cents * 0.01 / 100:.2f})\n")
 
-        click.echo(f"{'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'24H VOL':>8} {'24H $':>8} {'TOTAL VOL':>10} {'OI':>8} {'EVENT':>15} ", nl=False)
+        click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'EVENT':>15} ", nl=False)
         if show_sizing:
             click.echo(f"{'CONTRACTS':>10}", nl=False)
         click.echo()
-        click.echo("-" * (102 + (10 if show_sizing else 0)))
+        click.echo("-" * (110 + (10 if show_sizing else 0)))
 
         for m in results:
             ticker = m.get("ticker", "?")
@@ -221,13 +229,19 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
             price = m["signal_price"]
             vol_24h = m.get("volume_24h", 0)
             dollar_24h = m.get("dollar_24h", 0)
-            vol_total = m.get("volume", 0)
+            dollar_rank = m.get("dollar_rank", 0)
+            spread_pct = m.get("spread_pct", 0)
             oi = m.get("open_interest", 0)
             event = m.get("event_ticker", "—")
+            qualified = m.get("qualified", False)
             if len(event) > 15:
                 event = event[:14] + "~"
 
-            click.echo(f"  {ticker:<38} {side.upper():<5} {price:>4}c {vol_24h:>8} ${dollar_24h:>7,} {vol_total:>10} {oi:>8} {event:>15} ", nl=False)
+            badge = " * " if qualified else "   "
+            rank_str = f"#{dollar_rank}"
+            spread_str = f"{spread_pct:.1f}%"
+
+            click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {event:>15} ", nl=False)
 
             if show_sizing and balance_cents:
                 contracts = calculate_position(balance_cents, price)
@@ -235,7 +249,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
 
             click.echo()
 
-        click.echo(f"\n({len(results)} markets found)")
+        click.echo(f"\n({len(results)} markets found, * = QUALIFIED for whale-trade)")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -406,8 +420,9 @@ def stats(ctx):
 @click.option("--min-volume", default=1000, type=int, help="Minimum volume.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
+@click.option("--tier1-only", is_flag=True, help="Only trade qualified Tier 1 markets (top 20 by $vol, >=$50k, <5% spread).")
 @click.pass_context
-def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run):
+def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, tier1_only):
     """Run automated whale trading strategy."""
     try:
         if not dry_run:
@@ -426,6 +441,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run):
             min_volume=min_volume,
             max_positions=max_positions,
             dry_run=dry_run,
+            tier1_only=tier1_only,
             log=click.echo,
         )
     except click.Abort:

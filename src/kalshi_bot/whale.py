@@ -29,6 +29,7 @@ def run_whale_strategy(
     chunk_count=3,
     chunk_delay_sec=10,
     dry_run=True,
+    tier1_only=False,
     log=print,
 ):
     """Run the whale trading strategy.
@@ -70,8 +71,14 @@ def run_whale_strategy(
     # 4. Scan markets
     prefix_list = list(prefixes)
     log(f"\n  Scanning: prefixes={','.join(prefix_list)} min_price={min_price}c min_vol={min_volume}")
+    log(f"  Tier-1 only: {'YES' if tier1_only else 'no'}")
     results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=5000)
-    log(f"  Found {len(results)} qualifying markets (scanned {scan_stats.get('scanned', '?')})")
+    log(f"  Found {len(results)} markets (scanned {scan_stats.get('scanned', '?')}, qualified {scan_stats.get('qualified', 0)})")
+
+    if tier1_only:
+        before = len(results)
+        results = [r for r in results if r.get("qualified")]
+        log(f"  Tier-1 filter: {before} -> {len(results)} qualified markets")
 
     if not results:
         return {"scanned": 0, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}

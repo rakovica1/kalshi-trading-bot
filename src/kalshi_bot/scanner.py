@@ -25,7 +25,9 @@ def _fetch_all_markets(client, status="open", page_size=1000):
                 "volume": m.get("volume", 0) or 0,
                 "open_interest": m.get("open_interest", 0) or 0,
                 "yes_bid": m.get("yes_bid", 0) or 0,
+                "yes_ask": m.get("yes_ask", 0) or 0,
                 "no_bid": m.get("no_bid", 0) or 0,
+                "no_ask": m.get("no_ask", 0) or 0,
             })
         cursor = data.get("cursor")
         if not cursor or not page:
@@ -52,6 +54,23 @@ def _assign_tier(price):
 _scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 120}
 
 
+def _calc_spread_pct(bid, ask):
+    """Calculate bid/ask spread as a percentage of the midpoint.
+
+    Returns 0.0 if bid or ask is missing/zero.
+    """
+    if not bid or not ask or ask <= bid:
+        return 0.0
+    mid = (bid + ask) / 2.0
+    return ((ask - bid) / mid) * 100.0
+
+
+# Qualification thresholds for premium trade execution
+QUALIFIED_MIN_DOLLAR_24H = 50_000
+QUALIFIED_MAX_SPREAD_PCT = 5.0
+QUALIFIED_TOP_N_DOLLAR = 20
+
+
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
          use_cache=False, top_n=30):
     """Find markets where YES or NO bid is >= min_price.
@@ -59,6 +78,12 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     Fetches ALL open markets from the API, sorts by 24h volume descending,
     then filters the top_n most active markets by prefix, volume, and price.
     Each result is assigned a tier (1/2/3) based on price.
+
+    Each result also gets a `qualified` flag: True when ALL of these hold:
+      - Tier 1 (price >= 98c)
+      - Top 20 by 24h dollar volume
+      - >= $50,000 in 24h dollar volume
+      - Bid/ask spread < 5%
 
     min_volume applies to volume_24h (24-hour trading volume).
 
@@ -101,12 +126,15 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         passed_volume += 1
 
         yes_bid = m["yes_bid"]
+        yes_ask = m["yes_ask"]
         no_bid = m["no_bid"]
+        no_ask = m["no_ask"]
 
         if yes_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(yes_bid)
             dollar_24h = int(m["volume_24h"] * yes_bid) // 100
+            spread_pct = _calc_spread_pct(yes_bid, yes_ask)
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
@@ -119,11 +147,13 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
                 "tier": tier,
+                "spread_pct": round(spread_pct, 2),
             })
         elif no_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(no_bid)
             dollar_24h = int(m["volume_24h"] * no_bid) // 100
+            spread_pct = _calc_spread_pct(no_bid, no_ask)
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
@@ -136,10 +166,28 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
                 "tier": tier,
+                "spread_pct": round(spread_pct, 2),
             })
 
     # Sort by tier (best first), then price desc, then 24h volume desc
     results.sort(key=lambda x: (x["tier"], -x["signal_price"], -x["volume_24h"]))
+
+    # Determine dollar-volume rank and qualification status
+    by_dollar = sorted(results, key=lambda x: x["dollar_24h"], reverse=True)
+    dollar_ranks = {r["ticker"]: rank + 1 for rank, r in enumerate(by_dollar)}
+
+    qualified_count = 0
+    for r in results:
+        rank = dollar_ranks[r["ticker"]]
+        r["dollar_rank"] = rank
+        r["qualified"] = (
+            r["tier"] == 1
+            and rank <= QUALIFIED_TOP_N_DOLLAR
+            and r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
+            and r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
+        )
+        if r["qualified"]:
+            qualified_count += 1
 
     stats = {
         "total_fetched": total_fetched,
@@ -148,6 +196,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         "passed_prefix": passed_prefix,
         "passed_volume": passed_volume,
         "passed_price": passed_price,
+        "qualified": qualified_count,
         "min_price": min_price,
         "min_volume": min_volume,
         "prefixes": ticker_prefixes or [],
