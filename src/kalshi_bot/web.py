@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 from collections import deque
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s: %(message)s")
@@ -158,12 +159,27 @@ def positions():
 # Trades
 # ---------------------------------------------------------------------------
 
+_EST = timezone(timedelta(hours=-5))
+
+
+def _utc_to_est(utc_str):
+    """Convert a 'YYYY-MM-DD HH:MM:SS' UTC string to EST."""
+    try:
+        dt = datetime.strptime(utc_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.astimezone(_EST).strftime("%Y-%m-%d %I:%M:%S %p EST")
+    except Exception:
+        return utc_str
+
+
 @app.route("/trades")
 def trades():
     db.init_db()
     ticker = request.args.get("ticker", "").strip() or None
     limit = request.args.get("limit", 50, type=int)
     trade_list = db.get_trade_history(limit=limit, ticker=ticker)
+    for t in trade_list:
+        if t.get("created_at"):
+            t["created_at"] = _utc_to_est(t["created_at"])
     return render_template(
         "trades.html",
         trades=trade_list,
