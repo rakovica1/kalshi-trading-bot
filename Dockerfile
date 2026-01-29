@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN pip install --no-cache-dir .
+
+ENV PYTHONPATH=/app/src
 
 CMD gunicorn -w 1 --threads 4 -b 0.0.0.0:${PORT:-8000} kalshi_bot.web:app
