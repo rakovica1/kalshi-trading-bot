@@ -8,12 +8,21 @@ class StopRequested(Exception):
     pass
 
 
+# Cache for raw market data to avoid re-fetching 500k+ markets every scan
+_market_cache = {"ts": 0, "markets": [], "ttl": 60}
+
+
 def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
     """Fetch all open markets from the API, paginating with max page size.
 
     Returns a list of market dicts with only the fields we need,
-    to keep memory usage low.
+    to keep memory usage low. Results are cached for 60 seconds.
     """
+    # Return cached if fresh
+    age = time.time() - _market_cache["ts"]
+    if _market_cache["markets"] and age < _market_cache["ttl"]:
+        return _market_cache["markets"], True
+
     markets = []
     cursor = None
     while True:
@@ -41,7 +50,10 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
         cursor = data.get("cursor")
         if not cursor or not page:
             break
-    return markets
+
+    _market_cache["markets"] = markets
+    _market_cache["ts"] = time.time()
+    return markets, False
 
 
 def _assign_tier(price):
@@ -169,8 +181,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
 
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
 
-    # 1. Fetch all open markets
-    all_markets = _fetch_all_markets(client, stop_check=stop_check)
+    # 1. Fetch all open markets (cached for 60s)
+    all_markets, from_cache = _fetch_all_markets(client, stop_check=stop_check)
     total_fetched = len(all_markets)
 
     # 2. Sort by 24h volume descending — most recent activity first
@@ -290,6 +302,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         "min_price": min_price,
         "min_volume": min_volume,
         "prefixes": ticker_prefixes or [],
+        "cached": from_cache,
     }
 
     # Update cache

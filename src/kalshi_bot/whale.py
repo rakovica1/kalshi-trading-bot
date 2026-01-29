@@ -75,8 +75,11 @@ def run_whale_strategy(
     log(f"  Min price: {min_price}c  Min 24h vol: {min_volume}")
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,
-        min_volume=min_volume, top_n=5000, stop_check=stop_check,
+        min_volume=min_volume, top_n=1000, use_cache=True,
+        stop_check=stop_check,
     )
+    if scan_stats.get("cached"):
+        log(f"  (Using cached market data)")
     # Save scan results for web dashboard
     db.save_scan_results(results, scan_stats)
 
