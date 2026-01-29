@@ -202,6 +202,8 @@ def scanner():
         scanning = _scan_state["running"]
         scan_error = _scan_state["error"]
     results, scan_stats, scanned_at = db.get_scan_results()
+    if scanned_at:
+        scanned_at = _utc_to_est(scanned_at)
     from kalshi_bot.scanner import format_close_time, hours_until_close
     for r in results:
         r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
