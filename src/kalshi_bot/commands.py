@@ -184,9 +184,9 @@ def order(ctx, ticker, side, action, count, price, skip_confirm):
 @click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
-@click.option("--tier1-only", is_flag=True, help="Only show qualified Tier 1 markets (top 20 by $vol, >=$50k, <5% spread).")
+@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 20 $vol + $50k+ + <5% spread).")
 @click.pass_context
-def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, tier1_only):
+def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only):
     """Scan for high-probability markets."""
     try:
         client = _get_client(ctx.obj["config_path"])
@@ -200,14 +200,17 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, tier1_only):
         db.save_scan_results(results, scan_stats)
         click.echo(f"Saved {len(results)} results to database for web dashboard.")
 
-        qualified_count = scan_stats.get("qualified", 0)
-        click.echo(f"Qualified (Tier 1 + Top 20 + $50k+ + <5% spread): {qualified_count}")
+        qualified = [r for r in results if r.get("qualified")]
+        non_qualified = [r for r in results if not r.get("qualified")]
+        click.echo(f"Qualified (Tier 1 + Top 20 + $50k+ + <5% spread): {len(qualified)}")
 
-        if tier1_only:
-            results = [r for r in results if r.get("qualified")]
-            click.echo(f"Showing only qualified markets ({len(results)})")
+        if qualified_only:
+            display = qualified
+            click.echo(f"Showing only qualified markets")
+        else:
+            display = results  # already sorted: qualified first
 
-        if not results:
+        if not display:
             click.echo("No markets found matching criteria.")
             return
 
@@ -217,39 +220,50 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, tier1_only):
             balance_cents = data.get("balance", 0)
             click.echo(f"Balance: ${balance_cents / 100:.2f} (1% risk = ${balance_cents * 0.01 / 100:.2f})\n")
 
-        click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'EVENT':>15} ", nl=False)
-        if show_sizing:
-            click.echo(f"{'CONTRACTS':>10}", nl=False)
-        click.echo()
-        click.echo("-" * (110 + (10 if show_sizing else 0)))
-
-        for m in results:
-            ticker = m.get("ticker", "?")
-            side = m["signal_side"]
-            price = m["signal_price"]
-            vol_24h = m.get("volume_24h", 0)
-            dollar_24h = m.get("dollar_24h", 0)
-            dollar_rank = m.get("dollar_rank", 0)
-            spread_pct = m.get("spread_pct", 0)
-            oi = m.get("open_interest", 0)
-            event = m.get("event_ticker", "—")
-            qualified = m.get("qualified", False)
-            if len(event) > 15:
-                event = event[:14] + "~"
-
-            badge = " * " if qualified else "   "
-            rank_str = f"#{dollar_rank}"
-            spread_str = f"{spread_pct:.1f}%"
-
-            click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {event:>15} ", nl=False)
-
-            if show_sizing and balance_cents:
-                contracts = calculate_position(balance_cents, price)
-                click.echo(f"{contracts:>10}", nl=False)
-
+        def _print_table(markets, header=None):
+            if header:
+                click.echo(f"\n  {header}")
+                click.echo(f"  {'='*len(header)}")
+            click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'EVENT':>15} ", nl=False)
+            if show_sizing:
+                click.echo(f"{'CONTRACTS':>10}", nl=False)
             click.echo()
+            click.echo("-" * (110 + (10 if show_sizing else 0)))
 
-        click.echo(f"\n({len(results)} markets found, * = QUALIFIED for whale-trade)")
+            for m in markets:
+                ticker = m.get("ticker", "?")
+                side = m["signal_side"]
+                price = m["signal_price"]
+                vol_24h = m.get("volume_24h", 0)
+                dollar_24h = m.get("dollar_24h", 0)
+                dollar_rank = m.get("dollar_rank", 0)
+                spread_pct = m.get("spread_pct", 0)
+                oi = m.get("open_interest", 0)
+                event = m.get("event_ticker", "—")
+                is_qualified = m.get("qualified", False)
+                if len(event) > 15:
+                    event = event[:14] + "~"
+
+                badge = " * " if is_qualified else "   "
+                rank_str = f"#{dollar_rank}"
+                spread_str = f"{spread_pct:.1f}%"
+
+                click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {event:>15} ", nl=False)
+
+                if show_sizing and balance_cents:
+                    contracts = calculate_position(balance_cents, price)
+                    click.echo(f"{contracts:>10}", nl=False)
+
+                click.echo()
+
+        if qualified_only:
+            _print_table(display, f"QUALIFIED MARKETS ({len(display)})")
+        else:
+            _print_table(qualified, f"QUALIFIED FOR WHALE-TRADE ({len(qualified)})")
+            if non_qualified:
+                _print_table(non_qualified, f"OTHER MARKETS ({len(non_qualified)})")
+
+        click.echo(f"\n({len(display)} markets shown, * = QUALIFIED for whale-trade)")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

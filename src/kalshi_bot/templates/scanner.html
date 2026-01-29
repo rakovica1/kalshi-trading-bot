@@ -104,7 +104,12 @@
 </div>
 
 {% if results %}
-<p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found</p>
+{% set qualified_markets = results|selectattr("qualified")|list %}
+{% set other_markets = results|rejectattr("qualified")|list %}
+<p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found ({{ qualified_markets|length }} qualified)</p>
+
+<!-- Macro for the results table -->
+{% macro market_table(markets) %}
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
@@ -123,24 +128,10 @@
       </tr>
     </thead>
     <tbody>
-      {% set ns = namespace(current_tier=0) %}
-      {% for m in results %}
-      {% if m.tier != ns.current_tier %}
-      {% set ns.current_tier = m.tier %}
-      <tr>
-        <td colspan="11" class="pt-4 pb-2">
-          {% if m.tier == 1 %}
-          <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
-          {% elif m.tier == 2 %}
-          <span class="text-yellow-400 font-semibold text-xs uppercase tracking-wide">Tier 2 — Good (96-97c)</span>
-          {% else %}
-          <span class="text-orange-400 font-semibold text-xs uppercase tracking-wide">Tier 3 — Okay (95c)</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endif %}
+      {% for m in markets %}
       <tr class="border-b
-        {% if m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
+        {% if m.qualified %}border-brand-900/40 bg-brand-950/30 hover:bg-brand-950/50
+        {% elif m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
         {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
         {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
         {% endif %}">
@@ -179,7 +170,28 @@
     </tbody>
   </table>
 </div>
-{% else %}
+{% endmacro %}
+
+{% if qualified_markets %}
+<div class="mb-8">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-brand-400 font-semibold text-sm uppercase tracking-wide">Qualified for Whale-Trade ({{ qualified_markets|length }})</span>
+    <span class="text-slate-600 text-xs">— Tier 1 + Top 20 $vol + $50k+ + &lt;5% spread</span>
+  </div>
+  {{ market_table(qualified_markets) }}
+</div>
+{% endif %}
+
+{% if other_markets %}
+<details class="mb-4" {{ 'open' if not qualified_markets }}>
+  <summary class="cursor-pointer text-slate-500 text-sm mb-3 hover:text-slate-300">
+    Other Markets ({{ other_markets|length }}) — click to {{ 'collapse' if not qualified_markets else 'expand' }}
+  </summary>
+  {{ market_table(other_markets) }}
+</details>
+{% endif %}
+
+{% if not qualified_markets and not other_markets %}
 <div class="text-center py-16">
   <div class="text-slate-600 text-lg mb-2">No markets matched filters</div>
   <p class="text-slate-500 text-sm">The last scan found no markets matching the criteria. Try running with different filters.</p>

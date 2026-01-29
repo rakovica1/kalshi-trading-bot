@@ -169,9 +169,6 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "spread_pct": round(spread_pct, 2),
             })
 
-    # Sort by tier (best first), then price desc, then 24h volume desc
-    results.sort(key=lambda x: (x["tier"], -x["signal_price"], -x["volume_24h"]))
-
     # Determine dollar-volume rank and qualification status
     by_dollar = sorted(results, key=lambda x: x["dollar_24h"], reverse=True)
     dollar_ranks = {r["ticker"]: rank + 1 for rank, r in enumerate(by_dollar)}
@@ -188,6 +185,15 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         )
         if r["qualified"]:
             qualified_count += 1
+
+    # Sort: qualified first, then by price desc -> $volume desc -> spread asc
+    # Within non-qualified: tier asc -> price desc -> volume desc
+    results.sort(key=lambda x: (
+        0 if x["qualified"] else 1,
+        -x["signal_price"],
+        -x["dollar_24h"],
+        x.get("spread_pct", 99),
+    ))
 
     stats = {
         "total_fetched": total_fetched,
