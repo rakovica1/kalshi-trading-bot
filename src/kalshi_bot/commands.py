@@ -416,14 +416,22 @@ def stats(ctx):
 
 @cli.command("whale-trade")
 @click.option("--prefixes", default="KXNFL,KXNBA,KXBTC,KXETH", help="Comma-separated event ticker prefixes.", show_default=True)
-@click.option("--min-price", default=99, type=click.IntRange(1, 99), help="Minimum bid price in cents.", show_default=True)
-@click.option("--min-volume", default=1000, type=int, help="Minimum volume.", show_default=True)
+@click.option("--min-price", default=95, type=click.IntRange(1, 99), help="Minimum bid price in cents for scanner.", show_default=True)
+@click.option("--min-volume", default=1000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
-@click.option("--tier1-only", is_flag=True, help="Only trade qualified Tier 1 markets (top 20 by $vol, >=$50k, <5% spread).")
+@click.option("--tier1-only/--all-tiers", default=True, help="Only trade qualified Tier 1 markets.", show_default=True)
 @click.pass_context
 def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, tier1_only):
-    """Run automated whale trading strategy."""
+    """Run fully autonomous whale trading strategy.
+
+    Scans all markets, filters to qualified opportunities, ranks them,
+    picks the best one, and places the trade automatically.
+
+    Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$50k daily + <5% spread.
+
+    Default is dry-run mode. Use --live to place real orders.
+    """
     try:
         if not dry_run:
             click.confirm(

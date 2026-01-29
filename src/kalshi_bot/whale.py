@@ -21,7 +21,7 @@ def _split_into_chunks(total, chunk_count):
 def run_whale_strategy(
     client,
     prefixes=("KXNFL", "KXNBA", "KXBTC", "KXETH"),
-    min_price=99,
+    min_price=95,
     min_volume=1000,
     risk_pct=0.01,
     max_positions=10,
@@ -29,10 +29,16 @@ def run_whale_strategy(
     chunk_count=3,
     chunk_delay_sec=10,
     dry_run=True,
-    tier1_only=False,
+    tier1_only=True,
     log=print,
 ):
     """Run the whale trading strategy.
+
+    1. Scans all markets automatically
+    2. Filters to QUALIFIED markets (Tier 1 + top 20 $vol + $50k + <5% spread)
+    3. Ranks by: highest price -> highest $volume -> tightest spread
+    4. Picks the #1 ranked market
+    5. Places the trade (or simulates in dry-run mode)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -45,7 +51,7 @@ def run_whale_strategy(
     bal_data = client.get_balance()
     balance_cents = bal_data.get("balance", 0)
     db.log_balance(balance_cents)
-    log(f"  Balance:       ${balance_cents / 100:.2f}")
+    log(f"  Balance:        ${balance_cents / 100:.2f}")
     log(f"  Risk per trade: {risk_pct*100:.0f}% = ${balance_cents * risk_pct / 100:.2f}")
 
     # 2. Daily loss check
@@ -54,7 +60,7 @@ def run_whale_strategy(
         starting = balance_cents
     daily_loss = starting - balance_cents
     max_daily_loss = int(starting * daily_loss_pct)
-    log(f"  Daily loss:    ${daily_loss / 100:.2f} / ${max_daily_loss / 100:.2f} limit")
+    log(f"  Daily loss:     ${daily_loss / 100:.2f} / ${max_daily_loss / 100:.2f} limit")
 
     if daily_loss >= max_daily_loss:
         log(f"\n  STOPPED: Daily loss limit reached ({daily_loss_pct*100:.0f}%)")
@@ -70,77 +76,106 @@ def run_whale_strategy(
 
     # 4. Scan markets
     prefix_list = list(prefixes)
-    log(f"\n  Scanning: prefixes={','.join(prefix_list)} min_price={min_price}c min_vol={min_volume}")
-    log(f"  Tier-1 only: {'YES' if tier1_only else 'no'}")
-    results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=5000)
-    log(f"  Found {len(results)} markets (scanned {scan_stats.get('scanned', '?')}, qualified {scan_stats.get('qualified', 0)})")
+    log(f"\n  Scanning all markets...")
+    log(f"  Prefixes: {','.join(prefix_list)}")
+    log(f"  Min price: {min_price}c  Min 24h vol: {min_volume}")
+    results, scan_stats = scan(
+        client, min_price=min_price, ticker_prefixes=prefix_list,
+        min_volume=min_volume, top_n=5000,
+    )
+    # Save scan results for web dashboard
+    db.save_scan_results(results, scan_stats)
 
+    total_found = len(results)
+    qualified_count = scan_stats.get("qualified", 0)
+    log(f"  Found {total_found} markets, {qualified_count} qualified")
+
+    # 5. Filter to qualified markets only
     if tier1_only:
-        before = len(results)
-        results = [r for r in results if r.get("qualified")]
-        log(f"  Tier-1 filter: {before} -> {len(results)} qualified markets")
+        candidates = [r for r in results if r.get("qualified")]
+    else:
+        candidates = list(results)
 
-    if not results:
-        return {"scanned": 0, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
+    if not candidates:
+        log(f"\n  No {'qualified ' if tier1_only else ''}markets found. Nothing to trade.")
+        log(f"{'='*60}\n")
+        return {"scanned": total_found, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
 
-    # 5. Trade each market
+    # 6. Remove markets we already hold
     existing_tickers = db.get_position_tickers()
-    summary = {"scanned": len(results), "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
-    dry_run_traded = 0  # track simulated trades for position limit in dry run
-
-    log(f"\n  {'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'CONTRACTS':>10} {'CHUNKS':>7} {'ACTION':<10}")
-    log(f"  {'-'*80}")
-
-    for m in results:
-        ticker = m.get("ticker", "?")
-        side = m["signal_side"]
-        price = m["signal_price"]
-
-        # Skip if already holding this ticker
-        if ticker in existing_tickers:
-            log(f"  {ticker:<40} {side.upper():<5} {price:>4}c {'—':>10} {'—':>7} SKIP (held)")
-            summary["skipped"] += 1
-            continue
-
-        # Re-check position limit
-        current_open = db.count_open_positions() + dry_run_traded
-        if current_open >= max_positions:
-            log(f"\n  STOPPED: Max positions reached mid-run ({max_positions})")
-            summary["stopped_reason"] = "max_positions"
-            break
-
-        # Re-check daily loss (skip API call in dry run — no real money spent)
-        if dry_run:
-            fresh_bal = balance_cents
+    available = []
+    held = []
+    for c in candidates:
+        if c["ticker"] in existing_tickers:
+            held.append(c)
         else:
-            fresh_bal = client.get_balance().get("balance", 0)
-            current_loss = starting - fresh_bal
-            if current_loss >= max_daily_loss:
-                log(f"\n  STOPPED: Daily loss limit reached mid-run")
-                summary["stopped_reason"] = "daily_loss"
-                break
+            available.append(c)
 
-        # Calculate position size
-        total_contracts = calculate_position(fresh_bal, price, risk_pct)
-        if total_contracts <= 0:
-            log(f"  {ticker:<40} {side.upper():<5} {price:>4}c {0:>10} {'—':>7} SKIP (no budget)")
-            summary["skipped"] += 1
-            continue
+    if held:
+        log(f"\n  Skipping {len(held)} already-held position{'s' if len(held) != 1 else ''}:")
+        for h in held:
+            log(f"    {h['ticker']} ({h['signal_side'].upper()} @ {h['signal_price']}c)")
 
-        chunks = _split_into_chunks(total_contracts, chunk_count)
+    if not available:
+        log(f"\n  All {len(candidates)} qualified markets are already held. Nothing to trade.")
+        log(f"{'='*60}\n")
+        return {"scanned": total_found, "skipped": len(held), "traded": 0, "orders": 0, "stopped_reason": None}
 
-        prefix = f"  {ticker:<40} {side.upper():<5} {price:>4}c {total_contracts:>10} {len(chunks):>7} "
+    # 7. Rank: highest price -> highest $volume -> tightest spread
+    available.sort(key=lambda m: (
+        -m["signal_price"],
+        -m["dollar_24h"],
+        m.get("spread_pct", 99),
+    ))
 
-        if dry_run:
-            log(prefix + "DRY RUN")
-            summary["traded"] += 1
-            summary["orders"] += len(chunks)
-            existing_tickers.add(ticker)
-            dry_run_traded += 1
-            continue
+    log(f"\n  Ranking {len(available)} available qualified markets:")
+    log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'PRICE':>5} {'24H $':>10} {'SPREAD':>7} {'RANK':>5}")
+    log(f"  {'-'*75}")
+    for i, m in enumerate(available):
+        marker = " >> " if i == 0 else "    "
+        log(f"  {marker}{i+1:>1}. {m['ticker']:<35} {m['signal_side'].upper():<4} "
+            f"{m['signal_price']:>4}c ${m['dollar_24h']:>8,} "
+            f"{m.get('spread_pct', 0):>6.1f}% #{m.get('dollar_rank', 0):>3}")
 
-        # Place chunked orders
-        log(prefix + "PLACING...")
+    # 8. Select #1 ranked market
+    selected = available[0]
+    ticker = selected["ticker"]
+    side = selected["signal_side"]
+    price = selected["signal_price"]
+    dollar_24h = selected["dollar_24h"]
+    spread = selected.get("spread_pct", 0)
+
+    log(f"\n  Selected {ticker} at {price}c "
+        f"(${dollar_24h:,} volume, {spread:.1f}% spread)")
+
+    # 9. Calculate position size
+    total_contracts = calculate_position(balance_cents, price, risk_pct)
+    if total_contracts <= 0:
+        log(f"  SKIP: Insufficient balance for even 1 contract at {price}c")
+        log(f"{'='*60}\n")
+        return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
+
+    chunks = _split_into_chunks(total_contracts, chunk_count)
+    cost_cents = total_contracts * price
+    log(f"  Position: {total_contracts} contracts x {price}c = ${cost_cents / 100:.2f}")
+    log(f"  Execution: {len(chunks)} chunks ({', '.join(str(c) for c in chunks)})")
+
+    summary = {
+        "scanned": total_found,
+        "skipped": len(held),
+        "traded": 0,
+        "orders": 0,
+        "stopped_reason": None,
+        "selected_ticker": ticker,
+    }
+
+    # 10. Execute trade
+    if dry_run:
+        log(f"\n  DRY RUN — would place {len(chunks)} orders for {total_contracts} {side.upper()} contracts on {ticker} at {price}c")
+        summary["traded"] = 1
+        summary["orders"] = len(chunks)
+    else:
+        log(f"\n  PLACING {len(chunks)} orders for {total_contracts} {side.upper()} on {ticker}...")
         chunk_success = 0
         for i, chunk_qty in enumerate(chunks):
             try:
@@ -198,17 +233,17 @@ def run_whale_strategy(
                 time.sleep(chunk_delay_sec)
 
         if chunk_success > 0:
-            summary["traded"] += 1
-            existing_tickers.add(ticker)
-        summary["orders"] += len(chunks)
+            summary["traded"] = 1
+        summary["orders"] = len(chunks)
 
-    # 6. Summary
+    # 11. Summary
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
-    log(f"  Scanned: {summary['scanned']}  Traded: {summary['traded']}  "
-        f"Skipped: {summary['skipped']}  Orders: {summary['orders']}")
+    log(f"  Market:  {ticker} {side.upper()} @ {price}c")
+    log(f"  Scanned: {summary['scanned']}  Qualified: {len(candidates)}  "
+        f"Traded: {summary['traded']}  Orders: {summary['orders']}")
     if summary["stopped_reason"]:
-        log(f"  Stopped early: {summary['stopped_reason']}")
+        log(f"  Stopped: {summary['stopped_reason']}")
     log(f"{'='*60}\n")
 
     return summary
