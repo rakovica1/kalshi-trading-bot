@@ -205,14 +205,9 @@ def scanner():
     if scanned_at:
         scanned_at = _utc_to_est(scanned_at)
     from kalshi_bot.scanner import format_close_time, hours_until_close
-    count_expires_24h = 0
     for r in results:
         r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
         r["hours_left"] = hours_until_close(r.get("close_time", ""))
-        if r["hours_left"] is not None and 0 < r["hours_left"] <= 24:
-            count_expires_24h += 1
-    if scan_stats:
-        scan_stats["count_expires_24h"] = count_expires_24h
     return render_template(
         "scanner.html",
         results=results,

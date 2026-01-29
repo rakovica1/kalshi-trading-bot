@@ -153,6 +153,7 @@ def hours_until_close(raw):
 QUALIFIED_MIN_DOLLAR_24H = 1_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
 QUALIFIED_TOP_N_DOLLAR = 100
+QUALIFIED_MAX_HOURS = 24.0
 
 
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
@@ -168,6 +169,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
       - Top 100 by 24h dollar volume
       - >= $1,000 in 24h dollar volume
       - Bid/ask spread < 5%
+      - Expires within 24 hours
 
     min_volume applies to volume_24h (24-hour trading volume).
 
@@ -274,6 +276,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     count_top20 = 0
     count_dollar_vol = 0
     count_spread = 0
+    count_expires = 0
     for r in results:
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
@@ -281,6 +284,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
+        hrs = r.get("hours_left")
+        is_expiring = hrs is not None and 0 < hrs <= QUALIFIED_MAX_HOURS
         if is_tier1:
             count_tier1 += 1
         if is_top_n:
@@ -289,7 +294,9 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
             count_dollar_vol += 1
         if is_spread:
             count_spread += 1
-        r["qualified"] = is_tier1 and is_top_n and is_dollar and is_spread
+        if is_expiring:
+            count_expires += 1
+        r["qualified"] = is_tier1 and is_top_n and is_dollar and is_spread and is_expiring
         if r["qualified"]:
             qualified_count += 1
 
@@ -313,6 +320,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         "count_top20": count_top20,
         "count_dollar_vol": count_dollar_vol,
         "count_spread": count_spread,
+        "count_expires": count_expires,
         "qualified": qualified_count,
         "min_price": min_price,
         "min_volume": min_volume,
