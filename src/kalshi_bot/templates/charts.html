@@ -15,15 +15,17 @@
 {% if positions %}
 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6" id="charts-grid">
   {% for p in positions %}
-  <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden"
+  {% set pnl_per = p.current_bid - p.avg_entry_price_cents %}
+  {% set is_winning = pnl_per >= 0 %}
+  <div class="bg-slate-900 border {{ 'border-emerald-900/40' if is_winning else 'border-red-900/40' }} rounded-lg overflow-hidden"
        data-ticker="{{ p.ticker }}" data-side="{{ p.side }}" data-index="{{ loop.index0 }}">
     <!-- Header -->
-    <div class="px-5 pt-4 pb-2 border-b border-slate-800/50">
+    <div class="px-5 pt-4 pb-3 border-b border-slate-800/50">
       <div class="flex items-center justify-between">
         <div class="min-w-0 flex-1">
           <h2 class="text-sm font-semibold text-slate-200 truncate">{{ p.ticker|decode_ticker }}</h2>
           <div class="text-[10px] font-mono text-slate-500 truncate">{{ p.ticker }}</div>
-          <div class="flex items-center gap-2 mt-1">
+          <div class="flex items-center gap-2 mt-1.5">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ 'bg-emerald-900/50 text-emerald-400' if p.side == 'yes' else 'bg-red-900/50 text-red-400' }}">
               {{ p.side|upper }}
             </span>
@@ -31,41 +33,59 @@
           </div>
         </div>
         <div class="text-right ml-4">
-          <div class="text-lg font-bold pnl-display {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
-            ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+          <!-- Big P&L with direction arrow -->
+          <div class="flex items-center justify-end gap-1.5">
+            <span class="text-lg direction-arrow {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">{{ '&#9650;' if is_winning else '&#9660;' }}</span>
+            <span class="text-xl font-bold pnl-display {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">
+              ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+            </span>
           </div>
+          <!-- % change -->
+          {% if p.avg_entry_price_cents > 0 %}
+          {% set pct_change = (pnl_per / p.avg_entry_price_cents * 100) %}
+          <div class="text-xs font-medium pct-display {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">
+            {{ "%+.1f"|format(pct_change) }}%
+          </div>
+          {% endif %}
           <div class="text-[10px] text-slate-500 uppercase tracking-wide">Unrealized P&amp;L</div>
         </div>
       </div>
     </div>
 
     <!-- Chart -->
-    <div class="px-4 py-3" style="height: 260px;">
+    <div class="px-3 py-2" style="height: 280px;">
       <canvas id="chart-{{ loop.index0 }}"></canvas>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-4 border-t border-slate-800/50 text-center">
-      <div class="px-3 py-3 border-r border-slate-800/30">
+    <!-- Stats bar -->
+    <div class="grid grid-cols-5 border-t border-slate-800/50 text-center">
+      <div class="px-2 py-3 border-r border-slate-800/30">
         <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Entry</div>
-        <div class="text-sm font-semibold text-slate-300 entry-display">{{ "%.0f"|format(p.avg_entry_price_cents) }}&cent;</div>
+        <div class="text-sm font-semibold text-amber-400 entry-display">{{ "%.0f"|format(p.avg_entry_price_cents) }}&cent;</div>
       </div>
-      <div class="px-3 py-3 border-r border-slate-800/30">
+      <div class="px-2 py-3 border-r border-slate-800/30">
         <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Bid / Ask</div>
         <div class="text-sm font-semibold bid-ask-display">
-          <span class="text-slate-300">{{ p.current_bid }}&cent;</span>
+          <span class="{{ 'text-emerald-400' if is_winning else 'text-red-400' }}">{{ p.current_bid }}&cent;</span>
           <span class="text-slate-600">/</span>
           <span class="text-slate-400">{{ p.current_ask }}&cent;</span>
         </div>
       </div>
-      <div class="px-3 py-3 border-r border-slate-800/30">
-        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">P&amp;L / Contract</div>
-        {% set pnl_per = p.current_bid - p.avg_entry_price_cents %}
-        <div class="text-sm font-semibold per-contract-display {{ 'text-emerald-400' if pnl_per >= 0 else 'text-red-400' }}">
+      <div class="px-2 py-3 border-r border-slate-800/30">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Change</div>
+        <div class="text-sm font-bold per-contract-display {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">
           {{ "%+.0f"|format(pnl_per) }}&cent;
         </div>
       </div>
-      <div class="px-3 py-3">
+      <div class="px-2 py-3 border-r border-slate-800/30">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">High / Low</div>
+        <div class="text-sm font-semibold high-low-display">
+          <span class="text-emerald-400/70">{{ p.bid_high }}&cent;</span>
+          <span class="text-slate-600">/</span>
+          <span class="text-red-400/70">{{ p.bid_low }}&cent;</span>
+        </div>
+      </div>
+      <div class="px-2 py-3">
         <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Time Left</div>
         <div class="text-sm font-semibold text-slate-300 time-left-display" data-close-time="{{ p.close_time }}">
           &mdash;
@@ -98,14 +118,27 @@ function formatTimeLeft(closeTime) {
   if (ms <= 0) return 'Closed';
   const hours = ms / 3600000;
   if (hours < 1) return Math.round(hours * 60) + 'm';
-  if (hours < 48) return Math.round(hours) + 'h ' + Math.round((hours % 1) * 60) + 'm';
+  if (hours < 48) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours % 1) * 60);
+    return h + 'h ' + m + 'm';
+  }
   return (hours / 24).toFixed(1) + 'd';
 }
 
-// Update all time-left displays
 function updateTimers() {
   document.querySelectorAll('.time-left-display').forEach(el => {
-    el.textContent = formatTimeLeft(el.dataset.closeTime);
+    const tl = formatTimeLeft(el.dataset.closeTime);
+    el.textContent = tl;
+    // Color code time left
+    if (!el.dataset.closeTime) return;
+    const ms = new Date(el.dataset.closeTime) - new Date();
+    const hours = ms / 3600000;
+    el.className = 'text-sm font-semibold time-left-display';
+    if (hours <= 0) el.classList.add('text-slate-500');
+    else if (hours < 1) el.classList.add('text-red-400');
+    else if (hours < 6) el.classList.add('text-amber-400');
+    else el.classList.add('text-slate-300');
   });
 }
 updateTimers();
@@ -125,14 +158,15 @@ const positionData = [
     bid: {{ p.current_bid }},
     ask: {{ p.current_ask }},
     closeTime: {{ p.close_time|tojson }},
-    history: {{ p.history|tojson }}
+    history: {{ p.history|tojson }},
+    bidHigh: {{ p.bid_high }},
+    bidLow: {{ p.bid_low }}
   }{{ "," if not loop.last }}
   {% endfor %}
 ];
 
 // ---------- Helper: parse history point timestamp ----------
 function historyTime(h) {
-  // Candlestick data uses unix 'ts', snapshot data uses 'recorded_at' string
   if (h.ts) return new Date(h.ts * 1000);
   if (h.recorded_at) return new Date(h.recorded_at);
   return new Date();
@@ -144,28 +178,32 @@ function createChart(index, data) {
   if (!ctx) return;
 
   const entry = data.entry;
-  const historyPoints = data.history.map(h => ({
-    x: historyTime(h),
-    y: h.bid_cents
-  }));
+  const isWinning = data.bid >= entry;
+  const lineColor = isWinning ? '#10b981' : '#ef4444';
+  const fillColor = isWinning ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)';
 
-  // Add current point if we have a live bid
+  const historyPoints = data.history.map(h => ({
+    x: historyTime(h), y: h.bid_cents
+  }));
   if (data.bid > 0) {
     historyPoints.push({ x: new Date(), y: data.bid });
   }
-
-  // If no history, create a single point at now
   if (historyPoints.length === 0 && data.bid > 0) {
     historyPoints.push({ x: new Date(), y: data.bid });
   }
 
-  // Ask line points (matching bid timestamps)
   const askPoints = data.history.map(h => ({
-    x: historyTime(h),
-    y: h.ask_cents
+    x: historyTime(h), y: h.ask_cents
   }));
   if (data.ask > 0) {
     askPoints.push({ x: new Date(), y: data.ask });
+  }
+
+  // Entry line as a flat dataset spanning the full time range
+  const entryLineData = [];
+  if (historyPoints.length > 0) {
+    entryLineData.push({ x: historyPoints[0].x, y: entry });
+    entryLineData.push({ x: historyPoints[historyPoints.length - 1].x, y: entry });
   }
 
   // Determine Y-axis range
@@ -180,22 +218,32 @@ function createChart(index, data) {
         {
           label: 'Bid',
           data: historyPoints,
-          borderColor: '#6366f1',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 4,
+          borderColor: lineColor,
+          backgroundColor: fillColor,
+          borderWidth: 2.5,
+          pointRadius: function(ctx) {
+            // Show point for last data point only
+            return ctx.dataIndex === ctx.dataset.data.length - 1 ? 5 : 0;
+          },
+          pointBackgroundColor: lineColor,
+          pointBorderColor: isWinning ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+          pointBorderWidth: 3,
+          pointHoverRadius: 5,
           tension: 0.3,
-          fill: false,
+          fill: {
+            target: { value: entry },
+            above: 'rgba(16, 185, 129, 0.10)',
+            below: 'rgba(239, 68, 68, 0.10)',
+          },
           order: 1,
         },
         {
           label: 'Ask',
           data: askPoints,
-          borderColor: 'rgba(148, 163, 184, 0.4)',
+          borderColor: 'rgba(148, 163, 184, 0.3)',
           backgroundColor: 'transparent',
           borderWidth: 1,
-          borderDash: [4, 3],
+          borderDash: [3, 3],
           pointRadius: 0,
           pointHoverRadius: 3,
           tension: 0.3,
@@ -204,11 +252,14 @@ function createChart(index, data) {
         },
         {
           label: 'Entry: ' + entry + '¢',
-          data: [],  // annotation line handled via plugin
-          borderColor: 'rgba(251, 191, 36, 0.6)',
-          borderWidth: 1,
-          borderDash: [6, 4],
+          data: entryLineData,
+          borderColor: '#fbbf24',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [8, 4],
           pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0,
           fill: false,
           order: 3,
         }
@@ -217,7 +268,7 @@ function createChart(index, data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 600, easing: 'easeInOutQuart' },
+      animation: { duration: 500, easing: 'easeInOutQuart' },
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: {
@@ -226,104 +277,150 @@ function createChart(index, data) {
             tooltipFormat: 'MMM d, h:mm a',
             displayFormats: { minute: 'h:mm a', hour: 'h a', day: 'MMM d' }
           },
-          grid: { color: 'rgba(51, 65, 85, 0.3)' },
+          grid: { color: 'rgba(51, 65, 85, 0.25)' },
           ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 },
-          border: { color: 'rgba(51, 65, 85, 0.5)' }
+          border: { color: 'rgba(51, 65, 85, 0.4)' }
         },
         y: {
           min: minPrice,
           max: maxPrice,
-          grid: { color: 'rgba(51, 65, 85, 0.3)' },
+          grid: { color: 'rgba(51, 65, 85, 0.25)' },
           ticks: {
             color: '#64748b',
             font: { size: 10 },
-            callback: v => v + '¢'
+            callback: v => v + '¢',
+            stepSize: 1
           },
-          border: { color: 'rgba(51, 65, 85, 0.5)' }
+          border: { color: 'rgba(51, 65, 85, 0.4)' }
         }
       },
       plugins: {
-        legend: { display: true, position: 'top', align: 'end',
-          labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12, padding: 10 }
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: {
+            color: '#94a3b8', font: { size: 10 }, boxWidth: 14, padding: 12,
+            usePointStyle: false,
+          }
         },
         tooltip: {
-          backgroundColor: '#1e293b',
+          backgroundColor: '#0f172a',
           titleColor: '#e2e8f0',
           bodyColor: '#cbd5e1',
           borderColor: '#334155',
           borderWidth: 1,
-          padding: 10,
+          padding: 12,
+          displayColors: true,
           callbacks: {
             label: function(ctx) {
-              return ctx.dataset.label + ': ' + ctx.parsed.y + '¢';
+              const val = ctx.parsed.y;
+              const diff = val - entry;
+              const prefix = diff >= 0 ? '+' : '';
+              if (ctx.datasetIndex === 2) return 'Entry: ' + entry + '¢';
+              return ctx.dataset.label + ': ' + val + '¢ (' + prefix + diff + '¢)';
             }
           }
         }
       }
     },
-    plugins: [{
-      id: 'entryLine',
-      beforeDraw(chart) {
-        const yScale = chart.scales.y;
-        const yPos = yScale.getPixelForValue(entry);
-        if (yPos < yScale.top || yPos > yScale.bottom) return;
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(chart.chartArea.left, yPos);
-        ctx.lineTo(chart.chartArea.right, yPos);
-        ctx.stroke();
-        // Label
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Entry: ' + entry + '¢', chart.chartArea.left + 4, yPos - 4);
-        ctx.restore();
-      }
-    },
+    plugins: [
     {
+      // Background profit/loss zone shading
       id: 'profitZone',
       beforeDatasetsDraw(chart) {
         const yScale = chart.scales.y;
         const entryY = yScale.getPixelForValue(entry);
-        const ctx = chart.ctx;
+        const c = chart.ctx;
         const area = chart.chartArea;
         if (entryY > area.top && entryY < area.bottom) {
-          ctx.save();
-          // Green zone above entry (profit)
-          ctx.fillStyle = 'rgba(16, 185, 129, 0.04)';
-          ctx.fillRect(area.left, area.top, area.right - area.left, entryY - area.top);
-          // Red zone below entry (loss)
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.04)';
-          ctx.fillRect(area.left, entryY, area.right - area.left, area.bottom - entryY);
-          ctx.restore();
+          c.save();
+          c.fillStyle = 'rgba(16, 185, 129, 0.03)';
+          c.fillRect(area.left, area.top, area.right - area.left, entryY - area.top);
+          c.fillStyle = 'rgba(239, 68, 68, 0.03)';
+          c.fillRect(area.left, entryY, area.right - area.left, area.bottom - entryY);
+          c.restore();
         }
       }
     },
     {
+      // Entry price line + label
+      id: 'entryLine',
+      afterDatasetsDraw(chart) {
+        const yScale = chart.scales.y;
+        const yPos = yScale.getPixelForValue(entry);
+        if (yPos < yScale.top || yPos > yScale.bottom) return;
+        const c = chart.ctx;
+        const area = chart.chartArea;
+        c.save();
+        // Line
+        c.strokeStyle = '#fbbf24';
+        c.lineWidth = 2;
+        c.setLineDash([8, 4]);
+        c.beginPath();
+        c.moveTo(area.left, yPos);
+        c.lineTo(area.right, yPos);
+        c.stroke();
+        c.setLineDash([]);
+        // Label pill
+        const label = 'Entry: ' + entry + '¢';
+        c.font = 'bold 10px system-ui, sans-serif';
+        const tw = c.measureText(label).width;
+        const px = 6, py = 3;
+        const lx = area.right - tw - px * 2 - 4;
+        const ly = yPos - 10 - py;
+        c.fillStyle = 'rgba(251, 191, 36, 0.15)';
+        c.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.roundRect(lx, ly, tw + px * 2, 16 + py, 4);
+        c.fill();
+        c.stroke();
+        c.fillStyle = '#fbbf24';
+        c.textAlign = 'left';
+        c.textBaseline = 'middle';
+        c.fillText(label, lx + px, ly + 8 + py / 2);
+        c.restore();
+      }
+    },
+    {
+      // Current price dot + "Now" label
       id: 'currentPrice',
       afterDatasetsDraw(chart) {
         const meta = chart.getDatasetMeta(0);
         if (meta.data.length === 0) return;
         const last = meta.data[meta.data.length - 1];
         if (!last) return;
-        const ctx = chart.ctx;
-        const bid = positionData[chart.canvas.id.split('-')[1]]?.bid || 0;
-        ctx.save();
+        const c = chart.ctx;
+        const idx = chart.canvas.id.split('-')[1];
+        const bid = positionData[idx]?.bid || 0;
+        const winning = bid >= entry;
+        const color = winning ? '#10b981' : '#ef4444';
+        c.save();
+        // Glow
+        c.beginPath();
+        c.arc(last.x, last.y, 10, 0, Math.PI * 2);
+        c.fillStyle = winning ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+        c.fill();
         // Outer ring
-        ctx.beginPath();
-        ctx.arc(last.x, last.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = bid >= entry ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)';
-        ctx.fill();
+        c.beginPath();
+        c.arc(last.x, last.y, 6, 0, Math.PI * 2);
+        c.fillStyle = winning ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+        c.fill();
         // Inner dot
-        ctx.beginPath();
-        ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = bid >= entry ? '#10b981' : '#ef4444';
-        ctx.fill();
-        ctx.restore();
+        c.beginPath();
+        c.arc(last.x, last.y, 3, 0, Math.PI * 2);
+        c.fillStyle = color;
+        c.fill();
+        // "Now" label
+        c.fillStyle = '#64748b';
+        c.font = '9px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.fillText('Now', last.x, chart.chartArea.bottom + 14);
+        // Current price label next to dot
+        c.fillStyle = color;
+        c.font = 'bold 11px system-ui, sans-serif';
+        c.textAlign = 'left';
+        c.fillText(bid + '¢', last.x + 10, last.y + 4);
+        c.restore();
       }
     }]
   });
@@ -347,46 +444,79 @@ async function refreshPrices() {
       'Updated ' + new Date().toLocaleTimeString();
 
     json.positions.forEach(pos => {
-      // Find matching card
       const card = document.querySelector(
         `[data-ticker="${pos.ticker}"][data-side="${pos.side}"]`
       );
       if (!card) return;
       const idx = parseInt(card.dataset.index);
+      const entry = pos.entry_cents;
+      const isWinning = pos.current_bid >= entry;
+      const lineColor = isWinning ? '#10b981' : '#ef4444';
 
       // Update positionData
       positionData[idx].bid = pos.current_bid;
       positionData[idx].ask = pos.current_ask;
       positionData[idx].history = pos.history;
       positionData[idx].closeTime = pos.close_time;
+      positionData[idx].bidHigh = pos.bid_high;
+      positionData[idx].bidLow = pos.bid_low;
+
+      // Update border color
+      card.className = card.className
+        .replace(/border-(emerald|red)-900\/40/g, '')
+        .trim() + (isWinning ? ' border-emerald-900/40' : ' border-red-900/40');
 
       // Update P&L display
       const pnlEl = card.querySelector('.pnl-display');
       const pnlVal = pos.unrealized_cents / 100;
       pnlEl.textContent = '$' + (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(2);
-      pnlEl.className = 'text-lg font-bold pnl-display ' +
-        (pos.unrealized_cents >= 0 ? 'text-emerald-400' : 'text-red-400');
+      pnlEl.className = 'text-xl font-bold pnl-display ' +
+        (isWinning ? 'text-emerald-400' : 'text-red-400');
+
+      // Update arrow
+      const arrowEl = card.querySelector('.direction-arrow');
+      if (arrowEl) {
+        arrowEl.innerHTML = isWinning ? '&#9650;' : '&#9660;';
+        arrowEl.className = 'text-lg direction-arrow ' + (isWinning ? 'text-emerald-400' : 'text-red-400');
+      }
+
+      // Update % change
+      const pctEl = card.querySelector('.pct-display');
+      if (pctEl && entry > 0) {
+        const pct = ((pos.current_bid - entry) / entry * 100).toFixed(1);
+        pctEl.textContent = (pct >= 0 ? '+' : '') + pct + '%';
+        pctEl.className = 'text-xs font-medium pct-display ' +
+          (isWinning ? 'text-emerald-400/70' : 'text-red-400/70');
+      }
 
       // Update bid/ask display
       const bidAskEl = card.querySelector('.bid-ask-display');
       bidAskEl.innerHTML =
-        '<span class="text-slate-300">' + pos.current_bid + '&cent;</span>' +
+        '<span class="' + (isWinning ? 'text-emerald-400' : 'text-red-400') + '">' + pos.current_bid + '&cent;</span>' +
         '<span class="text-slate-600">/</span>' +
         '<span class="text-slate-400">' + pos.current_ask + '&cent;</span>';
 
-      // Update P&L per contract
+      // Update change per contract
       const perEl = card.querySelector('.per-contract-display');
-      const perVal = pos.current_bid - pos.entry_cents;
+      const perVal = pos.current_bid - entry;
       perEl.textContent = (perVal >= 0 ? '+' : '') + perVal + '¢';
-      perEl.className = 'text-sm font-semibold per-contract-display ' +
-        (perVal >= 0 ? 'text-emerald-400' : 'text-red-400');
+      perEl.className = 'text-sm font-bold per-contract-display ' +
+        (isWinning ? 'text-emerald-400' : 'text-red-400');
+
+      // Update high/low
+      const hlEl = card.querySelector('.high-low-display');
+      if (hlEl) {
+        hlEl.innerHTML =
+          '<span class="text-emerald-400/70">' + pos.bid_high + '&cent;</span>' +
+          '<span class="text-slate-600">/</span>' +
+          '<span class="text-red-400/70">' + pos.bid_low + '&cent;</span>';
+      }
 
       // Update close time
       const timeEl = card.querySelector('.time-left-display');
       timeEl.dataset.closeTime = pos.close_time;
-      timeEl.textContent = formatTimeLeft(pos.close_time);
 
-      // Update chart data
+      // Update chart
       const chart = charts[idx];
       if (!chart) return;
 
@@ -400,23 +530,36 @@ async function refreshPrices() {
       }));
       if (pos.current_ask > 0) askPoints.push({ x: new Date(), y: pos.current_ask });
 
-      chart.data.datasets[0].data = bidPoints;
-      chart.data.datasets[1].data = askPoints;
+      // Entry line spanning full range
+      const entryLineData = [];
+      if (bidPoints.length > 0) {
+        entryLineData.push({ x: bidPoints[0].x, y: entry });
+        entryLineData.push({ x: bidPoints[bidPoints.length - 1].x, y: entry });
+      }
 
-      // Recalculate Y-axis range
-      const entry = pos.entry_cents;
+      // Update datasets
+      chart.data.datasets[0].data = bidPoints;
+      chart.data.datasets[0].borderColor = lineColor;
+      chart.data.datasets[0].backgroundColor = isWinning ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)';
+      chart.data.datasets[0].pointBackgroundColor = lineColor;
+      chart.data.datasets[0].pointBorderColor = isWinning ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+      chart.data.datasets[1].data = askPoints;
+      chart.data.datasets[2].data = entryLineData;
+
+      // Recalculate Y-axis
       const allP = bidPoints.map(p => p.y).concat(askPoints.map(p => p.y)).concat([entry]);
       chart.options.scales.y.min = Math.max(0, Math.min(...allP) - 3);
       chart.options.scales.y.max = Math.min(100, Math.max(...allP) + 3);
 
       chart.update('none');
     });
+
+    updateTimers();
   } catch (e) {
     console.error('Chart refresh error:', e);
   }
 }
 
-// Auto-refresh every 60 seconds
 refreshTimer = setInterval(refreshPrices, 60000);
 </script>
 {% endblock %}

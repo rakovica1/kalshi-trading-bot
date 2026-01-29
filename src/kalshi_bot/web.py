@@ -247,6 +247,9 @@ def _fetch_candlestick_history(client, tickers, hours=24):
                     "ts": ts,
                     "yes_bid": yes_bid_d.get("close", 0) or 0,
                     "yes_ask": yes_ask_d.get("close", 0) or 0,
+                    "yes_bid_high": yes_bid_d.get("high", 0) or 0,
+                    "yes_bid_low": yes_bid_d.get("low", 0) or 0,
+                    "volume": c.get("volume", 0) or 0,
                 })
             points.sort(key=lambda p: p["ts"])
             result[ticker] = points
@@ -280,19 +283,30 @@ def _build_position_data(client, open_positions, candle_history):
         # Build history from candlestick data
         history = []
         candles = candle_history.get(p["ticker"], [])
+        bid_high = bid if bid > 0 else 0
+        bid_low = bid if bid > 0 else 100
         for c in candles:
             if p["side"] == "yes":
                 h_bid = c.get("yes_bid", 0)
                 h_ask = c.get("yes_ask", 0)
+                h_high = c.get("yes_bid_high", 0) or h_bid
+                h_low = c.get("yes_bid_low", 0) or h_bid
             else:
-                # NO side: bid = 100 - yes_ask, ask = 100 - yes_bid
                 h_bid = max(0, 100 - (c.get("yes_ask", 0) or 0))
                 h_ask = max(0, 100 - (c.get("yes_bid", 0) or 0))
+                h_high = max(0, 100 - (c.get("yes_bid_low", 0) or 0)) if c.get("yes_bid_low") else h_bid
+                h_low = max(0, 100 - (c.get("yes_bid_high", 0) or 0)) if c.get("yes_bid_high") else h_bid
+            if h_bid > 0:
+                bid_high = max(bid_high, h_high if h_high > 0 else h_bid)
+                bid_low = min(bid_low, h_low if h_low > 0 else h_bid)
             history.append({
                 "ts": c["ts"],
                 "bid_cents": h_bid,
                 "ask_cents": h_ask,
             })
+
+        if bid_low > bid_high:
+            bid_low = bid_high
 
         enriched.append({
             **p,
@@ -301,6 +315,8 @@ def _build_position_data(client, open_positions, candle_history):
             "unrealized_cents": unrealized,
             "close_time": close_time,
             "history": history,
+            "bid_high": bid_high,
+            "bid_low": bid_low,
         })
     return enriched
 
@@ -357,6 +373,8 @@ def api_charts_prices():
                 "unrealized_cents": pos["unrealized_cents"],
                 "close_time": pos["close_time"],
                 "history": pos["history"],
+                "bid_high": pos["bid_high"],
+                "bid_low": pos["bid_low"],
             })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
