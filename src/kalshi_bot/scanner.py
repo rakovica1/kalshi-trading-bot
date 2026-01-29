@@ -3,7 +3,12 @@ import time
 from datetime import datetime, timezone, timedelta
 
 
-def _fetch_all_markets(client, status="open", page_size=1000):
+class StopRequested(Exception):
+    """Raised when a stop signal is detected during scanning."""
+    pass
+
+
+def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
     """Fetch all open markets from the API, paginating with max page size.
 
     Returns a list of market dicts with only the fields we need,
@@ -12,6 +17,8 @@ def _fetch_all_markets(client, status="open", page_size=1000):
     markets = []
     cursor = None
     while True:
+        if stop_check and stop_check():
+            raise StopRequested()
         kwargs = {"limit": page_size, "status": status}
         if cursor:
             kwargs["cursor"] = cursor
@@ -137,7 +144,7 @@ QUALIFIED_TOP_N_DOLLAR = 20
 
 
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
-         use_cache=False, top_n=30):
+         use_cache=False, top_n=30, stop_check=None):
     """Find markets where YES or NO bid is >= min_price.
 
     Fetches ALL open markets from the API, sorts by 24h volume descending,
@@ -163,7 +170,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
 
     # 1. Fetch all open markets
-    all_markets = _fetch_all_markets(client)
+    all_markets = _fetch_all_markets(client, stop_check=stop_check)
     total_fetched = len(all_markets)
 
     # 2. Sort by 24h volume descending — most recent activity first

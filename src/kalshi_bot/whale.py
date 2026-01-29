@@ -1,5 +1,5 @@
 from kalshi_bot import db
-from kalshi_bot.scanner import scan, format_close_time, hours_until_close
+from kalshi_bot.scanner import scan, format_close_time, hours_until_close, StopRequested
 from kalshi_bot.sizing import calculate_position
 
 
@@ -15,6 +15,7 @@ def run_whale_strategy(
     tier1_only=True,
     max_hours_to_expiration=1.0,
     log=print,
+    stop_check=None,
 ):
     """Last-Minute Sniper strategy.
 
@@ -74,7 +75,7 @@ def run_whale_strategy(
     log(f"  Min price: {min_price}c  Min 24h vol: {min_volume}")
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,
-        min_volume=min_volume, top_n=5000,
+        min_volume=min_volume, top_n=5000, stop_check=stop_check,
     )
     # Save scan results for web dashboard
     db.save_scan_results(results, scan_stats)

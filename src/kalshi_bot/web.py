@@ -361,7 +361,13 @@ def control_start():
     def _log(msg):
         _whale_state["logs"].append(msg)
 
+    def _is_stop_requested():
+        with _whale_lock:
+            return _whale_state["stop_requested"]
+
     def _run():
+        from kalshi_bot.scanner import StopRequested
+
         try:
             db.init_db()
             client = _get_client()
@@ -377,6 +383,7 @@ def control_start():
                 max_positions=max_positions,
                 max_hours_to_expiration=max_hours,
                 log=_log,
+                stop_check=_is_stop_requested,
             )
 
             if not continuous:
@@ -393,10 +400,9 @@ def control_start():
 
             round_num = 0
             while True:
-                with _whale_lock:
-                    if _whale_state["stop_requested"]:
-                        _log(f"[CONTINUOUS] Stop requested. Finishing.")
-                        break
+                if _is_stop_requested():
+                    _log(f"[CONTINUOUS] Stop requested. Finishing.")
+                    break
 
                 round_num += 1
                 open_count = db.count_open_positions()
@@ -430,12 +436,10 @@ def control_start():
                         break
 
                 _log(f"[CONTINUOUS] Waiting {cooldown_minutes} min before next scan...")
-                # Sleep in small increments so stop signal is responsive
                 for _ in range(int(cooldown_sec)):
-                    with _whale_lock:
-                        if _whale_state["stop_requested"]:
-                            _log(f"[CONTINUOUS] Stop requested during cooldown.")
-                            break
+                    if _is_stop_requested():
+                        _log(f"[CONTINUOUS] Stop requested during cooldown.")
+                        break
                     _time.sleep(1)
                 else:
                     continue
@@ -443,6 +447,8 @@ def control_start():
 
             _log(f"[CONTINUOUS] Done — {round_num} rounds, {trades_placed} trades placed, "
                  f"{db.count_open_positions()}/{max_positions} positions")
+        except StopRequested:
+            _log("Strategy stopped by user.")
         except Exception as e:
             _log(f"ERROR: {e}")
         finally:
@@ -461,7 +467,7 @@ def control_start():
 def control_stop():
     with _whale_lock:
         _whale_state["stop_requested"] = True
-        _whale_state["logs"].append("Stop requested — will finish current operation...")
+        _whale_state["logs"].append("Stop requested — stopping...")
     return redirect(url_for("control"))
 
 
