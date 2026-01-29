@@ -155,7 +155,7 @@ def scanner():
     error = None
     try:
         client = _get_client()
-        results, scan_stats = scan(client, min_price=95, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=100, use_cache=True)
+        results, scan_stats = scan(client, min_price=95, min_volume=1000, top_n=30, use_cache=True)
     except Exception as e:
         error = str(e)
     return render_template("scanner.html", results=results, scan_stats=scan_stats, error=error)
@@ -165,7 +165,7 @@ def scanner():
 def scanner_refresh():
     try:
         client = _get_client()
-        results, scan_stats = scan(client, min_price=95, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=100, use_cache=False)
+        results, scan_stats = scan(client, min_price=95, min_volume=1000, top_n=30, use_cache=False)
         data = []
         for m in results:
             data.append({
@@ -174,6 +174,7 @@ def scanner_refresh():
                 "price": m["signal_price"],
                 "volume": m.get("volume", 0),
                 "event": m.get("event_ticker", ""),
+                "tier": m.get("tier", 3),
             })
         return jsonify({"ok": True, "count": len(data), "scan_stats": scan_stats, "results": data})
     except Exception as e:

@@ -32,16 +32,32 @@ def _fetch_all_markets(client, status="open", page_size=1000):
     return markets
 
 
+def _assign_tier(price):
+    """Assign a tier based on signal price.
+
+    Tier 1 (Best):  98-99c+
+    Tier 2 (Good):  96-97c
+    Tier 3 (Okay):  95c
+    """
+    if price >= 98:
+        return 1
+    elif price >= 96:
+        return 2
+    else:
+        return 3
+
+
 # Simple in-memory cache
 _scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 120}
 
 
-def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
-         use_cache=False, top_n=500):
+def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
+         use_cache=False, top_n=30):
     """Find markets where YES or NO bid is >= min_price.
 
     Fetches ALL open markets from the API, sorts by volume descending,
     then filters the top_n most liquid markets by prefix, volume, and price.
+    Each result is assigned a tier (1/2/3) based on price.
 
     Returns (results, stats) tuple.
     """
@@ -86,6 +102,7 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
 
         if yes_bid >= min_price:
             passed_price += 1
+            tier = _assign_tier(yes_bid)
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
@@ -94,9 +111,11 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
                 "volume": m["volume"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
+                "tier": tier,
             })
         elif no_bid >= min_price:
             passed_price += 1
+            tier = _assign_tier(no_bid)
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
@@ -105,9 +124,11 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
                 "volume": m["volume"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
+                "tier": tier,
             })
 
-    results.sort(key=lambda x: (x["signal_price"], x.get("volume", 0)), reverse=True)
+    # Sort by tier (best first), then price desc, then volume desc
+    results.sort(key=lambda x: (x["tier"], -x["signal_price"], -x.get("volume", 0)))
 
     stats = {
         "total_fetched": total_fetched,
