@@ -75,7 +75,7 @@ def run_whale_strategy(
     log(f"  Min price: {min_price}c  Min 24h vol: {min_volume}")
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,
-        min_volume=min_volume, top_n=1000, use_cache=True,
+        min_volume=min_volume, top_n=500, use_cache=True,
         stop_check=stop_check,
     )
     if scan_stats.get("cached"):

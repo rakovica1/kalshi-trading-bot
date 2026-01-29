@@ -241,7 +241,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
         prefix_list = [p.strip() for p in prefixes.split(",")] if prefixes else None
 
         click.echo(f"Scanning all open markets (min_price={min_price}c, min_24h_vol={min_volume})...")
-        results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=1000)
+        results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=500)
 
         # Save to DB so the web dashboard can display them
         db.save_scan_results(results, scan_stats)
