@@ -1,7 +1,6 @@
 import logging
 import os
 import threading
-import time
 from collections import deque
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from kalshi_bot import db
 from kalshi_bot.config import load_config
 from kalshi_bot.client import create_client
-from kalshi_bot.scanner import scan
 from kalshi_bot.whale import run_whale_strategy
 
 app = Flask(__name__)
@@ -144,49 +142,19 @@ def trades():
 
 
 # ---------------------------------------------------------------------------
-# Scanner
+# Scanner (reads from DB — run CLI `scan` command to populate)
 # ---------------------------------------------------------------------------
 
 @app.route("/scanner")
 def scanner():
     db.init_db()
-    # Use cached results if available; otherwise show empty page
-    # (scanning fetches ALL markets from API and can be slow)
-    results = []
-    scan_stats = {}
-    error = None
-    try:
-        from kalshi_bot.scanner import _scan_cache
-        age = time.time() - _scan_cache["ts"]
-        if _scan_cache["stats"] and age < _scan_cache["ttl"]:
-            results = _scan_cache["results"]
-            scan_stats = _scan_cache["stats"]
-    except Exception as e:
-        error = str(e)
-    return render_template("scanner.html", results=results, scan_stats=scan_stats, error=error)
-
-
-@app.route("/scanner/refresh", methods=["POST"])
-def scanner_refresh():
-    try:
-        client = _get_client()
-        results, scan_stats = scan(client, min_price=95, min_volume=1000, top_n=30, use_cache=False)
-        data = []
-        for m in results:
-            data.append({
-                "ticker": m.get("ticker", "?"),
-                "side": m["signal_side"],
-                "price": m["signal_price"],
-                "volume_24h": m.get("volume_24h", 0),
-                "dollar_24h": m.get("dollar_24h", 0),
-                "volume": m.get("volume", 0),
-                "open_interest": m.get("open_interest", 0),
-                "event": m.get("event_ticker", ""),
-                "tier": m.get("tier", 3),
-            })
-        return jsonify({"ok": True, "count": len(data), "scan_stats": scan_stats, "results": data})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+    results, scan_stats, scanned_at = db.get_scan_results()
+    return render_template(
+        "scanner.html",
+        results=results,
+        scan_stats=scan_stats,
+        scanned_at=scanned_at,
+    )
 
 
 # ---------------------------------------------------------------------------

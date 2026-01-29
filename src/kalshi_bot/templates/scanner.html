@@ -3,39 +3,23 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold text-white">Market Scanner</h1>
-  <button id="refresh-btn" onclick="refreshScan()"
-    class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-md text-sm text-white flex items-center gap-2">
-    <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-    </svg>
-    <span id="refresh-text">Refresh</span>
-  </button>
+  {% if scanned_at %}
+  <span class="text-xs text-slate-500">Last scan: {{ scanned_at }} UTC</span>
+  {% endif %}
 </div>
 
-{% if error %}
-<div class="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6 text-red-400 text-sm">{{ error }}</div>
-{% endif %}
-
-<!-- Loading overlay (hidden by default) -->
-<div id="scan-loading" class="hidden mb-6">
-  <div class="bg-slate-800/80 border border-slate-700 rounded-lg p-8 text-center">
-    <svg class="animate-spin h-8 w-8 text-brand-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-    </svg>
-    <div class="text-slate-300 font-medium" id="loading-title">Scanning markets...</div>
-    <div class="text-slate-500 text-sm mt-1" id="loading-detail">Fetching top 30 markets by 24h volume</div>
-  </div>
+{% if not results and not scan_stats %}
+<div class="bg-slate-800/50 border border-slate-700 rounded-lg p-8 text-center">
+  <div class="text-slate-500 text-lg mb-2">No scan results yet</div>
+  <p class="text-slate-600 text-sm mb-4">Run the scanner from the CLI to populate this page:</p>
+  <code class="bg-slate-900 text-slate-300 px-4 py-2 rounded text-sm font-mono">kalshi scan --min-price 95 --min-volume 1000</code>
+  <p class="text-slate-600 text-xs mt-4">Results are saved to the database and displayed here automatically.</p>
 </div>
-
-<!-- Timeout warning (hidden by default) -->
-<div id="timeout-warning" class="hidden bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 mb-6 text-yellow-400 text-sm">
-  Scan timed out after 20 seconds. Showing partial results below.
-</div>
+{% else %}
 
 <!-- Filter diagnostics -->
 {% if scan_stats %}
-<div id="scan-diagnostics" class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6 text-sm">
+<div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6 text-sm">
   <div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">
     <div>
@@ -87,216 +71,80 @@
   </div>
 </div>
 
-<div id="scan-results">
-  {% if results %}
-  <p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found</p>
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
-          <th class="pb-3 pr-4">Tier</th>
-          <th class="pb-3 pr-4">Ticker</th>
-          <th class="pb-3 pr-4">Side</th>
-          <th class="pb-3 pr-4 text-right">Price</th>
-          <th class="pb-3 pr-4 text-right">24h Vol</th>
-          <th class="pb-3 pr-4 text-right">24h $</th>
-          <th class="pb-3 pr-4 text-right">Total Vol</th>
-          <th class="pb-3 pr-4 text-right">Open Int</th>
-          <th class="pb-3">Event</th>
-        </tr>
-      </thead>
-      <tbody id="scan-body">
-        {% set ns = namespace(current_tier=0) %}
-        {% for m in results %}
-        {% if m.tier != ns.current_tier %}
-        {% set ns.current_tier = m.tier %}
-        <tr>
-          <td colspan="9" class="pt-4 pb-2">
-            {% if m.tier == 1 %}
-            <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
-            {% elif m.tier == 2 %}
-            <span class="text-yellow-400 font-semibold text-xs uppercase tracking-wide">Tier 2 — Good (96-97c)</span>
-            {% else %}
-            <span class="text-orange-400 font-semibold text-xs uppercase tracking-wide">Tier 3 — Okay (95c)</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endif %}
-        <tr class="border-b
-          {% if m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
-          {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
-          {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
-          {% endif %}">
-          <td class="py-2.5 pr-4">
-            {% if m.tier == 1 %}
-            <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">T1</span>
-            {% elif m.tier == 2 %}
-            <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">T2</span>
-            {% else %}
-            <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">T3</span>
-            {% endif %}
-          </td>
-          <td class="py-2.5 pr-4 font-mono text-xs text-slate-300">{{ m.ticker }}</td>
-          <td class="py-2.5 pr-4">
-            <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/50 text-emerald-400' if m.signal_side == 'yes' else 'bg-red-900/50 text-red-400' }}">
-              {{ m.signal_side|upper }}
-            </span>
-          </td>
-          <td class="py-2.5 pr-4 text-right font-medium
-            {% if m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
-            {{ m.signal_price }}c
-          </td>
-          <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
-          <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
-          <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.volume|default(0)) }}</td>
-          <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
-          <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div id="empty-state" class="text-center py-16">
-    {% if scan_stats %}
-    <div class="text-slate-600 text-lg mb-2">No markets found</div>
-    <p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (&ge;95c). Click Refresh to scan again.</p>
-    {% else %}
-    <div class="text-slate-600 text-lg mb-2">Click Refresh to scan markets</div>
-    <p class="text-slate-500 text-sm">Scans the top 30 most active markets (by 24h volume) for high-probability opportunities.</p>
-    {% endif %}
-  </div>
-  {% endif %}
+{% if results %}
+<p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found</p>
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
+        <th class="pb-3 pr-4">Tier</th>
+        <th class="pb-3 pr-4">Ticker</th>
+        <th class="pb-3 pr-4">Side</th>
+        <th class="pb-3 pr-4 text-right">Price</th>
+        <th class="pb-3 pr-4 text-right">24h Vol</th>
+        <th class="pb-3 pr-4 text-right">24h $</th>
+        <th class="pb-3 pr-4 text-right">Total Vol</th>
+        <th class="pb-3 pr-4 text-right">Open Int</th>
+        <th class="pb-3">Event</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(current_tier=0) %}
+      {% for m in results %}
+      {% if m.tier != ns.current_tier %}
+      {% set ns.current_tier = m.tier %}
+      <tr>
+        <td colspan="9" class="pt-4 pb-2">
+          {% if m.tier == 1 %}
+          <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
+          {% elif m.tier == 2 %}
+          <span class="text-yellow-400 font-semibold text-xs uppercase tracking-wide">Tier 2 — Good (96-97c)</span>
+          {% else %}
+          <span class="text-orange-400 font-semibold text-xs uppercase tracking-wide">Tier 3 — Okay (95c)</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      <tr class="border-b
+        {% if m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
+        {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
+        {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
+        {% endif %}">
+        <td class="py-2.5 pr-4">
+          {% if m.tier == 1 %}
+          <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">T1</span>
+          {% elif m.tier == 2 %}
+          <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">T2</span>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">T3</span>
+          {% endif %}
+        </td>
+        <td class="py-2.5 pr-4 font-mono text-xs text-slate-300">{{ m.ticker }}</td>
+        <td class="py-2.5 pr-4">
+          <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/50 text-emerald-400' if m.signal_side == 'yes' else 'bg-red-900/50 text-red-400' }}">
+            {{ m.signal_side|upper }}
+          </span>
+        </td>
+        <td class="py-2.5 pr-4 text-right font-medium
+          {% if m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
+          {{ m.signal_price }}c
+        </td>
+        <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.volume|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
+        <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+{% else %}
+<div class="text-center py-16">
+  <div class="text-slate-600 text-lg mb-2">No markets matched filters</div>
+  <p class="text-slate-500 text-sm">The last scan found no markets matching the criteria. Try running with different filters.</p>
+</div>
+{% endif %}
 
-<script>
-function tierLabel(tier) {
-  if (tier === 1) return '<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">T1</span>';
-  if (tier === 2) return '<span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">T2</span>';
-  return '<span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">T3</span>';
-}
-
-function tierRowClass(tier) {
-  if (tier === 1) return 'border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50';
-  if (tier === 2) return 'border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50';
-  return 'border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50';
-}
-
-function tierPriceClass(tier) {
-  if (tier === 1) return 'text-emerald-300';
-  if (tier === 2) return 'text-yellow-300';
-  return 'text-orange-300';
-}
-
-function tierHeading(tier) {
-  if (tier === 1) return '<span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 \u2014 Best (98-99c+)</span>';
-  if (tier === 2) return '<span class="text-yellow-400 font-semibold text-xs uppercase tracking-wide">Tier 2 \u2014 Good (96-97c)</span>';
-  return '<span class="text-orange-400 font-semibold text-xs uppercase tracking-wide">Tier 3 \u2014 Okay (95c)</span>';
-}
-
-async function refreshScan() {
-  var btn = document.getElementById('refresh-btn');
-  var text = document.getElementById('refresh-text');
-  var icon = document.getElementById('refresh-icon');
-  var loading = document.getElementById('scan-loading');
-  var timeoutWarn = document.getElementById('timeout-warning');
-
-  btn.disabled = true;
-  text.textContent = 'Scanning...';
-  icon.classList.add('animate-spin');
-  loading.classList.remove('hidden');
-  timeoutWarn.classList.add('hidden');
-
-  var controller = new AbortController();
-  var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
-
-  try {
-    var res = await fetch('/scanner/refresh', { method: 'POST', signal: controller.signal });
-    clearTimeout(timeoutId);
-    var data = await res.json();
-
-    if (!data.ok) {
-      alert('Scan error: ' + data.error);
-      return;
-    }
-
-    updateDiagnostics(data.scan_stats);
-    renderResults(data.results, data.count);
-
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      timeoutWarn.classList.remove('hidden');
-    } else {
-      alert('Network error: ' + err.message);
-    }
-  } finally {
-    loading.classList.add('hidden');
-    btn.disabled = false;
-    text.textContent = 'Refresh';
-    icon.classList.remove('animate-spin');
-  }
-}
-
-function updateDiagnostics(s) {
-  var diag = document.getElementById('scan-diagnostics');
-  if (!diag || !s) return;
-  diag.innerHTML = '<div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>'
-    + '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">'
-    + '<div><span class="text-slate-500">Total markets fetched:</span> <span class="text-slate-300">' + s.total_fetched + '</span></div>'
-    + '<div><span class="text-slate-500">Top by 24h vol examined:</span> <span class="text-slate-300">' + s.scanned + ' of ' + s.top_n + '</span></div>'
-    + '<div><span class="text-slate-500">Sorting:</span> <span class="text-slate-300">24h volume descending</span></div>'
-    + '</div>'
-    + '<div class="grid grid-cols-3 gap-3 text-xs">'
-    + '<div><span class="text-slate-500">Passed prefix filter:</span> <span class="text-slate-300">' + s.passed_prefix + '</span></div>'
-    + '<div><span class="text-slate-500">Passed 24h vol \u2265' + s.min_volume.toLocaleString() + ':</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
-    + '<div><span class="text-slate-500">Passed price \u2265' + s.min_price + 'c:</span> <span class="text-slate-300">' + s.passed_price + '</span></div>'
-    + '</div>'
-    + '<div class="mt-2 text-xs text-slate-500">Prefixes: ' + (s.prefixes && s.prefixes.length ? s.prefixes.join(', ') : 'all (no prefix filter)') + '</div>';
-}
-
-function renderResults(results, count) {
-  var container = document.getElementById('scan-results');
-  if (results.length === 0) {
-    container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets matched</div>'
-      + '<p class="text-slate-500 text-sm">No markets in the top 30 by 24h volume matched the price filter (\u226595c).</p></div>';
-    return;
-  }
-
-  var html = '<p class="text-sm text-slate-500 mb-2">' + count + ' market' + (count !== 1 ? 's' : '') + ' found</p>';
-  html += '<div class="overflow-x-auto"><table class="w-full text-sm"><thead>';
-  html += '<tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">';
-  html += '<th class="pb-3 pr-4">Tier</th><th class="pb-3 pr-4">Ticker</th><th class="pb-3 pr-4">Side</th>';
-  html += '<th class="pb-3 pr-4 text-right">Price</th><th class="pb-3 pr-4 text-right">24h Vol</th>';
-  html += '<th class="pb-3 pr-4 text-right">24h $</th>';
-  html += '<th class="pb-3 pr-4 text-right">Total Vol</th><th class="pb-3 pr-4 text-right">Open Int</th>';
-  html += '<th class="pb-3">Event</th></tr></thead><tbody>';
-
-  var currentTier = 0;
-  for (var i = 0; i < results.length; i++) {
-    var m = results[i];
-    var tier = m.tier || 3;
-
-    if (tier !== currentTier) {
-      currentTier = tier;
-      html += '<tr><td colspan="9" class="pt-4 pb-2">' + tierHeading(tier) + '</td></tr>';
-    }
-
-    var sideClass = m.side === 'yes' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400';
-    html += '<tr class="border-b ' + tierRowClass(tier) + '">';
-    html += '<td class="py-2.5 pr-4">' + tierLabel(tier) + '</td>';
-    html += '<td class="py-2.5 pr-4 font-mono text-xs text-slate-300">' + m.ticker + '</td>';
-    html += '<td class="py-2.5 pr-4"><span class="px-2 py-0.5 rounded text-xs font-medium ' + sideClass + '">' + m.side.toUpperCase() + '</span></td>';
-    html += '<td class="py-2.5 pr-4 text-right font-medium ' + tierPriceClass(tier) + '">' + m.price + 'c</td>';
-    html += '<td class="py-2.5 pr-4 text-right text-white font-medium">' + (m.volume_24h || 0).toLocaleString() + '</td>';
-    html += '<td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">$' + (m.dollar_24h || 0).toLocaleString() + '</td>';
-    html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.volume || 0).toLocaleString() + '</td>';
-    html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.open_interest || 0).toLocaleString() + '</td>';
-    html += '<td class="py-2.5 text-slate-500 text-xs font-mono">' + (m.event || '') + '</td>';
-    html += '</tr>';
-  }
-  html += '</tbody></table></div>';
-  container.innerHTML = html;
-}
-</script>
+{% endif %}
 {% endblock %}

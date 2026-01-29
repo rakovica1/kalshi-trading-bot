@@ -50,6 +50,34 @@ CREATE TABLE IF NOT EXISTS daily_pnl (
     wins INTEGER DEFAULT 0,
     losses INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS scan_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    event_ticker TEXT,
+    signal_side TEXT NOT NULL,
+    signal_price INTEGER NOT NULL,
+    tier INTEGER NOT NULL DEFAULT 3,
+    volume_24h INTEGER NOT NULL DEFAULT 0,
+    dollar_24h INTEGER NOT NULL DEFAULT 0,
+    volume INTEGER NOT NULL DEFAULT 0,
+    open_interest INTEGER NOT NULL DEFAULT 0,
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS scan_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    total_fetched INTEGER NOT NULL DEFAULT 0,
+    top_n INTEGER NOT NULL DEFAULT 0,
+    scanned INTEGER NOT NULL DEFAULT 0,
+    passed_prefix INTEGER NOT NULL DEFAULT 0,
+    passed_volume INTEGER NOT NULL DEFAULT 0,
+    passed_price INTEGER NOT NULL DEFAULT 0,
+    min_price INTEGER NOT NULL DEFAULT 0,
+    min_volume INTEGER NOT NULL DEFAULT 0,
+    prefixes TEXT NOT NULL DEFAULT '',
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -333,3 +361,73 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "gross_loss_cents": gross_loss,
         "profit_factor": profit_factor,
     }
+
+
+# ---------------------------------------------------------------------------
+# Scan results (written by CLI, read by web dashboard)
+# ---------------------------------------------------------------------------
+
+def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
+    """Replace scan_results table with fresh results from CLI scan."""
+    conn = _connect(db_path)
+    conn.execute("DELETE FROM scan_results")
+    for m in results:
+        conn.execute(
+            """INSERT INTO scan_results
+               (ticker, event_ticker, signal_side, signal_price, tier,
+                volume_24h, dollar_24h, volume, open_interest)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (m["ticker"], m.get("event_ticker", ""), m["signal_side"],
+             m["signal_price"], m.get("tier", 3),
+             m.get("volume_24h", 0), m.get("dollar_24h", 0),
+             m.get("volume", 0), m.get("open_interest", 0)),
+        )
+    # Upsert scan metadata
+    conn.execute("DELETE FROM scan_meta")
+    prefixes_str = ",".join(stats.get("prefixes", []))
+    conn.execute(
+        """INSERT INTO scan_meta
+           (id, total_fetched, top_n, scanned, passed_prefix, passed_volume,
+            passed_price, min_price, min_volume, prefixes)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (stats.get("total_fetched", 0), stats.get("top_n", 0),
+         stats.get("scanned", 0), stats.get("passed_prefix", 0),
+         stats.get("passed_volume", 0), stats.get("passed_price", 0),
+         stats.get("min_price", 0), stats.get("min_volume", 0),
+         prefixes_str),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_scan_results(db_path=DEFAULT_DB_PATH):
+    """Read last scan results from DB. Returns (results, stats, scanned_at)."""
+    conn = _connect(db_path)
+
+    rows = conn.execute(
+        "SELECT * FROM scan_results ORDER BY tier ASC, signal_price DESC, volume_24h DESC"
+    ).fetchall()
+    results = [dict(r) for r in rows]
+
+    meta_row = conn.execute("SELECT * FROM scan_meta WHERE id = 1").fetchone()
+    if meta_row:
+        meta = dict(meta_row)
+        prefixes_raw = meta.get("prefixes", "")
+        stats = {
+            "total_fetched": meta["total_fetched"],
+            "top_n": meta["top_n"],
+            "scanned": meta["scanned"],
+            "passed_prefix": meta["passed_prefix"],
+            "passed_volume": meta["passed_volume"],
+            "passed_price": meta["passed_price"],
+            "min_price": meta["min_price"],
+            "min_volume": meta["min_volume"],
+            "prefixes": [p for p in prefixes_raw.split(",") if p],
+        }
+        scanned_at = meta["scanned_at"]
+    else:
+        stats = {}
+        scanned_at = None
+
+    conn.close()
+    return results, stats, scanned_at
