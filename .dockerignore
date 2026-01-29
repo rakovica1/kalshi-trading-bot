@@ -1,0 +1,11 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.pem
+*.db
+*.db-shm
+*.db-wal
+config.yaml
+.claude
