@@ -67,13 +67,13 @@ def load_config_from_env():
     # Add PEM header/footer if missing (Railway stripped them)
     stripped = private_key.strip()
     if not stripped.startswith("-----BEGIN"):
-        logger.warning("PEM FIX: adding missing header/footer")
+        logger.warning("PEM FIX: adding missing RSA header/footer")
         # Clean up the base64 body: remove spaces, wrap to 64-char lines
         body = stripped.replace(" ", "").replace("\n", "")
-        lines = ["-----BEGIN PRIVATE KEY-----"]
+        lines = ["-----BEGIN RSA PRIVATE KEY-----"]
         for i in range(0, len(body), 64):
             lines.append(body[i:i + 64])
-        lines.append("-----END PRIVATE KEY-----")
+        lines.append("-----END RSA PRIVATE KEY-----")
         private_key = "\n".join(lines) + "\n"
 
     # Fix newlines that Railway may have stripped from a complete PEM:
