@@ -13,7 +13,7 @@ def run_whale_strategy(
     daily_loss_pct=0.05,
     dry_run=True,
     tier1_only=True,
-    max_hours_to_expiration=1.0,
+    max_hours_to_expiration=24.0,
     log=print,
     stop_check=None,
 ):
@@ -26,7 +26,7 @@ def run_whale_strategy(
     Pipeline:
       1. Scan all markets
       2. Filter to QUALIFIED (Tier 1 + top 20 $vol + $1k+ + <5% spread)
-      3. Filter by expiration window (default: 1 hour)
+      3. Filter by expiration window (default: 24 hours)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
       6. Place aggressive limit order at 99c (fills at best available)

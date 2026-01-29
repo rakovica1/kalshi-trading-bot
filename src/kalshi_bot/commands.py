@@ -511,7 +511,7 @@ def stats(ctx):
 @click.option("--min-volume", default=1000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
-@click.option("--max-hours-to-expiration", default=1.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
+@click.option("--max-hours-to-expiration", default=24.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
 @click.option("--no-expiration-limit", is_flag=True, help="Remove expiration filter (trade any expiration).")
 @click.option("--continuous/--once", default=False, help="Loop: scan and trade until max-positions reached or Ctrl+C.", show_default=True)
 @click.option("--cooldown-minutes", default=1.0, type=float, help="Minutes to wait between trades in continuous mode.", show_default=True)
@@ -526,15 +526,15 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
     """Last-Minute Sniper — ultra-short-term market order strategy.
 
     Scans all markets, filters to qualified opportunities expiring within
-    1 hour (default), ranks them, picks the best one, and places a MARKET
+    24 hours (default), ranks them, picks the best one, and places a MARKET
     ORDER for instant execution at the current ask price.
 
     Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$1k daily + <5% spread.
 
     \b
-    Expiration (default: 1 hour):
-      --max-hours-to-expiration 2    Widen to 2 hours
-      --max-days-to-expiration 1     Markets closing within 1 day
+    Expiration (default: 24 hours):
+      --max-hours-to-expiration 4    Narrow to 4 hours
+      --max-days-to-expiration 3     Markets closing within 3 days
       --no-expiration-limit          No expiration filter
 
     \b

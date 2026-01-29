@@ -98,6 +98,11 @@
         <span class="text-slate-500">&lt;5% spread</span>
         <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 font-mono font-medium">{{ scan_stats.count_spread|default(0) }}</span>
       </div>
+      <span class="text-slate-600">&bull;</span>
+      <div class="flex items-center gap-1.5">
+        <span class="text-slate-500">Expires &le;24h</span>
+        <span class="px-2 py-0.5 rounded bg-amber-900/40 text-amber-400 font-mono font-medium">{{ scan_stats.count_expires_24h|default(0) }}</span>
+      </div>
     </div>
   </div>
 
