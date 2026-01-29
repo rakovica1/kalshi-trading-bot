@@ -16,12 +16,40 @@
 <div class="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6 text-red-400 text-sm">{{ error }}</div>
 {% endif %}
 
+<!-- Filter diagnostics -->
+{% if scan_stats %}
+<div id="scan-diagnostics" class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6 text-sm">
+  <div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+    <div>
+      <span class="text-slate-500">Markets scanned:</span>
+      <span class="text-slate-300 ml-1">{{ scan_stats.scanned }}</span>
+    </div>
+    <div>
+      <span class="text-slate-500">Passed prefix filter:</span>
+      <span class="text-slate-300 ml-1">{{ scan_stats.passed_prefix }}</span>
+    </div>
+    <div>
+      <span class="text-slate-500">Passed volume filter (≥{{ scan_stats.min_volume }}):</span>
+      <span class="text-slate-300 ml-1">{{ scan_stats.passed_volume }}</span>
+    </div>
+    <div>
+      <span class="text-slate-500">Passed price filter (≥{{ scan_stats.min_price }}c):</span>
+      <span class="text-slate-300 ml-1">{{ scan_stats.passed_price }}</span>
+    </div>
+  </div>
+  <div class="mt-2 text-xs text-slate-500">
+    Prefixes: {{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all' }}
+  </div>
+  {% if scan_stats.scanned >= 500 %}
+  <div class="mt-1 text-xs text-yellow-500/80">Note: Only first {{ scan_stats.scanned }} markets scanned (web limit). CLI scans up to 5000.</div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div id="scan-results">
   {% if results %}
-  <p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found (min 99c, min vol 1000)</p>
-  {% if scanned >= 500 %}
-  <p class="text-xs text-yellow-500/80 mb-4">Showing results from first {{ scanned }} markets — click Refresh to scan again</p>
-  {% endif %}
+  <p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found</p>
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
@@ -77,16 +105,28 @@ async function refreshScan() {
       return;
     }
 
+    // Update diagnostics
+    const diag = document.getElementById('scan-diagnostics');
+    if (diag && data.scan_stats) {
+      const s = data.scan_stats;
+      diag.innerHTML = '<div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>'
+        + '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">'
+        + '<div><span class="text-slate-500">Markets scanned:</span> <span class="text-slate-300">' + s.scanned + '</span></div>'
+        + '<div><span class="text-slate-500">Passed prefix filter:</span> <span class="text-slate-300">' + s.passed_prefix + '</span></div>'
+        + '<div><span class="text-slate-500">Passed volume filter (≥' + s.min_volume + '):</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
+        + '<div><span class="text-slate-500">Passed price filter (≥' + s.min_price + 'c):</span> <span class="text-slate-300">' + s.passed_price + '</span></div>'
+        + '</div>'
+        + '<div class="mt-2 text-xs text-slate-500">Prefixes: ' + (s.prefixes && s.prefixes.length ? s.prefixes.join(', ') : 'all') + '</div>'
+        + (s.scanned >= 500 ? '<div class="mt-1 text-xs text-yellow-500/80">Note: Only first ' + s.scanned + ' markets scanned (web limit). CLI scans up to 5000.</div>' : '');
+    }
+
     const container = document.getElementById('scan-results');
     if (data.results.length === 0) {
-      container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets found</div></div>';
+      container.innerHTML = '<div class="text-center py-16"><div class="text-slate-600 text-lg mb-2">No markets found</div><p class="text-slate-500 text-sm">Try adjusting the filters or click Refresh to scan again.</p></div>';
       return;
     }
 
-    let html = '<p class="text-sm text-slate-500 mb-2">' + data.count + ' market' + (data.count !== 1 ? 's' : '') + ' found (min 99c, min vol 1000)</p>';
-    if (data.scanned >= 500) {
-      html += '<p class="text-xs text-yellow-500/80 mb-4">Showing results from first ' + data.scanned + ' markets — click Refresh to scan again</p>';
-    }
+    let html = '<p class="text-sm text-slate-500 mb-2">' + data.count + ' market' + (data.count !== 1 ? 's' : '') + ' found</p>';
     html += '<div class="overflow-x-auto"><table class="w-full text-sm"><thead>';
     html += '<tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">';
     html += '<th class="pb-3 pr-4">Ticker</th><th class="pb-3 pr-4">Side</th><th class="pb-3 pr-4 text-right">Price</th><th class="pb-3 pr-4 text-right">Volume</th><th class="pb-3">Event</th></tr></thead><tbody>';

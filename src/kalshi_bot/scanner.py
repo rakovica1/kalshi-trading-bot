@@ -23,8 +23,8 @@ def _iter_markets(client, status="open", page_size=200, max_markets=500):
             break
 
 
-# Simple in-memory cache: (timestamp, results, scanned_count)
-_scan_cache = {"ts": 0, "results": [], "scanned": 0, "ttl": 120}
+# Simple in-memory cache
+_scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 120}
 
 MAX_MARKETS = 500
 
@@ -37,30 +37,38 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
     Returns (results, scanned_count) tuple.
     """
     # Return cached results if fresh enough
-    if use_cache and _scan_cache["results"]:
+    if use_cache and _scan_cache["stats"]:
         age = time.time() - _scan_cache["ts"]
         if age < _scan_cache["ttl"]:
-            return _scan_cache["results"], _scan_cache["scanned"]
+            return _scan_cache["results"], _scan_cache["stats"]
 
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
     results = []
     scanned = 0
+    passed_prefix = 0
+    passed_volume = 0
+    passed_price = 0
 
     for m in _iter_markets(client, page_size=200, max_markets=max_markets):
         scanned += 1
-
-        if m.get("volume", 0) < min_volume:
-            continue
 
         if prefixes_upper:
             event_ticker = (m.get("event_ticker") or "").upper()
             if not any(event_ticker.startswith(p) for p in prefixes_upper):
                 continue
 
+        passed_prefix += 1
+
+        if m.get("volume", 0) < min_volume:
+            continue
+
+        passed_volume += 1
+
         yes_bid = m.get("yes_bid", 0) or 0
         no_bid = m.get("no_bid", 0) or 0
 
         if yes_bid >= min_price:
+            passed_price += 1
             results.append({
                 "ticker": m.get("ticker", "?"),
                 "event_ticker": m.get("event_ticker", ""),
@@ -71,6 +79,7 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
                 "no_bid": no_bid,
             })
         elif no_bid >= min_price:
+            passed_price += 1
             results.append({
                 "ticker": m.get("ticker", "?"),
                 "event_ticker": m.get("event_ticker", ""),
@@ -83,9 +92,19 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
 
     results.sort(key=lambda x: (x["signal_price"], x.get("volume", 0)), reverse=True)
 
+    stats = {
+        "scanned": scanned,
+        "passed_prefix": passed_prefix,
+        "passed_volume": passed_volume,
+        "passed_price": passed_price,
+        "min_price": min_price,
+        "min_volume": min_volume,
+        "prefixes": ticker_prefixes or [],
+    }
+
     # Update cache
     _scan_cache["ts"] = time.time()
     _scan_cache["results"] = results
-    _scan_cache["scanned"] = scanned
+    _scan_cache["stats"] = stats
 
-    return results, scanned
+    return results, stats

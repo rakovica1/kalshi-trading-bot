@@ -151,21 +151,21 @@ def trades():
 def scanner():
     db.init_db()
     results = []
-    scanned = 0
+    scan_stats = {}
     error = None
     try:
         client = _get_client()
-        results, scanned = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000, use_cache=True)
+        results, scan_stats = scan(client, min_price=95, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=100, use_cache=True)
     except Exception as e:
         error = str(e)
-    return render_template("scanner.html", results=results, scanned=scanned, error=error)
+    return render_template("scanner.html", results=results, scan_stats=scan_stats, error=error)
 
 
 @app.route("/scanner/refresh", methods=["POST"])
 def scanner_refresh():
     try:
         client = _get_client()
-        results, scanned = scan(client, min_price=99, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=1000, use_cache=False)
+        results, scan_stats = scan(client, min_price=95, ticker_prefixes=["KXNFL", "KXNBA", "KXBTC", "KXETH"], min_volume=100, use_cache=False)
         data = []
         for m in results:
             data.append({
@@ -175,7 +175,7 @@ def scanner_refresh():
                 "volume": m.get("volume", 0),
                 "event": m.get("event_ticker", ""),
             })
-        return jsonify({"ok": True, "count": len(data), "scanned": scanned, "results": data})
+        return jsonify({"ok": True, "count": len(data), "scan_stats": scan_stats, "results": data})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 

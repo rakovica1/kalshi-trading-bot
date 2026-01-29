@@ -193,7 +193,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
         prefix_list = [p.strip() for p in prefixes.split(",")] if prefixes else None
 
         click.echo(f"Scanning all open markets (min_price={min_price}c, min_volume={min_volume})...")
-        results, _scanned = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, max_markets=5000)
+        results, _stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, max_markets=5000)
 
         if not results:
             click.echo("No markets found matching criteria.")
