@@ -106,12 +106,14 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         if yes_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(yes_bid)
+            dollar_24h = int(m["volume_24h"] * yes_bid) // 100
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
                 "signal_side": "yes",
                 "signal_price": yes_bid,
                 "volume_24h": m["volume_24h"],
+                "dollar_24h": dollar_24h,
                 "volume": m["volume"],
                 "open_interest": m["open_interest"],
                 "yes_bid": yes_bid,
@@ -121,12 +123,14 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         elif no_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(no_bid)
+            dollar_24h = int(m["volume_24h"] * no_bid) // 100
             results.append({
                 "ticker": m["ticker"],
                 "event_ticker": m["event_ticker"],
                 "signal_side": "no",
                 "signal_price": no_bid,
                 "volume_24h": m["volume_24h"],
+                "dollar_24h": dollar_24h,
                 "volume": m["volume"],
                 "open_interest": m["open_interest"],
                 "yes_bid": yes_bid,

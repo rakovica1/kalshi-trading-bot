@@ -99,6 +99,7 @@
           <th class="pb-3 pr-4">Side</th>
           <th class="pb-3 pr-4 text-right">Price</th>
           <th class="pb-3 pr-4 text-right">24h Vol</th>
+          <th class="pb-3 pr-4 text-right">24h $</th>
           <th class="pb-3 pr-4 text-right">Total Vol</th>
           <th class="pb-3 pr-4 text-right">Open Int</th>
           <th class="pb-3">Event</th>
@@ -110,7 +111,7 @@
         {% if m.tier != ns.current_tier %}
         {% set ns.current_tier = m.tier %}
         <tr>
-          <td colspan="8" class="pt-4 pb-2">
+          <td colspan="9" class="pt-4 pb-2">
             {% if m.tier == 1 %}
             <span class="text-emerald-400 font-semibold text-xs uppercase tracking-wide">Tier 1 — Best (98-99c+)</span>
             {% elif m.tier == 2 %}
@@ -146,6 +147,7 @@
             {{ m.signal_price }}c
           </td>
           <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
+          <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.volume|default(0)) }}</td>
           <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
           <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
@@ -261,6 +263,7 @@ function renderResults(results, count) {
   html += '<tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">';
   html += '<th class="pb-3 pr-4">Tier</th><th class="pb-3 pr-4">Ticker</th><th class="pb-3 pr-4">Side</th>';
   html += '<th class="pb-3 pr-4 text-right">Price</th><th class="pb-3 pr-4 text-right">24h Vol</th>';
+  html += '<th class="pb-3 pr-4 text-right">24h $</th>';
   html += '<th class="pb-3 pr-4 text-right">Total Vol</th><th class="pb-3 pr-4 text-right">Open Int</th>';
   html += '<th class="pb-3">Event</th></tr></thead><tbody>';
 
@@ -271,7 +274,7 @@ function renderResults(results, count) {
 
     if (tier !== currentTier) {
       currentTier = tier;
-      html += '<tr><td colspan="8" class="pt-4 pb-2">' + tierHeading(tier) + '</td></tr>';
+      html += '<tr><td colspan="9" class="pt-4 pb-2">' + tierHeading(tier) + '</td></tr>';
     }
 
     var sideClass = m.side === 'yes' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400';
@@ -281,6 +284,7 @@ function renderResults(results, count) {
     html += '<td class="py-2.5 pr-4"><span class="px-2 py-0.5 rounded text-xs font-medium ' + sideClass + '">' + m.side.toUpperCase() + '</span></td>';
     html += '<td class="py-2.5 pr-4 text-right font-medium ' + tierPriceClass(tier) + '">' + m.price + 'c</td>';
     html += '<td class="py-2.5 pr-4 text-right text-white font-medium">' + (m.volume_24h || 0).toLocaleString() + '</td>';
+    html += '<td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">$' + (m.dollar_24h || 0).toLocaleString() + '</td>';
     html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.volume || 0).toLocaleString() + '</td>';
     html += '<td class="py-2.5 pr-4 text-right text-slate-500">' + (m.open_interest || 0).toLocaleString() + '</td>';
     html += '<td class="py-2.5 text-slate-500 text-xs font-mono">' + (m.event || '') + '</td>';

@@ -205,24 +205,25 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing):
             balance_cents = data.get("balance", 0)
             click.echo(f"Balance: ${balance_cents / 100:.2f} (1% risk = ${balance_cents * 0.01 / 100:.2f})\n")
 
-        click.echo(f"{'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'24H VOL':>8} {'TOTAL VOL':>10} {'OI':>8} {'EVENT':>15} ", nl=False)
+        click.echo(f"{'TICKER':<40} {'SIDE':<5} {'PRICE':>5} {'24H VOL':>8} {'24H $':>8} {'TOTAL VOL':>10} {'OI':>8} {'EVENT':>15} ", nl=False)
         if show_sizing:
             click.echo(f"{'CONTRACTS':>10}", nl=False)
         click.echo()
-        click.echo("-" * (93 + (10 if show_sizing else 0)))
+        click.echo("-" * (102 + (10 if show_sizing else 0)))
 
         for m in results:
             ticker = m.get("ticker", "?")
             side = m["signal_side"]
             price = m["signal_price"]
             vol_24h = m.get("volume_24h", 0)
+            dollar_24h = m.get("dollar_24h", 0)
             vol_total = m.get("volume", 0)
             oi = m.get("open_interest", 0)
             event = m.get("event_ticker", "—")
             if len(event) > 15:
                 event = event[:14] + "~"
 
-            click.echo(f"  {ticker:<38} {side.upper():<5} {price:>4}c {vol_24h:>8} {vol_total:>10} {oi:>8} {event:>15} ", nl=False)
+            click.echo(f"  {ticker:<38} {side.upper():<5} {price:>4}c {vol_24h:>8} ${dollar_24h:>7,} {vol_total:>10} {oi:>8} {event:>15} ", nl=False)
 
             if show_sizing and balance_cents:
                 contracts = calculate_position(balance_cents, price)
