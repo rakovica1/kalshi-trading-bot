@@ -79,13 +79,7 @@
       <div class="space-y-1 text-xs">
         <div class="flex items-center gap-2">
           <span class="text-slate-600 text-[11px] w-16 text-right">&darr;</span>
-          <span class="text-slate-500">Tier 1 only (98-99&cent;+)</span>
-          <span class="text-slate-600">&rarr;</span>
-          <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_tier1|default(0) }}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-slate-600 text-[11px] w-16 text-right">&darr;</span>
-          <span class="text-slate-500">Top 100 by $ volume</span>
+          <span class="text-slate-500">Top 200 by $ volume</span>
           <span class="text-slate-600">&rarr;</span>
           <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_top20|default(0) }}</span>
         </div>
@@ -115,7 +109,7 @@
   <div class="bg-brand-950/40 border border-brand-800/50 rounded-lg p-4 flex flex-col items-center justify-center text-center min-w-[160px]">
     <div class="text-xs font-semibold text-brand-500/70 uppercase tracking-wider mb-2">Qualified for Trading</div>
     <div class="text-4xl font-bold text-brand-400">{{ scan_stats.qualified|default(0) }}</div>
-    <div class="text-[11px] text-slate-500 mt-1.5">All 5 filters passed</div>
+    <div class="text-[11px] text-slate-500 mt-1.5">All 4 filters passed</div>
   </div>
 </div>
 {% endif %}
@@ -136,7 +130,7 @@
   </div>
   <div class="flex items-center gap-1.5">
     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
-    <span class="text-slate-400">Tier 1 + Top 100 $vol + $10k+ + &lt;5% spread + &le;24h exp</span>
+    <span class="text-slate-400">Top 200 $vol + $10k+ + &lt;5% spread + &le;24h exp</span>
   </div>
 </div>
 
@@ -146,31 +140,30 @@
 <p class="text-sm text-slate-500 mb-2">{{ results|length }} market{{ 's' if results|length != 1 }} found ({{ qualified_markets|length }} qualified)</p>
 
 <!-- Macro for the results table -->
-{% macro market_table(markets) %}
+{% macro market_table(markets, table_id="market-table") %}
 <div class="overflow-x-auto">
-  <table class="w-full text-sm">
+  <table id="{{ table_id }}" class="w-full text-sm sortable-table">
     <thead>
       <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
         <th class="pb-3 pr-3"></th>
-        <th class="pb-3 pr-4">Tier</th>
-        <th class="pb-3 pr-4">Ticker</th>
-        <th class="pb-3 pr-4">Side</th>
-        <th class="pb-3 pr-4 text-right">Price</th>
-        <th class="pb-3 pr-4 text-right">24h $</th>
-        <th class="pb-3 pr-4 text-right">Rank</th>
-        <th class="pb-3 pr-4 text-right">Spread</th>
-        <th class="pb-3 pr-4 text-right">24h Vol</th>
-        <th class="pb-3 pr-4 text-right">Open Int</th>
-        <th class="pb-3 pr-4 text-right">Time Left</th>
-        <th class="pb-3 pr-4 text-right">Closes</th>
-        <th class="pb-3">Event</th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="1">Tier <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="2">Ticker <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="3">Side <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="4">Price <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="5">24h $ <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="6">Rank <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="7">Spread <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="8">24h Vol <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="9">Open Int <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="10">Time Left <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="11">Closes <span class="sort-arrow"></span></th>
+        <th class="pb-3 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="12">Event <span class="sort-arrow"></span></th>
       </tr>
     </thead>
     <tbody>
       {% for m in markets %}
       <tr class="border-b
-        {% if m.qualified %}border-brand-900/40 bg-brand-950/30 hover:bg-brand-950/50
-        {% elif m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
+        {% if m.tier == 1 %}border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-950/50
         {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
         {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
         {% endif %}">
@@ -227,9 +220,9 @@
 <div class="mb-8">
   <div class="flex items-center gap-2 mb-3">
     <span class="text-brand-400 font-semibold text-sm uppercase tracking-wide">Qualified for Whale-Trade ({{ qualified_markets|length }})</span>
-    <span class="text-slate-600 text-xs">— Tier 1 + Top 100 $vol + $10k+ + &lt;5% spread + &le;24h exp</span>
+    <span class="text-slate-600 text-xs">— Top 200 $vol + $10k+ + &lt;5% spread + &le;24h exp</span>
   </div>
-  {{ market_table(qualified_markets) }}
+  {{ market_table(qualified_markets, "qualified-table") }}
 </div>
 {% endif %}
 
@@ -238,7 +231,7 @@
   <summary class="cursor-pointer text-slate-500 text-sm mb-3 hover:text-slate-300">
     Other Markets ({{ other_markets|length }}) — click to {{ 'collapse' if not qualified_markets else 'expand' }}
   </summary>
-  {{ market_table(other_markets) }}
+  {{ market_table(other_markets, "other-table") }}
 </details>
 {% endif %}
 
@@ -335,5 +328,47 @@ function resetButton() {
 if (polling) {
   pollStatus();
 }
+
+// Sortable table columns
+document.querySelectorAll('.sortable-table th[data-col]').forEach(th => {
+  th.addEventListener('click', function() {
+    const table = this.closest('table');
+    const tbody = table.querySelector('tbody');
+    const col = parseInt(this.dataset.col);
+    const sortType = this.dataset.sort;
+    const arrows = table.querySelectorAll('.sort-arrow');
+
+    // Determine direction
+    const curDir = this.dataset.dir || '';
+    const newDir = curDir === 'asc' ? 'desc' : 'asc';
+
+    // Clear all arrows
+    arrows.forEach(a => a.textContent = '');
+    table.querySelectorAll('th[data-col]').forEach(h => h.dataset.dir = '');
+
+    // Set this column
+    this.dataset.dir = newDir;
+    this.querySelector('.sort-arrow').textContent = newDir === 'asc' ? ' \u2191' : ' \u2193';
+
+    // Sort rows
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      const cellA = a.children[col]?.textContent?.trim() || '';
+      const cellB = b.children[col]?.textContent?.trim() || '';
+      let valA, valB;
+      if (sortType === 'num') {
+        valA = parseFloat(cellA.replace(/[$,%#hmd]/g, '').replace(/,/g, '')) || 0;
+        valB = parseFloat(cellB.replace(/[$,%#hmd]/g, '').replace(/,/g, '')) || 0;
+      } else {
+        valA = cellA.toLowerCase();
+        valB = cellB.toLowerCase();
+      }
+      if (valA < valB) return newDir === 'asc' ? -1 : 1;
+      if (valA > valB) return newDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  });
+});
 </script>
 {% endblock %}

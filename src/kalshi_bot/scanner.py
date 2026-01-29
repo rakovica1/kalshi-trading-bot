@@ -152,7 +152,7 @@ def hours_until_close(raw):
 # Qualification thresholds for premium trade execution
 QUALIFIED_MIN_DOLLAR_24H = 10_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
-QUALIFIED_TOP_N_DOLLAR = 100
+QUALIFIED_TOP_N_DOLLAR = 200
 QUALIFIED_MAX_HOURS = 24.0
 
 
@@ -165,8 +165,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     Each result is assigned a tier (1/2/3) based on price.
 
     Each result also gets a `qualified` flag: True when ALL of these hold:
-      - Tier 1 (price >= 98c)
-      - Top 100 by 24h dollar volume
+      - Top 200 by 24h dollar volume
       - >= $10,000 in 24h dollar volume
       - Bid/ask spread < 5%
       - Expires within 24 hours
@@ -280,13 +279,12 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     for r in results:
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
-        is_tier1 = r["tier"] == 1
         is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
         hrs = r.get("hours_left")
         is_expiring = hrs is not None and 0 < hrs <= QUALIFIED_MAX_HOURS
-        if is_tier1:
+        if r["tier"] == 1:
             count_tier1 += 1
         if is_top_n:
             count_top20 += 1
@@ -296,14 +294,14 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             count_spread += 1
         if is_expiring:
             count_expires += 1
-        r["qualified"] = is_tier1 and is_top_n and is_dollar and is_spread and is_expiring
+        r["qualified"] = is_top_n and is_dollar and is_spread and is_expiring
         if r["qualified"]:
             qualified_count += 1
 
-    # Sort: qualified first, then by price desc -> $volume desc -> spread asc
-    # Within non-qualified: tier asc -> price desc -> volume desc
+    # Sort: qualified first (grouped by tier), then non-qualified by tier -> price
     results.sort(key=lambda x: (
         0 if x["qualified"] else 1,
+        x["tier"],
         -x["signal_price"],
         -x["dollar_24h"],
         x.get("spread_pct", 99),
