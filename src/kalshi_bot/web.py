@@ -141,22 +141,40 @@ def positions():
         for p in open_positions:
             entry = p["avg_entry_price_cents"]
             qty = p["quantity"]
+            close_time = ""
             try:
                 m = client.get_market(ticker=p["ticker"])
                 if p["side"] == "yes":
                     current = m.get("yes_bid", 0) or 0
                 else:
                     current = m.get("no_bid", 0) or 0
+                close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
             except Exception:
                 current = 0
             unrealized = int(qty * (current - entry))
+            # Format opened_at for display
+            opened_at = p.get("opened_at", "")
+            if opened_at and isinstance(opened_at, str):
+                opened_at_display = _utc_to_est(opened_at)
+            elif hasattr(opened_at, "strftime"):
+                opened_at_display = _utc_to_est(opened_at)
+            else:
+                opened_at_display = str(opened_at)
             enriched.append({
                 **p,
                 "current_price": current,
                 "unrealized_cents": unrealized,
+                "opened_at_display": opened_at_display,
+                "close_time": close_time,
             })
     except Exception:
-        enriched = [{**p, "current_price": 0, "unrealized_cents": 0} for p in open_positions]
+        enriched = [{
+            **p,
+            "current_price": 0,
+            "unrealized_cents": 0,
+            "opened_at_display": _utc_to_est(p.get("opened_at", "")),
+            "close_time": "",
+        } for p in open_positions]
 
     return render_template("positions.html", positions=enriched)
 

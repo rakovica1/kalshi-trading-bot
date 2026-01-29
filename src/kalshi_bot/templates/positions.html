@@ -9,10 +9,12 @@
     <thead>
       <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
         <th class="pb-3 pr-4">Ticker</th>
+        <th class="pb-3 pr-4">Opened</th>
         <th class="pb-3 pr-4">Side</th>
         <th class="pb-3 pr-4 text-right">Qty</th>
         <th class="pb-3 pr-4 text-right">Entry</th>
         <th class="pb-3 pr-4 text-right">Current</th>
+        <th class="pb-3 pr-4 text-right">Expires</th>
         <th class="pb-3 text-right">Unrealized P&amp;L</th>
       </tr>
     </thead>
@@ -24,6 +26,10 @@
           <div class="text-[10px] font-mono text-slate-500 mt-0.5">{{ p.ticker }}</div>
         </td>
         <td class="py-3 pr-4">
+          <div class="text-xs text-slate-400">{{ p.opened_at_display }}</div>
+          <div class="text-[10px] text-slate-500 mt-0.5 time-ago" data-utc="{{ p.opened_at }}"></div>
+        </td>
+        <td class="py-3 pr-4">
           <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/50 text-emerald-400' if p.side == 'yes' else 'bg-red-900/50 text-red-400' }}">
             {{ p.side|upper }}
           </span>
@@ -31,6 +37,10 @@
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.quantity }}</td>
         <td class="py-3 pr-4 text-right text-slate-400">{{ "%.0f"|format(p.avg_entry_price_cents) }}c</td>
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.current_price }}c</td>
+        <td class="py-3 pr-4 text-right expires-cell" data-close-time="{{ p.close_time }}">
+          <div class="text-xs expires-time"></div>
+          <div class="text-[10px] mt-0.5 expires-relative"></div>
+        </td>
         <td class="py-3 text-right font-medium {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
           ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
         </td>
@@ -46,4 +56,98 @@
   <p class="text-slate-500 text-sm">Positions will appear here when you place trades.</p>
 </div>
 {% endif %}
+
+<script>
+// Format "time ago" for opened_at
+function formatTimeAgo(utcStr) {
+  if (!utcStr) return '';
+  let d;
+  if (utcStr.includes('T')) {
+    d = new Date(utcStr);
+  } else {
+    d = new Date(utcStr.replace(' ', 'T') + 'Z');
+  }
+  if (isNaN(d)) return '';
+  const ms = Date.now() - d.getTime();
+  if (ms < 0) return 'just now';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ' + (mins % 60) + 'm ago';
+  const days = Math.floor(hours / 24);
+  return days + 'd ' + (hours % 24) + 'h ago';
+}
+
+// Format expiration time
+function formatExpires(closeTime) {
+  if (!closeTime) return { time: '—', relative: '', urgency: 'none' };
+  const close = new Date(closeTime);
+  if (isNaN(close)) return { time: '—', relative: '', urgency: 'none' };
+
+  const now = new Date();
+  const ms = close - now;
+
+  // Format the absolute time in EST
+  const estOpts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' };
+  const timeStr = close.toLocaleString('en-US', estOpts);
+
+  if (ms <= 0) return { time: timeStr, relative: 'Expired', urgency: 'expired' };
+
+  const hours = ms / 3600000;
+  let relStr;
+  if (hours < 1) {
+    relStr = 'in ' + Math.round(hours * 60) + 'm';
+  } else if (hours < 48) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    relStr = 'in ' + h + 'h ' + m + 'm';
+  } else {
+    relStr = 'in ' + (hours / 24).toFixed(1) + 'd';
+  }
+
+  let urgency = 'normal';
+  if (hours < 1) urgency = 'critical';
+  else if (hours < 6) urgency = 'warning';
+
+  return { time: timeStr, relative: relStr, urgency: urgency };
+}
+
+function updateAll() {
+  // Time ago
+  document.querySelectorAll('.time-ago').forEach(el => {
+    el.textContent = formatTimeAgo(el.dataset.utc);
+  });
+
+  // Expires
+  document.querySelectorAll('.expires-cell').forEach(cell => {
+    const info = formatExpires(cell.dataset.closeTime);
+    const timeEl = cell.querySelector('.expires-time');
+    const relEl = cell.querySelector('.expires-relative');
+
+    timeEl.textContent = info.time;
+    relEl.textContent = info.relative;
+
+    // Color coding
+    timeEl.className = 'text-xs expires-time';
+    relEl.className = 'text-[10px] mt-0.5 expires-relative';
+    if (info.urgency === 'critical') {
+      timeEl.classList.add('text-red-400');
+      relEl.classList.add('text-red-400', 'font-medium');
+    } else if (info.urgency === 'warning') {
+      timeEl.classList.add('text-amber-400');
+      relEl.classList.add('text-amber-400');
+    } else if (info.urgency === 'expired') {
+      timeEl.classList.add('text-slate-500');
+      relEl.classList.add('text-red-400', 'font-medium');
+    } else {
+      timeEl.classList.add('text-slate-300');
+      relEl.classList.add('text-slate-500');
+    }
+  });
+}
+
+updateAll();
+setInterval(updateAll, 30000);
+</script>
 {% endblock %}
