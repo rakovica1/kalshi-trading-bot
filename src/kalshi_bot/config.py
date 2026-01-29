@@ -1,9 +1,12 @@
 import base64
+import logging
 import os
 import tempfile
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 HOSTS = {
     "demo": "https://demo-api.kalshi.co/trade-api/v2",
@@ -31,38 +34,64 @@ def load_config_from_env():
     if env not in HOSTS:
         raise ValueError(f"KALSHI_ENV must be 'demo' or 'prod', got '{env}'")
 
+    # Debug: show what Railway passed (redacted for security)
+    raw = private_key
+    logger.warning(f"PEM DEBUG: len={len(raw)}")
+    logger.warning(f"PEM DEBUG: first 50 chars: {repr(raw[:50])}")
+    logger.warning(f"PEM DEBUG: last 50 chars:  {repr(raw[-50:])}")
+    logger.warning(f"PEM DEBUG: has real newlines: {'\\n' in raw}")
+    logger.warning(f"PEM DEBUG: has literal backslash-n: {'\\\\n' in repr(raw)}")
+    logger.warning(f"PEM DEBUG: starts with -----: {raw.startswith('-----')}")
+    logger.warning(f"PEM DEBUG: newline count: {raw.count(chr(10))}")
+
+    # Handle literal \n escape sequences from env var (check FIRST)
+    if "\\n" in private_key:
+        logger.warning("PEM FIX: replacing literal \\n with real newlines")
+        private_key = private_key.replace("\\n", "\n")
+
     # Handle base64-encoded PEM (no newline issues)
     if not private_key.startswith("-----"):
         try:
-            private_key = base64.b64decode(private_key).decode("utf-8")
+            decoded = base64.b64decode(private_key).decode("utf-8")
+            if "-----BEGIN" in decoded:
+                logger.warning("PEM FIX: decoded from base64")
+                private_key = decoded
         except Exception:
             pass
 
     # Fix newlines that Railway may have stripped:
     # "-----BEGIN ... KEY-----MIIEv..." -> proper PEM with line breaks
     if "-----BEGIN" in private_key and "\n" not in private_key:
-        # Newlines were stripped — reconstruct proper PEM
-        private_key = private_key.replace("-----BEGIN ", "\n-----BEGIN ")
-        private_key = private_key.replace("-----END ", "\n-----END ")
-        private_key = private_key.replace("----- ", "-----\n")
-        private_key = private_key.replace(" -----", "\n-----")
+        logger.warning("PEM FIX: reconstructing newlines (all on one line)")
+        # Split on the header/footer markers
+        import re
+        match = re.match(
+            r'(-----BEGIN [A-Z ]+-----)(.+)(-----END [A-Z ]+-----)',
+            private_key.strip()
+        )
+        if match:
+            header, body, footer = match.groups()
+            # Remove any spaces from body
+            body = body.replace(" ", "")
+            # Re-wrap to 64-char lines
+            lines = [header]
+            for i in range(0, len(body), 64):
+                lines.append(body[i:i+64])
+            lines.append(footer)
+            private_key = "\n".join(lines) + "\n"
 
-        # Re-wrap the base64 body to 64-char lines
-        lines = private_key.strip().split("\n")
-        rebuilt = [lines[0]]  # header
-        body = "".join(lines[1:-1])  # join all base64 content
-        for i in range(0, len(body), 64):
-            rebuilt.append(body[i:i+64])
-        rebuilt.append(lines[-1])  # footer
-        private_key = "\n".join(rebuilt) + "\n"
+    # Ensure trailing newline
+    if not private_key.endswith("\n"):
+        private_key += "\n"
 
-    # Also handle literal \n escape sequences from env var
-    if "\\n" in private_key:
-        private_key = private_key.replace("\\n", "\n")
+    # Debug: show final result
+    final_lines = private_key.strip().split("\n")
+    logger.warning(f"PEM FINAL: {len(final_lines)} lines, first={final_lines[0]}, last={final_lines[-1]}")
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
     tmp.write(private_key)
     tmp.close()
+    logger.warning(f"PEM FINAL: written to {tmp.name}")
 
     return {
         "host": HOSTS[env],

@@ -1,8 +1,11 @@
+import logging
 import os
 import threading
 import time
 from collections import deque
 from pathlib import Path
+
+logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s: %(message)s")
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 
