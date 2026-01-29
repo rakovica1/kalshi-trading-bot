@@ -279,9 +279,19 @@ def control_logout():
 @app.route("/control")
 @_require_control_password
 def control():
+    defaults = {
+        "prefixes": "KXNFL,KXNBA,KXBTC,KXETH",
+        "max_positions": 5,
+        "max_hours": 1,
+        "cooldown_minutes": 1,
+        "continuous": False,
+        "tier1_only": True,
+        "dry_run": True,
+    }
     with _whale_lock:
         running = _whale_state["running"]
-    return render_template("control.html", running=running)
+        settings = _whale_state.get("settings", defaults)
+    return render_template("control.html", running=running, settings=settings)
 
 
 @app.route("/control/start", methods=["POST"])
@@ -321,6 +331,18 @@ def control_start():
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
 
+    # Store form values so the UI preserves them after redirect
+    with _whale_lock:
+        _whale_state["settings"] = {
+            "prefixes": ",".join(prefixes),
+            "max_positions": max_positions,
+            "max_hours": None,  # set below after parsing
+            "cooldown_minutes": cooldown_minutes,
+            "continuous": continuous,
+            "tier1_only": tier1_only,
+            "dry_run": dry_run,
+        }
+
     # Parse max hours — default to 1.0 if empty
     try:
         max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
@@ -329,6 +351,9 @@ def control_start():
             max_hours = 0.1
     except (ValueError, TypeError):
         max_hours = 1.0
+
+    with _whale_lock:
+        _whale_state["settings"]["max_hours"] = max_hours
 
     def _log(msg):
         _whale_state["logs"].append(msg)

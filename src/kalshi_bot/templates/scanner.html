@@ -41,44 +41,56 @@
 </div>
 {% else %}
 
-<!-- Filter diagnostics -->
+<!-- Scan diagnostics -->
 {% if scan_stats %}
-<div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6 text-sm">
-  <div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">
-    <div>
-      <span class="text-slate-500">Total markets fetched:</span>
-      <span class="text-slate-300 ml-1">{{ scan_stats.total_fetched }}</span>
-    </div>
-    <div>
-      <span class="text-slate-500">Top by 24h vol examined:</span>
-      <span class="text-slate-300 ml-1">{{ scan_stats.scanned }} of {{ scan_stats.top_n }}</span>
-    </div>
-    <div>
-      <span class="text-slate-500">Sorting:</span>
-      <span class="text-slate-300 ml-1">24h volume descending</span>
-    </div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <!-- Scan Scope -->
+  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scan Scope</div>
+    <dl class="space-y-2 text-xs">
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Total markets fetched</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.total_fetched) }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Prefixes</dt>
+        <dd class="text-slate-300 font-medium">{{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all (no filter)' }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Top 24h vol examined</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.scanned) }} of {{ "{:,}".format(scan_stats.top_n) }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Sorting</dt>
+        <dd class="text-slate-300 font-medium">24h volume desc</dd>
+      </div>
+    </dl>
   </div>
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-    <div>
-      <span class="text-slate-500">Passed prefix filter:</span>
-      <span class="text-slate-300 ml-1">{{ scan_stats.passed_prefix }}</span>
-    </div>
-    <div>
-      <span class="text-slate-500">Passed 24h vol &ge;{{ "{:,}".format(scan_stats.min_volume) }}:</span>
-      <span class="text-slate-300 ml-1">{{ scan_stats.passed_volume }}</span>
-    </div>
-    <div>
-      <span class="text-slate-500">Passed price &ge;{{ scan_stats.min_price }}c:</span>
-      <span class="text-slate-300 ml-1">{{ scan_stats.passed_price }}</span>
-    </div>
-    <div>
-      <span class="text-brand-400 font-medium">Qualified for trading:</span>
-      <span class="text-brand-300 ml-1 font-medium">{{ scan_stats.qualified|default(0) }}</span>
-    </div>
+
+  <!-- Filter Results -->
+  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter Results</div>
+    <dl class="space-y-2 text-xs">
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Passed prefix filter</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_prefix) }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-500">24h volume &ge; ${{ "{:,}".format(scan_stats.min_volume) }}</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_volume) }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-500">Price &ge; {{ scan_stats.min_price }}&cent;</dt>
+        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_price) }}</dd>
+      </div>
+    </dl>
   </div>
-  <div class="mt-2 text-xs text-slate-500">
-    Prefixes: {{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all (no prefix filter)' }}
+
+  <!-- Qualified -->
+  <div class="bg-brand-950/40 border border-brand-800/50 rounded-lg p-4 flex flex-col items-center justify-center text-center">
+    <div class="text-xs font-semibold text-brand-500/70 uppercase tracking-wider mb-2">Qualified for Trading</div>
+    <div class="text-4xl font-bold text-brand-400">{{ scan_stats.qualified|default(0) }}</div>
+    <div class="text-[11px] text-slate-500 mt-1.5">Tier 1 + Top 20 $vol + $50k+ + &lt;5% spread</div>
   </div>
 </div>
 {% endif %}
