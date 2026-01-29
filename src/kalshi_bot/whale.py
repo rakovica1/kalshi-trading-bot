@@ -225,18 +225,28 @@ def run_whale_strategy(
                 order_type="market",
             )
 
+            # Log raw API response for debugging
+            log(f"  API response: {result}")
+
             order_id = result.get("order_id")
+            api_status = result.get("status", "unknown")
+            api_type = result.get("type", "unknown")
             fill_count = result.get("fill_count", 0)
             remaining = result.get("remaining_count", 0)
+            taker_fill_cost = result.get("taker_fill_cost", 0)
+            taker_fees = result.get("taker_fees", 0)
 
-            if fill_count > 0 and remaining == 0:
-                status = "filled"
-            elif fill_count > 0:
-                status = "partial"
-            else:
-                status = "submitted"
+            log(f"  Order ID:     {order_id}")
+            log(f"  API type:     {api_type}")
+            log(f"  API status:   {api_status}")
+            log(f"  Filled:       {fill_count}/{total_contracts}")
+            log(f"  Remaining:    {remaining}")
+            log(f"  Fill cost:    {taker_fill_cost}c (${taker_fill_cost / 100:.2f})")
+            log(f"  Taker fees:   {taker_fees}c (${taker_fees / 100:.2f})")
 
-            # Use est_price for logging; actual fill price determined by exchange
+            # Use Kalshi's actual status
+            status = api_status
+
             db.log_trade(
                 ticker=ticker,
                 side=side,
@@ -251,10 +261,6 @@ def run_whale_strategy(
 
             if fill_count > 0:
                 db.update_position_on_buy(ticker, side, fill_count, est_price)
-
-            log(f"  Order ID:  {order_id}")
-            log(f"  Status:    {status}")
-            log(f"  Filled:    {fill_count}/{total_contracts}")
             summary["traded"] = 1
             summary["orders"] = 1
 
