@@ -152,7 +152,7 @@ def hours_until_close(raw):
 # Qualification thresholds for premium trade execution
 QUALIFIED_MIN_DOLLAR_24H = 1_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
-QUALIFIED_TOP_N_DOLLAR = 20
+QUALIFIED_TOP_N_DOLLAR = 100
 
 
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
@@ -165,7 +165,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
 
     Each result also gets a `qualified` flag: True when ALL of these hold:
       - Tier 1 (price >= 98c)
-      - Top 20 by 24h dollar volume
+      - Top 100 by 24h dollar volume
       - >= $1,000 in 24h dollar volume
       - Bid/ask spread < 5%
 
@@ -278,18 +278,18 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
         is_tier1 = r["tier"] == 1
-        is_top20 = rank <= QUALIFIED_TOP_N_DOLLAR
+        is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
         if is_tier1:
             count_tier1 += 1
-        if is_top20:
+        if is_top_n:
             count_top20 += 1
         if is_dollar:
             count_dollar_vol += 1
         if is_spread:
             count_spread += 1
-        r["qualified"] = is_tier1 and is_top20 and is_dollar and is_spread
+        r["qualified"] = is_tier1 and is_top_n and is_dollar and is_spread
         if r["qualified"]:
             qualified_count += 1
 

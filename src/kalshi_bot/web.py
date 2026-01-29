@@ -294,7 +294,7 @@ def control():
         "max_positions": 5,
         "max_hours": 24,
         "cooldown_minutes": 1,
-        "continuous": False,
+        "continuous": True,
         "tier1_only": True,
         "dry_run": True,
     }
