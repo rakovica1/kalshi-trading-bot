@@ -270,15 +270,26 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
     dollar_ranks = {r["ticker"]: rank + 1 for rank, r in enumerate(by_dollar)}
 
     qualified_count = 0
+    count_tier1 = 0
+    count_top20 = 0
+    count_dollar_vol = 0
+    count_spread = 0
     for r in results:
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
-        r["qualified"] = (
-            r["tier"] == 1
-            and rank <= QUALIFIED_TOP_N_DOLLAR
-            and r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
-            and r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
-        )
+        is_tier1 = r["tier"] == 1
+        is_top20 = rank <= QUALIFIED_TOP_N_DOLLAR
+        is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
+        is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
+        if is_tier1:
+            count_tier1 += 1
+        if is_top20:
+            count_top20 += 1
+        if is_dollar:
+            count_dollar_vol += 1
+        if is_spread:
+            count_spread += 1
+        r["qualified"] = is_tier1 and is_top20 and is_dollar and is_spread
         if r["qualified"]:
             qualified_count += 1
 
@@ -298,6 +309,10 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         "passed_prefix": passed_prefix,
         "passed_volume": passed_volume,
         "passed_price": passed_price,
+        "count_tier1": count_tier1,
+        "count_top20": count_top20,
+        "count_dollar_vol": count_dollar_vol,
+        "count_spread": count_spread,
         "qualified": qualified_count,
         "min_price": min_price,
         "min_volume": min_volume,

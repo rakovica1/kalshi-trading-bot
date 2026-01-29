@@ -92,6 +92,10 @@ CREATE TABLE IF NOT EXISTS scan_meta (
     passed_prefix INTEGER NOT NULL DEFAULT 0,
     passed_volume INTEGER NOT NULL DEFAULT 0,
     passed_price INTEGER NOT NULL DEFAULT 0,
+    count_tier1 INTEGER NOT NULL DEFAULT 0,
+    count_top20 INTEGER NOT NULL DEFAULT 0,
+    count_dollar_vol INTEGER NOT NULL DEFAULT 0,
+    count_spread INTEGER NOT NULL DEFAULT 0,
     qualified INTEGER NOT NULL DEFAULT 0,
     min_price INTEGER NOT NULL DEFAULT 0,
     min_volume INTEGER NOT NULL DEFAULT 0,
@@ -167,6 +171,10 @@ _PG_TABLES = [
         passed_prefix INTEGER NOT NULL DEFAULT 0,
         passed_volume INTEGER NOT NULL DEFAULT 0,
         passed_price INTEGER NOT NULL DEFAULT 0,
+        count_tier1 INTEGER NOT NULL DEFAULT 0,
+        count_top20 INTEGER NOT NULL DEFAULT 0,
+        count_dollar_vol INTEGER NOT NULL DEFAULT 0,
+        count_spread INTEGER NOT NULL DEFAULT 0,
         qualified INTEGER NOT NULL DEFAULT 0,
         min_price INTEGER NOT NULL DEFAULT 0,
         min_volume INTEGER NOT NULL DEFAULT 0,
@@ -250,6 +258,10 @@ def init_db(db_path=DEFAULT_DB_PATH):
         })
         _migrate_columns(conn, "scan_meta", {
             "qualified": "INTEGER NOT NULL DEFAULT 0",
+            "count_tier1": "INTEGER NOT NULL DEFAULT 0",
+            "count_top20": "INTEGER NOT NULL DEFAULT 0",
+            "count_dollar_vol": "INTEGER NOT NULL DEFAULT 0",
+            "count_spread": "INTEGER NOT NULL DEFAULT 0",
         })
         conn.close()
     else:
@@ -265,6 +277,10 @@ def init_db(db_path=DEFAULT_DB_PATH):
         })
         _migrate_columns(conn, "scan_meta", {
             "qualified": "INTEGER NOT NULL DEFAULT 0",
+            "count_tier1": "INTEGER NOT NULL DEFAULT 0",
+            "count_top20": "INTEGER NOT NULL DEFAULT 0",
+            "count_dollar_vol": "INTEGER NOT NULL DEFAULT 0",
+            "count_spread": "INTEGER NOT NULL DEFAULT 0",
         })
         conn.close()
 
@@ -582,11 +598,14 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
     _execute(conn,
         """INSERT INTO scan_meta
            (id, total_fetched, top_n, scanned, passed_prefix, passed_volume,
-            passed_price, qualified, min_price, min_volume, prefixes)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            passed_price, count_tier1, count_top20, count_dollar_vol,
+            count_spread, qualified, min_price, min_volume, prefixes)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (stats.get("total_fetched", 0), stats.get("top_n", 0),
          stats.get("scanned", 0), stats.get("passed_prefix", 0),
          stats.get("passed_volume", 0), stats.get("passed_price", 0),
+         stats.get("count_tier1", 0), stats.get("count_top20", 0),
+         stats.get("count_dollar_vol", 0), stats.get("count_spread", 0),
          stats.get("qualified", 0),
          stats.get("min_price", 0), stats.get("min_volume", 0),
          prefixes_str),
@@ -618,6 +637,10 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
             "passed_prefix": meta["passed_prefix"],
             "passed_volume": meta["passed_volume"],
             "passed_price": meta["passed_price"],
+            "count_tier1": meta.get("count_tier1", 0),
+            "count_top20": meta.get("count_top20", 0),
+            "count_dollar_vol": meta.get("count_dollar_vol", 0),
+            "count_spread": meta.get("count_spread", 0),
             "qualified": meta.get("qualified", 0),
             "min_price": meta["min_price"],
             "min_volume": meta["min_volume"],

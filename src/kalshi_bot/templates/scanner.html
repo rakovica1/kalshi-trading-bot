@@ -43,50 +43,65 @@
 
 <!-- Scan diagnostics -->
 {% if scan_stats %}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-  <!-- Scan Scope -->
-  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scan Scope</div>
-    <dl class="space-y-2 text-xs">
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Kalshi market catalog</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.total_fetched) }}</dd>
-      </div>
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Top markets analyzed (by vol)</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.scanned) }}</dd>
-      </div>
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Prefix filter</dt>
-        <dd class="text-slate-300 font-medium">{{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'none (all markets)' }}</dd>
-      </div>
-    </dl>
+<div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6">
+  <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter Pipeline</div>
+
+  <!-- Sequential scan funnel -->
+  <div class="flex flex-wrap items-center gap-1.5 text-xs mb-3">
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Catalog</span>
+      <span class="px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 font-mono font-medium">{{ "{:,}".format(scan_stats.total_fetched) }}</span>
+    </div>
+    <span class="text-slate-600">&rarr;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Top vol</span>
+      <span class="px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 font-mono font-medium">{{ "{:,}".format(scan_stats.scanned) }}</span>
+    </div>
+    <span class="text-slate-600">&rarr;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Prefix{{ ' (' + scan_stats.prefixes|join(', ') + ')' if scan_stats.prefixes else '' }}</span>
+      <span class="px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 font-mono font-medium">{{ "{:,}".format(scan_stats.passed_prefix) }}</span>
+    </div>
+    <span class="text-slate-600">&rarr;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Vol &ge; {{ "{:,}".format(scan_stats.min_volume) }}</span>
+      <span class="px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 font-mono font-medium">{{ "{:,}".format(scan_stats.passed_volume) }}</span>
+    </div>
+    <span class="text-slate-600">&rarr;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Price &ge; {{ scan_stats.min_price }}&cent;</span>
+      <span class="px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 font-mono font-medium">{{ "{:,}".format(scan_stats.passed_price) }}</span>
+    </div>
   </div>
 
-  <!-- Filter Results -->
-  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter Results</div>
-    <dl class="space-y-2 text-xs">
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Passed prefix filter</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_prefix) }}</dd>
-      </div>
-      <div class="flex justify-between">
-        <dt class="text-slate-500">24h volume &ge; ${{ "{:,}".format(scan_stats.min_volume) }}</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_volume) }}</dd>
-      </div>
-      <div class="flex justify-between">
-        <dt class="text-slate-500">Price &ge; {{ scan_stats.min_price }}&cent;</dt>
-        <dd class="text-slate-300 font-medium">{{ "{:,}".format(scan_stats.passed_price) }}</dd>
-      </div>
-    </dl>
-  </div>
-
-  <!-- Qualified -->
-  <div class="bg-brand-950/40 border border-brand-800/50 rounded-lg p-4 flex flex-col items-center justify-center text-center">
-    <div class="text-xs font-semibold text-brand-500/70 uppercase tracking-wider mb-2">Qualified for Trading</div>
-    <div class="text-4xl font-bold text-brand-400">{{ scan_stats.qualified|default(0) }}</div>
-    <div class="text-[11px] text-slate-500 mt-1.5">Tier 1 + Top 20 $vol + $1k+ + &lt;5% spread</div>
+  <!-- Qualification criteria (applied to price-filtered results) -->
+  <div class="flex flex-wrap items-center gap-1.5 text-xs border-t border-slate-700/50 pt-3">
+    <span class="text-slate-500 mr-1">Qualification:</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Tier 1 (98c+)</span>
+      <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 font-mono font-medium">{{ scan_stats.count_tier1|default(0) }}</span>
+    </div>
+    <span class="text-slate-600">&bull;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">Top 20 $vol</span>
+      <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 font-mono font-medium">{{ scan_stats.count_top20|default(0) }}</span>
+    </div>
+    <span class="text-slate-600">&bull;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">$1k+ vol</span>
+      <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 font-mono font-medium">{{ scan_stats.count_dollar_vol|default(0) }}</span>
+    </div>
+    <span class="text-slate-600">&bull;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">&lt;5% spread</span>
+      <span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-400 font-mono font-medium">{{ scan_stats.count_spread|default(0) }}</span>
+    </div>
+    <span class="text-slate-600 mx-1">&rarr;</span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-slate-500">All 4</span>
+      <span class="px-2 py-0.5 rounded bg-brand-900/40 text-brand-400 font-mono font-bold">{{ scan_stats.qualified|default(0) }}</span>
+      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
+    </div>
   </div>
 </div>
 {% endif %}
