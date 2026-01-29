@@ -17,10 +17,6 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
 
     Returns a list of market dicts with only the fields we need,
     to keep memory usage low. Results are cached for 120 seconds.
-
-    Early termination: stops fetching once 3 consecutive pages have
-    zero active markets (volume_24h == 0 for every market on the page),
-    since those markets can't appear in our top-N results.
     """
     # Return cached if fresh
     age = time.time() - _market_cache["ts"]
@@ -29,7 +25,6 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
 
     markets = []
     cursor = None
-    consecutive_dead_pages = 0
     while True:
         if stop_check and stop_check():
             raise StopRequested()
@@ -39,15 +34,11 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
         resp = client._market_api.get_markets_without_preload_content(**kwargs)
         data = json.loads(resp.data)
         page = data.get("markets", [])
-        page_has_volume = False
         for m in page:
-            vol_24h = m.get("volume_24h", 0) or 0
-            if vol_24h > 0:
-                page_has_volume = True
             markets.append({
                 "ticker": m.get("ticker", "?"),
                 "event_ticker": m.get("event_ticker", ""),
-                "volume_24h": vol_24h,
+                "volume_24h": m.get("volume_24h", 0) or 0,
                 "volume": m.get("volume", 0) or 0,
                 "open_interest": m.get("open_interest", 0) or 0,
                 "yes_bid": m.get("yes_bid", 0) or 0,
@@ -59,13 +50,6 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
         cursor = data.get("cursor")
         if not cursor or not page:
             break
-        # Early termination: skip remaining pages if no active markets
-        if page_has_volume:
-            consecutive_dead_pages = 0
-        else:
-            consecutive_dead_pages += 1
-            if consecutive_dead_pages >= 3:
-                break
 
     _market_cache["markets"] = markets
     _market_cache["ts"] = time.time()
