@@ -20,30 +20,37 @@
 {% if scan_stats %}
 <div id="scan-diagnostics" class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6 text-sm">
   <div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">
     <div>
-      <span class="text-slate-500">Markets scanned:</span>
+      <span class="text-slate-500">Total markets fetched:</span>
+      <span class="text-slate-300 ml-1">{{ scan_stats.total_fetched }}</span>
+    </div>
+    <div>
+      <span class="text-slate-500">Top by volume examined:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.scanned }}</span>
     </div>
+    <div>
+      <span class="text-slate-500">Sorting:</span>
+      <span class="text-slate-300 ml-1">volume descending</span>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-3 text-xs">
     <div>
       <span class="text-slate-500">Passed prefix filter:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_prefix }}</span>
     </div>
     <div>
-      <span class="text-slate-500">Passed volume filter (≥{{ scan_stats.min_volume }}):</span>
+      <span class="text-slate-500">Passed volume ≥{{ scan_stats.min_volume }}:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_volume }}</span>
     </div>
     <div>
-      <span class="text-slate-500">Passed price filter (≥{{ scan_stats.min_price }}c):</span>
+      <span class="text-slate-500">Passed price ≥{{ scan_stats.min_price }}c:</span>
       <span class="text-slate-300 ml-1">{{ scan_stats.passed_price }}</span>
     </div>
   </div>
   <div class="mt-2 text-xs text-slate-500">
     Prefixes: {{ scan_stats.prefixes | join(', ') if scan_stats.prefixes else 'all' }}
   </div>
-  {% if scan_stats.scanned >= 500 %}
-  <div class="mt-1 text-xs text-yellow-500/80">Note: Only first {{ scan_stats.scanned }} markets scanned (web limit). CLI scans up to 5000.</div>
-  {% endif %}
 </div>
 {% endif %}
 
@@ -110,14 +117,17 @@ async function refreshScan() {
     if (diag && data.scan_stats) {
       const s = data.scan_stats;
       diag.innerHTML = '<div class="text-slate-400 font-medium mb-2">Scan Diagnostics</div>'
-        + '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">'
-        + '<div><span class="text-slate-500">Markets scanned:</span> <span class="text-slate-300">' + s.scanned + '</span></div>'
-        + '<div><span class="text-slate-500">Passed prefix filter:</span> <span class="text-slate-300">' + s.passed_prefix + '</span></div>'
-        + '<div><span class="text-slate-500">Passed volume filter (≥' + s.min_volume + '):</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
-        + '<div><span class="text-slate-500">Passed price filter (≥' + s.min_price + 'c):</span> <span class="text-slate-300">' + s.passed_price + '</span></div>'
+        + '<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-3">'
+        + '<div><span class="text-slate-500">Total markets fetched:</span> <span class="text-slate-300">' + s.total_fetched + '</span></div>'
+        + '<div><span class="text-slate-500">Top by volume examined:</span> <span class="text-slate-300">' + s.scanned + '</span></div>'
+        + '<div><span class="text-slate-500">Sorting:</span> <span class="text-slate-300">volume descending</span></div>'
         + '</div>'
-        + '<div class="mt-2 text-xs text-slate-500">Prefixes: ' + (s.prefixes && s.prefixes.length ? s.prefixes.join(', ') : 'all') + '</div>'
-        + (s.scanned >= 500 ? '<div class="mt-1 text-xs text-yellow-500/80">Note: Only first ' + s.scanned + ' markets scanned (web limit). CLI scans up to 5000.</div>' : '');
+        + '<div class="grid grid-cols-3 gap-3 text-xs">'
+        + '<div><span class="text-slate-500">Passed prefix filter:</span> <span class="text-slate-300">' + s.passed_prefix + '</span></div>'
+        + '<div><span class="text-slate-500">Passed volume \u2265' + s.min_volume + ':</span> <span class="text-slate-300">' + s.passed_volume + '</span></div>'
+        + '<div><span class="text-slate-500">Passed price \u2265' + s.min_price + 'c:</span> <span class="text-slate-300">' + s.passed_price + '</span></div>'
+        + '</div>'
+        + '<div class="mt-2 text-xs text-slate-500">Prefixes: ' + (s.prefixes && s.prefixes.length ? s.prefixes.join(', ') : 'all') + '</div>';
     }
 
     const container = document.getElementById('scan-results');

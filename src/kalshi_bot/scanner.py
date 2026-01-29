@@ -2,39 +2,48 @@ import json
 import time
 
 
-def _iter_markets(client, status="open", page_size=200, max_markets=500):
-    """Yield markets one page at a time, up to max_markets total."""
+def _fetch_all_markets(client, status="open", page_size=1000):
+    """Fetch all open markets from the API, paginating with max page size.
+
+    Returns a list of market dicts with only the fields we need,
+    to keep memory usage low.
+    """
+    markets = []
     cursor = None
-    count = 0
     while True:
-        kwargs = {"limit": min(page_size, max_markets - count), "status": status}
+        kwargs = {"limit": page_size, "status": status}
         if cursor:
             kwargs["cursor"] = cursor
         resp = client._market_api.get_markets_without_preload_content(**kwargs)
         data = json.loads(resp.data)
-        markets = data.get("markets", [])
-        for m in markets:
-            yield m
-            count += 1
-            if count >= max_markets:
-                return
+        page = data.get("markets", [])
+        for m in page:
+            # Keep only the fields we need to minimise memory
+            markets.append({
+                "ticker": m.get("ticker", "?"),
+                "event_ticker": m.get("event_ticker", ""),
+                "volume": m.get("volume", 0) or 0,
+                "yes_bid": m.get("yes_bid", 0) or 0,
+                "no_bid": m.get("no_bid", 0) or 0,
+            })
         cursor = data.get("cursor")
-        if not cursor or not markets:
+        if not cursor or not page:
             break
+    return markets
 
 
 # Simple in-memory cache
 _scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 120}
 
-MAX_MARKETS = 500
-
 
 def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
-         use_cache=False, max_markets=MAX_MARKETS):
+         use_cache=False, top_n=500):
     """Find markets where YES or NO bid is >= min_price.
 
-    Streams markets in pages to keep memory low.
-    Returns (results, scanned_count) tuple.
+    Fetches ALL open markets from the API, sorts by volume descending,
+    then filters the top_n most liquid markets by prefix, volume, and price.
+
+    Returns (results, stats) tuple.
     """
     # Return cached results if fresh enough
     if use_cache and _scan_cache["stats"]:
@@ -43,15 +52,23 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
             return _scan_cache["results"], _scan_cache["stats"]
 
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
+
+    # 1. Fetch all open markets
+    all_markets = _fetch_all_markets(client)
+    total_fetched = len(all_markets)
+
+    # 2. Sort by volume descending so we filter the most liquid first
+    all_markets.sort(key=lambda m: m["volume"], reverse=True)
+
+    # 3. Take only top_n by volume for filtering
+    candidates = all_markets[:top_n]
+
     results = []
-    scanned = 0
     passed_prefix = 0
     passed_volume = 0
     passed_price = 0
 
-    for m in _iter_markets(client, page_size=200, max_markets=max_markets):
-        scanned += 1
-
+    for m in candidates:
         if prefixes_upper:
             event_ticker = (m.get("event_ticker") or "").upper()
             if not any(event_ticker.startswith(p) for p in prefixes_upper):
@@ -59,33 +76,33 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
 
         passed_prefix += 1
 
-        if m.get("volume", 0) < min_volume:
+        if m["volume"] < min_volume:
             continue
 
         passed_volume += 1
 
-        yes_bid = m.get("yes_bid", 0) or 0
-        no_bid = m.get("no_bid", 0) or 0
+        yes_bid = m["yes_bid"]
+        no_bid = m["no_bid"]
 
         if yes_bid >= min_price:
             passed_price += 1
             results.append({
-                "ticker": m.get("ticker", "?"),
-                "event_ticker": m.get("event_ticker", ""),
+                "ticker": m["ticker"],
+                "event_ticker": m["event_ticker"],
                 "signal_side": "yes",
                 "signal_price": yes_bid,
-                "volume": m.get("volume", 0),
+                "volume": m["volume"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
             })
         elif no_bid >= min_price:
             passed_price += 1
             results.append({
-                "ticker": m.get("ticker", "?"),
-                "event_ticker": m.get("event_ticker", ""),
+                "ticker": m["ticker"],
+                "event_ticker": m["event_ticker"],
                 "signal_side": "no",
                 "signal_price": no_bid,
-                "volume": m.get("volume", 0),
+                "volume": m["volume"],
                 "yes_bid": yes_bid,
                 "no_bid": no_bid,
             })
@@ -93,7 +110,9 @@ def scan(client, min_price=99, ticker_prefixes=None, min_volume=100,
     results.sort(key=lambda x: (x["signal_price"], x.get("volume", 0)), reverse=True)
 
     stats = {
-        "scanned": scanned,
+        "total_fetched": total_fetched,
+        "top_n": top_n,
+        "scanned": len(candidates),
         "passed_prefix": passed_prefix,
         "passed_volume": passed_volume,
         "passed_price": passed_price,

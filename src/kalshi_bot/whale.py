@@ -70,7 +70,7 @@ def run_whale_strategy(
     # 4. Scan markets
     prefix_list = list(prefixes)
     log(f"\n  Scanning: prefixes={','.join(prefix_list)} min_price={min_price}c min_vol={min_volume}")
-    results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, max_markets=5000)
+    results, scan_stats = scan(client, min_price=min_price, ticker_prefixes=prefix_list, min_volume=min_volume, top_n=5000)
     log(f"  Found {len(results)} qualifying markets (scanned {scan_stats.get('scanned', '?')})")
 
     if not results:
