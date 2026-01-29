@@ -12,6 +12,7 @@ from kalshi_bot import db
 from kalshi_bot.config import load_config
 from kalshi_bot.client import create_client
 from kalshi_bot.whale import run_whale_strategy
+from kalshi_bot.scanner import scan
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "kalshi-bot-dev-key")
@@ -27,6 +28,17 @@ _whale_state = {
     "stop_requested": False,
 }
 _whale_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Shared state for background scanner
+# ---------------------------------------------------------------------------
+
+_scan_state = {
+    "running": False,
+    "thread": None,
+    "error": None,
+}
+_scan_lock = threading.Lock()
 
 
 def _get_client():
@@ -142,19 +154,59 @@ def trades():
 
 
 # ---------------------------------------------------------------------------
-# Scanner (reads from DB — run CLI `scan` command to populate)
+# Scanner
 # ---------------------------------------------------------------------------
 
 @app.route("/scanner")
 def scanner():
     db.init_db()
+    with _scan_lock:
+        scanning = _scan_state["running"]
+        scan_error = _scan_state["error"]
     results, scan_stats, scanned_at = db.get_scan_results()
     return render_template(
         "scanner.html",
         results=results,
         scan_stats=scan_stats,
         scanned_at=scanned_at,
+        scanning=scanning,
+        scan_error=scan_error,
     )
+
+
+@app.route("/scanner/start", methods=["POST"])
+def scanner_start():
+    with _scan_lock:
+        if _scan_state["running"]:
+            return jsonify({"ok": False, "error": "Scan already running"})
+        _scan_state["running"] = True
+        _scan_state["error"] = None
+
+    def _run_scan():
+        try:
+            db.init_db()
+            client = _get_client()
+            results, stats = scan(client, min_price=95, min_volume=1000, top_n=5000)
+            db.save_scan_results(results, stats)
+        except Exception as e:
+            with _scan_lock:
+                _scan_state["error"] = str(e)
+        finally:
+            with _scan_lock:
+                _scan_state["running"] = False
+
+    t = threading.Thread(target=_run_scan, daemon=True)
+    _scan_state["thread"] = t
+    t.start()
+    return jsonify({"ok": True})
+
+
+@app.route("/scanner/status")
+def scanner_status():
+    with _scan_lock:
+        running = _scan_state["running"]
+        error = _scan_state["error"]
+    return jsonify({"running": running, "error": error})
 
 
 # ---------------------------------------------------------------------------

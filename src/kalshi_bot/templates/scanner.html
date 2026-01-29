@@ -5,24 +5,39 @@
   <h1 class="text-2xl font-bold text-white">Market Scanner</h1>
   <div class="flex items-center gap-4">
     {% if scanned_at %}
-    <span class="text-xs text-slate-500">Last scan: {{ scanned_at }} UTC</span>
+    <span id="last-scan" class="text-xs text-slate-500">Last scan: {{ scanned_at }} UTC</span>
     {% endif %}
-    <a href="/scanner"
-      class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-sm text-slate-300 flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <button id="scan-btn" onclick="startScan()" {{ 'disabled' if scanning }}
+      class="px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-500 rounded-md text-sm text-white font-medium flex items-center gap-2">
+      <svg id="scan-icon" class="w-4 h-4 {{ 'animate-spin' if scanning }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
       </svg>
-      Refresh Page
-    </a>
+      <span id="scan-text">{{ 'Scanning...' if scanning else 'Run Scan Now' }}</span>
+    </button>
   </div>
 </div>
 
-{% if not results and not scan_stats %}
+<!-- Error banner -->
+<div id="scan-error" class="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6 text-sm text-red-400 {{ '' if scan_error else 'hidden' }}">
+  <span class="font-medium">Scan failed:</span> <span id="error-msg">{{ scan_error or '' }}</span>
+</div>
+
+<!-- Scanning progress banner -->
+<div id="scan-progress" class="bg-brand-900/30 border border-brand-800 rounded-lg p-4 mb-6 text-sm text-brand-300 {{ '' if scanning else 'hidden' }}">
+  <div class="flex items-center gap-3">
+    <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+    </svg>
+    Scanning all markets... This may take 30-60 seconds.
+  </div>
+</div>
+
+{% if not results and not scan_stats and not scanning %}
 <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-8 text-center">
   <div class="text-slate-500 text-lg mb-2">No scan results yet</div>
-  <p class="text-slate-600 text-sm mb-4">Run the scanner from the CLI to populate this page:</p>
-  <code class="bg-slate-900 text-slate-300 px-4 py-2 rounded text-sm font-mono">kalshi scan --min-price 95 --min-volume 1000</code>
-  <p class="text-slate-600 text-xs mt-4">Results are saved to the database and displayed here automatically.</p>
+  <p class="text-slate-600 text-sm mb-4">Click <strong class="text-slate-400">Run Scan Now</strong> above to scan all Kalshi markets.</p>
+  <p class="text-slate-600 text-xs">Or run from the CLI: <code class="bg-slate-900 text-slate-300 px-2 py-1 rounded text-xs font-mono">kalshi scan --min-price 95 --min-volume 1000</code></p>
 </div>
 {% else %}
 
@@ -156,4 +171,88 @@
 {% endif %}
 
 {% endif %}
+
+<script>
+let polling = {{ 'true' if scanning else 'false' }};
+
+function startScan() {
+  const btn = document.getElementById('scan-btn');
+  const icon = document.getElementById('scan-icon');
+  const text = document.getElementById('scan-text');
+  const progress = document.getElementById('scan-progress');
+  const errorEl = document.getElementById('scan-error');
+
+  btn.disabled = true;
+  icon.classList.add('animate-spin');
+  text.textContent = 'Scanning...';
+  progress.classList.remove('hidden');
+  errorEl.classList.add('hidden');
+
+  fetch('/scanner/start', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        polling = true;
+        pollStatus();
+      } else {
+        showError(data.error || 'Failed to start scan');
+        resetButton();
+      }
+    })
+    .catch(() => {
+      showError('Network error');
+      resetButton();
+    });
+}
+
+function pollStatus() {
+  if (!polling) return;
+  fetch('/scanner/status')
+    .then(r => {
+      if (!r.ok || !r.headers.get('content-type').includes('json')) throw new Error('bad response');
+      return r.json();
+    })
+    .then(data => {
+      if (data.running) {
+        setTimeout(pollStatus, 2000);
+      } else {
+        polling = false;
+        if (data.error) {
+          showError(data.error);
+          resetButton();
+        } else {
+          // Scan complete — reload page to show results
+          window.location.reload();
+        }
+      }
+    })
+    .catch(() => {
+      // Retry on transient errors
+      setTimeout(pollStatus, 3000);
+    });
+}
+
+function showError(msg) {
+  const errorEl = document.getElementById('scan-error');
+  document.getElementById('error-msg').textContent = msg;
+  errorEl.classList.remove('hidden');
+  document.getElementById('scan-progress').classList.add('hidden');
+}
+
+function resetButton() {
+  const btn = document.getElementById('scan-btn');
+  const icon = document.getElementById('scan-icon');
+  const text = document.getElementById('scan-text');
+  btn.disabled = false;
+  icon.classList.remove('animate-spin');
+  text.textContent = 'Run Scan Now';
+  document.getElementById('scan-progress').classList.remove('hidden');
+  document.getElementById('scan-progress').classList.add('hidden');
+}
+
+// If page loaded while scan is running, start polling
+if (polling) {
+  pollStatus();
+}
+</script>
 {% endblock %}
