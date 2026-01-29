@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Positions - Kalshi Bot{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-white mb-6">Open Positions</h1>
+
+{% if positions %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
+        <th class="pb-3 pr-4">Ticker</th>
+        <th class="pb-3 pr-4">Side</th>
+        <th class="pb-3 pr-4 text-right">Qty</th>
+        <th class="pb-3 pr-4 text-right">Entry</th>
+        <th class="pb-3 pr-4 text-right">Current</th>
+        <th class="pb-3 text-right">Unrealized P&amp;L</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in positions %}
+      <tr class="border-b border-slate-800/50 hover:bg-slate-900/50">
+        <td class="py-3 pr-4 font-mono text-xs text-slate-300">{{ p.ticker }}</td>
+        <td class="py-3 pr-4">
+          <span class="px-2 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/50 text-emerald-400' if p.side == 'yes' else 'bg-red-900/50 text-red-400' }}">
+            {{ p.side|upper }}
+          </span>
+        </td>
+        <td class="py-3 pr-4 text-right text-slate-300">{{ p.quantity }}</td>
+        <td class="py-3 pr-4 text-right text-slate-400">{{ "%.0f"|format(p.avg_entry_price_cents) }}c</td>
+        <td class="py-3 pr-4 text-right text-slate-300">{{ p.current_price }}c</td>
+        <td class="py-3 text-right font-medium {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
+          ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="mt-4 text-sm text-slate-500">{{ positions|length }} open position{{ 's' if positions|length != 1 }}</p>
+{% else %}
+<div class="text-center py-16">
+  <div class="text-slate-600 text-lg mb-2">No open positions</div>
+  <p class="text-slate-500 text-sm">Positions will appear here when you place trades.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Kalshi Bot{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="h-full bg-slate-950 text-slate-200">
+  <div class="flex h-full">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="hidden md:flex flex-col w-56 bg-slate-900 border-r border-slate-800 p-4 shrink-0">
+      <div class="text-lg font-bold text-white mb-6 tracking-tight">Kalshi Bot</div>
+      <a href="/" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Dashboard</a>
+      <a href="/positions" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if request.path == '/positions' %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Positions</a>
+      <a href="/trades" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/trades' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Trades</a>
+      <a href="/scanner" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/scanner' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Scanner</a>
+      <a href="/control" class="block px-3 py-2 rounded-md text-sm hover:bg-slate-800 {% if '/control' in request.path %}bg-slate-800 text-white{% else %}text-slate-400{% endif %}">Control Panel</a>
+    </nav>
+
+    <!-- Mobile nav -->
+    <div class="md:hidden fixed top-0 left-0 right-0 bg-slate-900 border-b border-slate-800 z-10 px-4 py-2 flex items-center justify-between">
+      <span class="font-bold text-white text-sm">Kalshi Bot</span>
+      <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="text-slate-400 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+    <div id="mobile-menu" class="hidden md:hidden fixed top-10 left-0 right-0 bg-slate-900 border-b border-slate-800 z-10 p-2">
+      <a href="/" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Dashboard</a>
+      <a href="/positions" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Positions</a>
+      <a href="/trades" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Trades</a>
+      <a href="/scanner" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Scanner</a>
+      <a href="/control" class="block px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded">Control Panel</a>
+    </div>
+
+    <!-- Main content -->
+    <main class="flex-1 overflow-y-auto p-6 md:p-8 mt-10 md:mt-0">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

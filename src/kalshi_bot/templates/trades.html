@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Trades - Kalshi Bot{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-white mb-6">Trade History</h1>
+
+<!-- Filters -->
+<form method="get" class="flex flex-wrap gap-3 mb-6">
+  <input type="text" name="ticker" value="{{ filter_ticker }}" placeholder="Filter by ticker..."
+    class="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-brand-500 w-64">
+  <select name="limit" class="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-brand-500">
+    {% for n in [25, 50, 100, 200] %}
+    <option value="{{ n }}" {{ 'selected' if filter_limit == n }}>{{ n }} trades</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Filter</button>
+</form>
+
+{% if trades %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
+        <th class="pb-3 pr-3">ID</th>
+        <th class="pb-3 pr-3">Time</th>
+        <th class="pb-3 pr-3">Ticker</th>
+        <th class="pb-3 pr-3">Action</th>
+        <th class="pb-3 pr-3 text-right">Qty</th>
+        <th class="pb-3 pr-3 text-right">Price</th>
+        <th class="pb-3 pr-3 text-right">Fills</th>
+        <th class="pb-3">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in trades %}
+      <tr class="border-b border-slate-800/50 hover:bg-slate-900/50">
+        <td class="py-2.5 pr-3 text-slate-500 text-xs">{{ t.id }}</td>
+        <td class="py-2.5 pr-3 text-slate-400 text-xs font-mono">{{ t.created_at }}</td>
+        <td class="py-2.5 pr-3 text-slate-300 font-mono text-xs">{{ t.ticker }}</td>
+        <td class="py-2.5 pr-3">
+          <span class="text-xs text-slate-300">{{ t.action|upper }} {{ t.side|upper }}</span>
+        </td>
+        <td class="py-2.5 pr-3 text-right text-slate-300">{{ t.count }}</td>
+        <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.price_cents }}c</td>
+        <td class="py-2.5 pr-3 text-right text-slate-400">{{ t.fill_count }}</td>
+        <td class="py-2.5">
+          {% if t.status == 'filled' %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">filled</span>
+          {% elif t.status == 'partial' %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/50 text-yellow-400">partial</span>
+          {% elif t.status == 'failed' %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400">failed</span>
+          {% else %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-400">{{ t.status }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% if t.error_message %}
+      <tr class="border-b border-slate-800/50">
+        <td></td>
+        <td colspan="7" class="py-1 text-xs text-red-400/80">Error: {{ t.error_message }}</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="mt-4 text-sm text-slate-500">{{ trades|length }} trade{{ 's' if trades|length != 1 }} shown</p>
+{% else %}
+<div class="text-center py-16">
+  <div class="text-slate-600 text-lg mb-2">No trades recorded</div>
+  <p class="text-slate-500 text-sm">Trade history will appear here after orders are placed.</p>
+</div>
+{% endif %}
+{% endblock %}
