@@ -27,6 +27,16 @@
         <input type="text" name="prefixes" value="KXNFL,KXNBA,KXBTC,KXETH"
           class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-64 focus:outline-none focus:border-brand-500">
       </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Max Positions</label>
+        <input type="number" name="max_positions" value="1" min="1" max="20"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+      </div>
+      <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
+        <input type="checkbox" name="tier1_only" checked
+          class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
+        Tier 1 Only
+      </label>
       <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
         <input type="checkbox" name="dry_run" checked
           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">

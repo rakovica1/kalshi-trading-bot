@@ -275,6 +275,8 @@ def control_start():
         _whale_state["logs"].clear()
 
     dry_run = request.form.get("dry_run") == "on"
+    tier1_only = request.form.get("tier1_only") == "on"
+    max_positions = request.form.get("max_positions", 1, type=int)
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
 
@@ -290,6 +292,8 @@ def control_start():
                 client,
                 prefixes=prefixes,
                 dry_run=dry_run,
+                tier1_only=tier1_only,
+                max_positions=max_positions,
                 log=_log,
             )
             _log("Strategy run complete.")
