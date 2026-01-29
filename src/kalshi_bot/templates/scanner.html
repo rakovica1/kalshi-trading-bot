@@ -124,6 +124,7 @@
         <th class="pb-3 pr-4 text-right">Spread</th>
         <th class="pb-3 pr-4 text-right">24h Vol</th>
         <th class="pb-3 pr-4 text-right">Open Int</th>
+        <th class="pb-3 pr-4 text-right">Closes</th>
         <th class="pb-3">Event</th>
       </tr>
     </thead>
@@ -164,6 +165,7 @@
         <td class="py-2.5 pr-4 text-right {{ 'text-emerald-400' if m.spread_pct|default(0) < 5 else 'text-red-400' }}">{{ "%.1f"|format(m.spread_pct|default(0)) }}%</td>
         <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-slate-400 text-xs">{{ m.close_time_fmt|default('—') }}</td>
         <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
       </tr>
       {% endfor %}
@@ -196,6 +198,8 @@
   <div class="text-slate-600 text-lg mb-2">No markets matched filters</div>
   <p class="text-slate-500 text-sm">The last scan found no markets matching the criteria. Try running with different filters.</p>
 </div>
+{% endif %}
+
 {% endif %}
 
 {% endif %}

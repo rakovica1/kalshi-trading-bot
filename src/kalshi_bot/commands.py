@@ -5,7 +5,8 @@ import click
 
 from kalshi_bot.config import load_config
 from kalshi_bot.client import create_client
-from kalshi_bot.scanner import scan
+from datetime import datetime, timezone
+from kalshi_bot.scanner import scan, format_close_time, _parse_close_time
 from kalshi_bot.sizing import calculate_position
 from kalshi_bot.whale import run_whale_strategy
 from kalshi_bot import db
@@ -179,15 +180,61 @@ def order(ctx, ticker, side, action, count, price, skip_confirm):
         sys.exit(1)
 
 
+_SORT_COLUMNS = ("tier", "price", "volume", "spread", "rank", "expiration", "open_int")
+
+_SORT_LABELS = {
+    "tier": "Tier (best first)",
+    "price": "Price (highest first)",
+    "volume": "24h $ Volume (highest first)",
+    "spread": "Spread (tightest first)",
+    "rank": "Dollar Rank (top first)",
+    "expiration": "Expiration (soonest first)",
+    "open_int": "Open Interest (highest first)",
+}
+
+_FAR_FUTURE = datetime(9999, 1, 1, tzinfo=timezone.utc)
+
+
+def _sort_key(column, reverse=False):
+    """Return a sort key function for the given column name.
+
+    Each key returns a tuple so ties are broken consistently.
+    The `reverse` param is handled by the caller via list.sort(reverse=).
+    """
+    def _exp_dt(m):
+        return _parse_close_time(m.get("close_time", "")) or _FAR_FUTURE
+
+    keys = {
+        "tier": lambda m: (m.get("tier", 3), -m["signal_price"], -m.get("dollar_24h", 0)),
+        "price": lambda m: (-m["signal_price"], -m.get("dollar_24h", 0), m.get("spread_pct", 99)),
+        "volume": lambda m: (-m.get("dollar_24h", 0), -m["signal_price"]),
+        "spread": lambda m: (m.get("spread_pct", 99), -m["signal_price"]),
+        "rank": lambda m: (m.get("dollar_rank", 999), -m["signal_price"]),
+        "expiration": lambda m: (_exp_dt(m), -m["signal_price"]),
+        "open_int": lambda m: (-m.get("open_interest", 0), -m["signal_price"]),
+    }
+    return keys[column]
+
+
 @cli.command("scan")
 @click.option("--min-price", default=99, type=click.IntRange(1, 99), help="Minimum bid price in cents.", show_default=True)
 @click.option("--min-volume", default=100, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
 @click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Tier 1 + top 20 $vol + $50k+ + <5% spread).")
+@click.option("--sort-by", "sort_by", default=None, type=click.Choice(_SORT_COLUMNS, case_sensitive=False),
+              help="Sort column: tier, price, volume, spread, rank, expiration, open_int.")
+@click.option("--reverse", "reverse_sort", is_flag=True, help="Reverse the sort order.")
 @click.pass_context
-def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only):
-    """Scan for high-probability markets."""
+def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, sort_by, reverse_sort):
+    """Scan for high-probability markets.
+
+    \b
+    Sort examples:
+      --sort-by expiration          Soonest closing first
+      --sort-by volume --reverse    Lowest volume first
+      --sort-by price               Highest price first
+    """
     try:
         client = _get_client(ctx.obj["config_path"])
 
@@ -204,11 +251,28 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only):
         non_qualified = [r for r in results if not r.get("qualified")]
         click.echo(f"Qualified (Tier 1 + Top 20 + $50k+ + <5% spread): {len(qualified)}")
 
+        # Determine sort column
+        if sort_by:
+            active_sort = sort_by
+        elif qualified_only:
+            active_sort = "price"  # qualified: price -> volume -> spread
+        else:
+            active_sort = "tier"   # all markets: tier -> price -> volume
+
+        key_fn = _sort_key(active_sort)
+        qualified.sort(key=key_fn, reverse=reverse_sort)
+        non_qualified.sort(key=key_fn, reverse=reverse_sort)
+        results = qualified + non_qualified
+
+        sort_label = _SORT_LABELS[active_sort]
+        if reverse_sort:
+            sort_label += " (reversed)"
+
         if qualified_only:
             display = qualified
             click.echo(f"Showing only qualified markets")
         else:
-            display = results  # already sorted: qualified first
+            display = results
 
         if not display:
             click.echo("No markets found matching criteria.")
@@ -224,11 +288,12 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only):
             if header:
                 click.echo(f"\n  {header}")
                 click.echo(f"  {'='*len(header)}")
-            click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'EVENT':>15} ", nl=False)
+            click.echo(f"  Sorted by: {sort_label}")
+            click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'CLOSES':>20} {'EVENT':>15} ", nl=False)
             if show_sizing:
                 click.echo(f"{'CONTRACTS':>10}", nl=False)
             click.echo()
-            click.echo("-" * (110 + (10 if show_sizing else 0)))
+            click.echo("-" * (130 + (10 if show_sizing else 0)))
 
             for m in markets:
                 ticker = m.get("ticker", "?")
@@ -244,11 +309,12 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only):
                 if len(event) > 15:
                     event = event[:14] + "~"
 
+                close_fmt = m.get("close_time_fmt") or format_close_time(m.get("close_time", ""))
                 badge = " * " if is_qualified else "   "
                 rank_str = f"#{dollar_rank}"
                 spread_str = f"{spread_pct:.1f}%"
 
-                click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {event:>15} ", nl=False)
+                click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {close_fmt:>20} {event:>15} ", nl=False)
 
                 if show_sizing and balance_cents:
                     contracts = calculate_position(balance_cents, price)

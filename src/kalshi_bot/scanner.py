@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timezone, timedelta
 
 
 def _fetch_all_markets(client, status="open", page_size=1000):
@@ -28,6 +29,7 @@ def _fetch_all_markets(client, status="open", page_size=1000):
                 "yes_ask": m.get("yes_ask", 0) or 0,
                 "no_bid": m.get("no_bid", 0) or 0,
                 "no_ask": m.get("no_ask", 0) or 0,
+                "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
             })
         cursor = data.get("cursor")
         if not cursor or not page:
@@ -63,6 +65,58 @@ def _calc_spread_pct(bid, ask):
         return 0.0
     mid = (bid + ask) / 2.0
     return ((ask - bid) / mid) * 100.0
+
+
+_EST = timezone(timedelta(hours=-5))
+
+
+def _parse_close_time(raw):
+    """Parse a close_time string into a UTC datetime, or None."""
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S%z"):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    return None
+
+
+def format_close_time(raw):
+    """Format a close_time string into a human-friendly EST string.
+
+    Returns e.g. "2h 15m", "Tomorrow 3:00 PM", "Feb 15", "Jan 29, 8:00 PM EST".
+    """
+    dt = _parse_close_time(raw)
+    if dt is None:
+        return "—"
+    now = datetime.now(timezone.utc)
+    est_dt = dt.astimezone(_EST)
+    est_now = now.astimezone(_EST)
+    delta = dt - now
+
+    if delta.total_seconds() <= 0:
+        return "Closed"
+
+    total_hours = delta.total_seconds() / 3600
+
+    if total_hours < 24:
+        hours = int(total_hours)
+        minutes = int((delta.total_seconds() % 3600) / 60)
+        if hours == 0:
+            return f"{minutes}m"
+        return f"{hours}h {minutes}m"
+
+    if est_dt.date() == (est_now + timedelta(days=1)).date():
+        return f"Tomorrow {est_dt.strftime('%-I:%M %p')}"
+
+    if delta.days < 180:
+        return est_dt.strftime("%b %-d, %-I:%M %p")
+
+    return est_dt.strftime("%b %-d, %Y")
 
 
 # Qualification thresholds for premium trade execution
@@ -130,6 +184,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
         no_bid = m["no_bid"]
         no_ask = m["no_ask"]
 
+        close_time_raw = m.get("close_time", "")
+
         if yes_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(yes_bid)
@@ -148,6 +204,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "no_bid": no_bid,
                 "tier": tier,
                 "spread_pct": round(spread_pct, 2),
+                "close_time": close_time_raw,
+                "close_time_fmt": format_close_time(close_time_raw),
             })
         elif no_bid >= min_price:
             passed_price += 1
@@ -167,6 +225,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "no_bid": no_bid,
                 "tier": tier,
                 "spread_pct": round(spread_pct, 2),
+                "close_time": close_time_raw,
+                "close_time_fmt": format_close_time(close_time_raw),
             })
 
     # Determine dollar-volume rank and qualification status

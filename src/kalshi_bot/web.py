@@ -199,6 +199,9 @@ def scanner():
         scanning = _scan_state["running"]
         scan_error = _scan_state["error"]
     results, scan_stats, scanned_at = db.get_scan_results()
+    from kalshi_bot.scanner import format_close_time
+    for r in results:
+        r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
     return render_template(
         "scanner.html",
         results=results,

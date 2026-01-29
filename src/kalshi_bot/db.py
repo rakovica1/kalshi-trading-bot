@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS scan_results (
     spread_pct REAL NOT NULL DEFAULT 0,
     dollar_rank INTEGER NOT NULL DEFAULT 0,
     qualified INTEGER NOT NULL DEFAULT 0,
+    close_time TEXT NOT NULL DEFAULT '',
     scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -106,6 +107,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
         "spread_pct": "REAL NOT NULL DEFAULT 0",
         "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
         "qualified": "INTEGER NOT NULL DEFAULT 0",
+        "close_time": "TEXT NOT NULL DEFAULT ''",
     })
     _migrate_columns(conn, "scan_meta", {
         "qualified": "INTEGER NOT NULL DEFAULT 0",
@@ -402,14 +404,15 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
             """INSERT INTO scan_results
                (ticker, event_ticker, signal_side, signal_price, tier,
                 volume_24h, dollar_24h, volume, open_interest,
-                spread_pct, dollar_rank, qualified)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                spread_pct, dollar_rank, qualified, close_time)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (m["ticker"], m.get("event_ticker", ""), m["signal_side"],
              m["signal_price"], m.get("tier", 3),
              m.get("volume_24h", 0), m.get("dollar_24h", 0),
              m.get("volume", 0), m.get("open_interest", 0),
              m.get("spread_pct", 0), m.get("dollar_rank", 0),
-             1 if m.get("qualified") else 0),
+             1 if m.get("qualified") else 0,
+             m.get("close_time", "")),
         )
     # Upsert scan metadata
     conn.execute("DELETE FROM scan_meta")
