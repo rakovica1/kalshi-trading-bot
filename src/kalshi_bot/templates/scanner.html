@@ -124,6 +124,7 @@
         <th class="pb-3 pr-4 text-right">Spread</th>
         <th class="pb-3 pr-4 text-right">24h Vol</th>
         <th class="pb-3 pr-4 text-right">Open Int</th>
+        <th class="pb-3 pr-4 text-right">Time Left</th>
         <th class="pb-3 pr-4 text-right">Closes</th>
         <th class="pb-3">Event</th>
       </tr>
@@ -165,6 +166,17 @@
         <td class="py-2.5 pr-4 text-right {{ 'text-emerald-400' if m.spread_pct|default(0) < 5 else 'text-red-400' }}">{{ "%.1f"|format(m.spread_pct|default(0)) }}%</td>
         <td class="py-2.5 pr-4 text-right text-white font-medium">{{ "{:,}".format(m.volume_24h|default(0)) }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-500">{{ "{:,}".format(m.open_interest|default(0)) }}</td>
+        <td class="py-2.5 pr-4 text-right text-xs font-medium
+          {% if m.hours_left is not none and m.hours_left <= 24 %}text-amber-400
+          {% elif m.hours_left is not none and m.hours_left <= 72 %}text-slate-300
+          {% else %}text-slate-500{% endif %}">
+          {% if m.hours_left is none %}—
+          {% elif m.hours_left <= 0 %}closed
+          {% elif m.hours_left < 1 %}{{ (m.hours_left * 60)|int }}m
+          {% elif m.hours_left < 48 %}{{ m.hours_left|int }}h
+          {% else %}{{ "%.1f"|format(m.hours_left / 24) }}d
+          {% endif %}
+        </td>
         <td class="py-2.5 pr-4 text-right text-slate-400 text-xs">{{ m.close_time_fmt|default('—') }}</td>
         <td class="py-2.5 text-slate-500 text-xs font-mono">{{ m.event_ticker|default('') }}</td>
       </tr>

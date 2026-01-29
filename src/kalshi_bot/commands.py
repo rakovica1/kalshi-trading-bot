@@ -6,7 +6,7 @@ import click
 from kalshi_bot.config import load_config
 from kalshi_bot.client import create_client
 from datetime import datetime, timezone
-from kalshi_bot.scanner import scan, format_close_time, _parse_close_time
+from kalshi_bot.scanner import scan, format_close_time, _parse_close_time, hours_until_close
 from kalshi_bot.sizing import calculate_position
 from kalshi_bot.whale import run_whale_strategy
 from kalshi_bot import db
@@ -289,11 +289,11 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
                 click.echo(f"\n  {header}")
                 click.echo(f"  {'='*len(header)}")
             click.echo(f"  Sorted by: {sort_label}")
-            click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'CLOSES':>20} {'EVENT':>15} ", nl=False)
+            click.echo(f"{'':>3} {'TICKER':<38} {'SIDE':<5} {'PRICE':>5} {'24H $':>8} {'RANK':>5} {'SPREAD':>7} {'24H VOL':>8} {'OI':>8} {'TIME LEFT':>10} {'CLOSES':>20} {'EVENT':>15} ", nl=False)
             if show_sizing:
                 click.echo(f"{'CONTRACTS':>10}", nl=False)
             click.echo()
-            click.echo("-" * (130 + (10 if show_sizing else 0)))
+            click.echo("-" * (140 + (10 if show_sizing else 0)))
 
             for m in markets:
                 ticker = m.get("ticker", "?")
@@ -310,11 +310,22 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
                     event = event[:14] + "~"
 
                 close_fmt = m.get("close_time_fmt") or format_close_time(m.get("close_time", ""))
+                hrs = m.get("hours_left")
+                if hrs is None:
+                    time_left_str = "—"
+                elif hrs <= 0:
+                    time_left_str = "closed"
+                elif hrs < 1:
+                    time_left_str = f"{int(hrs * 60)}m"
+                elif hrs < 48:
+                    time_left_str = f"{hrs:.0f}h"
+                else:
+                    time_left_str = f"{hrs / 24:.1f}d"
                 badge = " * " if is_qualified else "   "
                 rank_str = f"#{dollar_rank}"
                 spread_str = f"{spread_pct:.1f}%"
 
-                click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {close_fmt:>20} {event:>15} ", nl=False)
+                click.echo(f"{badge}{ticker:<38} {side.upper():<5} {price:>4}c ${dollar_24h:>7,} {rank_str:>5} {spread_str:>7} {vol_24h:>8} {oi:>8} {time_left_str:>10} {close_fmt:>20} {event:>15} ", nl=False)
 
                 if show_sizing and balance_cents:
                     contracts = calculate_position(balance_cents, price)
@@ -499,17 +510,26 @@ def stats(ctx):
 @click.option("--min-price", default=95, type=click.IntRange(1, 99), help="Minimum bid price in cents for scanner.", show_default=True)
 @click.option("--min-volume", default=1000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
+@click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
+@click.option("--max-hours-to-expiration", default=None, type=float, help="Only trade markets expiring within N hours (overrides --max-days).")
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
 @click.option("--tier1-only/--all-tiers", default=True, help="Only trade qualified Tier 1 markets.", show_default=True)
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
 @click.pass_context
-def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, tier1_only, skip_confirm):
+def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
+                max_days_to_expiration, max_hours_to_expiration,
+                dry_run, tier1_only, skip_confirm):
     """Run fully autonomous whale trading strategy.
 
     Scans all markets, filters to qualified opportunities, ranks them,
     picks the best one, and places the trade automatically.
 
     Qualified = Tier 1 (>=98c) + top 20 by $vol + >=$50k daily + <5% spread.
+
+    \b
+    Expiration filters (faster capital turnover):
+      --max-days-to-expiration 7     Only markets closing within 7 days
+      --max-hours-to-expiration 48   Only markets closing within 48 hours
 
     Default is dry-run mode. Use --live to place real orders.
     """
@@ -519,6 +539,11 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, ti
                 "LIVE MODE: This will place real orders with real money. Continue?",
                 abort=True,
             )
+
+        # --max-hours takes priority; convert --max-days to hours
+        max_hours = max_hours_to_expiration
+        if max_hours is None and max_days_to_expiration is not None:
+            max_hours = max_days_to_expiration * 24
 
         client = _get_client(ctx.obj["config_path"])
         prefix_list = tuple(p.strip() for p in prefixes.split(","))
@@ -531,6 +556,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions, dry_run, ti
             max_positions=max_positions,
             dry_run=dry_run,
             tier1_only=tier1_only,
+            max_hours_to_expiration=max_hours,
             log=click.echo,
         )
     except click.Abort:

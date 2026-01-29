@@ -199,9 +199,10 @@ def scanner():
         scanning = _scan_state["running"]
         scan_error = _scan_state["error"]
     results, scan_stats, scanned_at = db.get_scan_results()
-    from kalshi_bot.scanner import format_close_time
+    from kalshi_bot.scanner import format_close_time, hours_until_close
     for r in results:
         r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
+        r["hours_left"] = hours_until_close(r.get("close_time", ""))
     return render_template(
         "scanner.html",
         results=results,
@@ -298,6 +299,8 @@ def control_start():
     max_positions = request.form.get("max_positions", 1, type=int)
     prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
     prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
+    max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
+    max_hours = float(max_hours_raw) if max_hours_raw else None
 
     def _log(msg):
         _whale_state["logs"].append(msg)
@@ -313,6 +316,7 @@ def control_start():
                 dry_run=dry_run,
                 tier1_only=tier1_only,
                 max_positions=max_positions,
+                max_hours_to_expiration=max_hours,
                 log=_log,
             )
             _log("Strategy run complete.")

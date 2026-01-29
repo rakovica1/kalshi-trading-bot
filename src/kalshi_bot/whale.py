@@ -1,7 +1,7 @@
 import time
 
 from kalshi_bot import db
-from kalshi_bot.scanner import scan
+from kalshi_bot.scanner import scan, format_close_time, hours_until_close
 from kalshi_bot.sizing import calculate_position
 
 
@@ -30,6 +30,7 @@ def run_whale_strategy(
     chunk_delay_sec=10,
     dry_run=True,
     tier1_only=True,
+    max_hours_to_expiration=None,
     log=print,
 ):
     """Run the whale trading strategy.
@@ -121,6 +122,35 @@ def run_whale_strategy(
         log(f"{'='*60}\n")
         return {"scanned": total_found, "skipped": len(held), "traded": 0, "orders": 0, "stopped_reason": None}
 
+    # 6b. Filter by expiration if max_hours set
+    if max_hours_to_expiration is not None:
+        log(f"\n  Expiration filter: within {max_hours_to_expiration}h")
+        before_exp = len(available)
+        filtered = []
+        expired_out = []
+        for c in available:
+            hrs = c.get("hours_left")
+            if hrs is None:
+                # Unknown expiration — skip (can't verify it's within window)
+                expired_out.append((c, "unknown"))
+            elif hrs <= 0:
+                expired_out.append((c, "closed"))
+            elif hrs > max_hours_to_expiration:
+                expired_out.append((c, f"{hrs:.0f}h"))
+            else:
+                filtered.append(c)
+        if expired_out:
+            log(f"  Filtered out {len(expired_out)} market{'s' if len(expired_out) != 1 else ''} beyond {max_hours_to_expiration}h:")
+            for c, reason in expired_out[:5]:
+                log(f"    {c['ticker']} — {reason}")
+            if len(expired_out) > 5:
+                log(f"    ... and {len(expired_out) - 5} more")
+        available = filtered
+        if not available:
+            log(f"\n  No markets expire within {max_hours_to_expiration}h. Nothing to trade.")
+            log(f"{'='*60}\n")
+            return {"scanned": total_found, "skipped": len(held) + before_exp, "traded": 0, "orders": 0, "stopped_reason": "no_expiring"}
+
     # 7. Rank: highest price -> highest $volume -> tightest spread
     available.sort(key=lambda m: (
         -m["signal_price"],
@@ -129,13 +159,14 @@ def run_whale_strategy(
     ))
 
     log(f"\n  Ranking {len(available)} available qualified markets:")
-    log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'PRICE':>5} {'24H $':>10} {'SPREAD':>7} {'RANK':>5}")
-    log(f"  {'-'*75}")
+    log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'PRICE':>5} {'24H $':>10} {'SPREAD':>7} {'RANK':>5} {'CLOSES':>20}")
+    log(f"  {'-'*95}")
     for i, m in enumerate(available):
         marker = " >> " if i == 0 else "    "
+        close_fmt = m.get("close_time_fmt") or format_close_time(m.get("close_time", ""))
         log(f"  {marker}{i+1:>1}. {m['ticker']:<35} {m['signal_side'].upper():<4} "
             f"{m['signal_price']:>4}c ${m['dollar_24h']:>8,} "
-            f"{m.get('spread_pct', 0):>6.1f}% #{m.get('dollar_rank', 0):>3}")
+            f"{m.get('spread_pct', 0):>6.1f}% #{m.get('dollar_rank', 0):>3} {close_fmt:>20}")
 
     # 8. Select #1 ranked market
     selected = available[0]
@@ -144,9 +175,10 @@ def run_whale_strategy(
     price = selected["signal_price"]
     dollar_24h = selected["dollar_24h"]
     spread = selected.get("spread_pct", 0)
+    sel_close = selected.get("close_time_fmt") or format_close_time(selected.get("close_time", ""))
 
     log(f"\n  Selected {ticker} at {price}c "
-        f"(${dollar_24h:,} volume, {spread:.1f}% spread)")
+        f"(${dollar_24h:,} volume, {spread:.1f}% spread, closes {sel_close})")
 
     # 9. Calculate position size
     total_contracts = calculate_position(balance_cents, price, risk_pct)

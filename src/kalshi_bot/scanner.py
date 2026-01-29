@@ -119,6 +119,17 @@ def format_close_time(raw):
     return est_dt.strftime("%b %-d, %Y")
 
 
+def hours_until_close(raw):
+    """Return hours remaining until market close, or None if unknown."""
+    dt = _parse_close_time(raw)
+    if dt is None:
+        return None
+    delta = dt - datetime.now(timezone.utc)
+    if delta.total_seconds() <= 0:
+        return 0.0
+    return delta.total_seconds() / 3600.0
+
+
 # Qualification thresholds for premium trade execution
 QUALIFIED_MIN_DOLLAR_24H = 50_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
@@ -186,6 +197,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
 
         close_time_raw = m.get("close_time", "")
 
+        hrs_left = hours_until_close(close_time_raw)
+
         if yes_bid >= min_price:
             passed_price += 1
             tier = _assign_tier(yes_bid)
@@ -206,6 +219,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "spread_pct": round(spread_pct, 2),
                 "close_time": close_time_raw,
                 "close_time_fmt": format_close_time(close_time_raw),
+                "hours_left": hrs_left,
             })
         elif no_bid >= min_price:
             passed_price += 1
@@ -227,6 +241,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=1000,
                 "spread_pct": round(spread_pct, 2),
                 "close_time": close_time_raw,
                 "close_time_fmt": format_close_time(close_time_raw),
+                "hours_left": hrs_left,
             })
 
     # Determine dollar-volume rank and qualification status
