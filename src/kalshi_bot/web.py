@@ -179,7 +179,6 @@ def dashboard():
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
         portfolio_value_cents=portfolio_value_cents,
-        total_account_value_cents=total_account_value,
         roi_pct=roi_pct,
         total_invested_cents=total_invested,
         open_count=db.count_open_positions(),
