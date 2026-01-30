@@ -321,6 +321,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
         })
         # One-time: log pre-existing balance as deposit
         _seed_deposits(conn)
+        _backfill_closed_position_costs(conn)
         conn.close()
     else:
         db_path = Path(db_path)
@@ -347,6 +348,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
         })
         # One-time: log pre-existing balance as deposit
         _seed_deposits(conn)
+        _backfill_closed_position_costs(conn)
         conn.close()
 
 
@@ -372,6 +374,39 @@ def _seed_deposits(conn):
                 (7684, note),
             )
             conn.commit()
+
+
+def _backfill_closed_position_costs(conn):
+    """One-time: recalculate total_cost_cents for closed positions that were zeroed out."""
+    ph = "%s" if _use_pg else "?"
+    if _use_pg:
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        cur = conn.cursor()
+    cur.execute("SELECT id, ticker, side FROM positions WHERE is_closed = 1 AND total_cost_cents = 0")
+    rows = cur.fetchall()
+    for r in rows:
+        if _use_pg:
+            rid, ticker, side = r["id"], r["ticker"], r["side"]
+        else:
+            rid, ticker, side = r[0], r[1], r[2]
+        cur.execute(
+            f"""SELECT COALESCE(SUM(fill_count * price_cents), 0) as cost
+                FROM trades
+                WHERE ticker = {ph} AND side = {ph} AND action = 'buy'
+                  AND fill_count > 0 AND status != 'failed'""",
+            (ticker, side),
+        )
+        cost_row = cur.fetchone()
+        cost = cost_row["cost"] if _use_pg else cost_row[0]
+        if cost > 0:
+            cur.execute(
+                f"UPDATE positions SET total_cost_cents = {ph} WHERE id = {ph}",
+                (cost, rid),
+            )
+    if not _use_pg:
+        conn.commit()
 
 
 def _migrate_columns(conn, table, columns):
@@ -502,7 +537,7 @@ def update_position_on_sell(ticker, side, qty, sell_price_cents, db_path=DEFAULT
     if new_qty <= 0:
         _execute(conn,
             f"""UPDATE positions
-               SET quantity = 0, total_cost_cents = 0, realized_pnl_cents = ?,
+               SET quantity = 0, realized_pnl_cents = ?,
                    is_closed = 1, closed_at = {_now_sql()}
                WHERE id = ?""",
             (total_pnl, row["id"]),
@@ -573,7 +608,7 @@ def close_position_settled(ticker, side, settlement_value_cents, db_path=DEFAULT
 
     _execute(conn,
         f"""UPDATE positions
-           SET quantity = 0, total_cost_cents = 0, realized_pnl_cents = ?,
+           SET quantity = 0, realized_pnl_cents = ?,
                is_closed = 1, closed_at = {_now_sql()}
            WHERE id = ?""",
         (total_pnl, row["id"]),
