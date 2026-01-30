@@ -194,6 +194,11 @@ def fetch_settled_markets(client, start_date, end_date, log, stop_check,
 def _filter_whale_candidates(markets, params):
     """Filter markets using whale strategy criteria, mirroring scanner.py logic.
 
+    Settled markets have zeroed-out orderbooks, so we use:
+    - `volume` (lifetime) instead of `volume_24h` (reset to 0 after settlement)
+    - `previous_yes_bid/ask` as fallback when `yes_bid/ask` are 0
+    - `last_price` as final fallback for the ask price
+
     params keys: min_ask, max_ask, min_volume_24h, max_spread_pct,
                  top_n_dollar_vol
     Returns list of candidate dicts with signal info.
@@ -204,21 +209,29 @@ def _filter_whale_candidates(markets, params):
     max_spread = params.get("max_spread_pct", 5.0)
     top_n = params.get("top_n_dollar_vol", 200)
 
-    # Sort by 24h volume descending
+    # For settled markets: use `volume` (lifetime) since `volume_24h` is 0
     sorted_markets = sorted(markets,
-                            key=lambda m: m.get("volume_24h", 0) or 0,
+                            key=lambda m: (m.get("volume", 0) or 0),
                             reverse=True)
 
     candidates = []
     for m in sorted_markets:
-        vol_24h = m.get("volume_24h", 0) or 0
-        if vol_24h < min_volume:
+        # Use lifetime volume for settled markets (volume_24h is always 0)
+        vol = m.get("volume", 0) or 0
+        if vol < min_volume:
             continue
 
-        yes_bid = m.get("yes_bid", 0) or 0
-        yes_ask = m.get("yes_ask", 0) or 0
+        # Use current bid/ask, falling back to previous (pre-settlement) values
+        yes_bid = m.get("yes_bid", 0) or m.get("previous_yes_bid", 0) or 0
+        yes_ask = m.get("yes_ask", 0) or m.get("previous_yes_ask", 0) or 0
         no_bid = m.get("no_bid", 0) or 0
         no_ask = m.get("no_ask", 0) or 0
+
+        # Use last_price as fallback for ask if both are missing
+        if not yes_ask and not no_ask:
+            last_price = m.get("last_price", 0) or 0
+            if last_price > 0:
+                yes_ask = last_price
 
         # Infer missing ask from opposite bid
         if not yes_ask and no_bid:
@@ -236,15 +249,15 @@ def _filter_whale_candidates(markets, params):
             spread = _calc_spread_pct(yes_bid, yes_ask)
             if spread > max_spread:
                 continue
-            dollar_24h = int(vol_24h * yes_ask) // 100
+            dollar_vol = int(vol * yes_ask) // 100
             candidates.append({
                 "ticker": m.get("ticker", ""),
                 "event_ticker": m.get("event_ticker", ""),
                 "signal_side": "yes",
                 "signal_ask": yes_ask,
                 "signal_bid": yes_bid,
-                "volume_24h": vol_24h,
-                "dollar_24h": dollar_24h,
+                "volume_24h": vol,
+                "dollar_24h": dollar_vol,
                 "tier": tier,
                 "spread_pct": round(spread, 2),
                 "result": result,
@@ -258,15 +271,15 @@ def _filter_whale_candidates(markets, params):
             spread = _calc_spread_pct(no_bid, no_ask)
             if spread > max_spread:
                 continue
-            dollar_24h = int(vol_24h * no_ask) // 100
+            dollar_vol = int(vol * no_ask) // 100
             candidates.append({
                 "ticker": m.get("ticker", ""),
                 "event_ticker": m.get("event_ticker", ""),
                 "signal_side": "no",
                 "signal_ask": no_ask,
                 "signal_bid": no_bid,
-                "volume_24h": vol_24h,
-                "dollar_24h": dollar_24h,
+                "volume_24h": vol,
+                "dollar_24h": dollar_vol,
                 "tier": tier,
                 "spread_pct": round(spread, 2),
                 "result": result,
