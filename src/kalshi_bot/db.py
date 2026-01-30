@@ -628,7 +628,7 @@ def get_stats(db_path=DEFAULT_DB_PATH):
     conn = _connect(db_path)
 
     total = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM trades WHERE status != 'failed'"
+        "SELECT COUNT(*) as n FROM trades WHERE status != 'failed' AND fill_count > 0"
     )["n"]
 
     filled = _fetchone(conn,
