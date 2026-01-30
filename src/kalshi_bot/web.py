@@ -146,7 +146,8 @@ def dashboard():
     net_pnl = total_account_value + total_withdrawals - total_deposits
 
     total_fees = stats["total_fees_cents"]
-    roi_pct = (net_pnl / total_deposits * 100) if total_deposits > 0 else 0.0
+    total_invested = stats["total_invested_cents"]
+    roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
 
     # Daily P&L history for chart
     daily_pnl = db.get_daily_pnl(days=90)
@@ -165,6 +166,7 @@ def dashboard():
         portfolio_value_cents=portfolio_value_cents,
         total_account_value_cents=total_account_value,
         roi_pct=roi_pct,
+        total_invested_cents=total_invested,
         open_count=db.count_open_positions(),
         total_trades=stats["total_orders"],
         win_rate=stats["win_rate"],
