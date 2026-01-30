@@ -116,7 +116,8 @@ def dashboard():
     stats = db.get_stats()
 
     # Unrealized P&L from open positions (and auto-close settled ones)
-    total_unrealized = 0
+    total_unrealized_bid = 0
+    total_unrealized_ask = 0
     try:
         client = _get_client()
         for p in open_positions:
@@ -124,13 +125,21 @@ def dashboard():
                 m = client.get_market(ticker=p["ticker"])
                 current, is_settled = _market_position_value(m, p["side"])
                 if is_settled:
-                    # Auto-close settled position in DB with correct P&L
                     db.close_position_settled(
                         p["ticker"], p["side"],
                         settlement_value_cents=current,
                     )
                 else:
-                    total_unrealized += int(p["quantity"] * (current - p["avg_entry_price_cents"]))
+                    qty = p["quantity"]
+                    entry = p["avg_entry_price_cents"]
+                    # Bid-based (what you'd get selling now)
+                    total_unrealized_bid += int(qty * (current - entry))
+                    # Ask-based (cost to buy the opposite side)
+                    if p["side"] == "yes":
+                        ask = m.get("yes_ask", 0) or 0
+                    else:
+                        ask = m.get("no_ask", 0) or 0
+                    total_unrealized_ask += int(qty * (ask - entry)) if ask else int(qty * (current - entry))
             except Exception:
                 pass
     except Exception:
@@ -160,7 +169,8 @@ def dashboard():
         deposit_count=deposit_count,
         total_withdrawals_cents=total_withdrawals,
         withdrawal_count=withdrawal_count,
-        unrealized_cents=total_unrealized,
+        unrealized_bid_cents=total_unrealized_bid,
+        unrealized_ask_cents=total_unrealized_ask,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
         portfolio_value_cents=portfolio_value_cents,

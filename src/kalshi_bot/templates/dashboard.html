@@ -26,8 +26,20 @@
 
   <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
     <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Unrealized P&amp;L</div>
-    <div class="text-2xl font-bold {{ 'text-emerald-400' if unrealized_cents >= 0 else 'text-red-400' }}">
-      ${{ "%+.2f"|format(unrealized_cents / 100) }}
+    <div class="flex items-baseline gap-3">
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Bid</div>
+        <div class="text-xl font-bold {{ 'text-emerald-400' if unrealized_bid_cents >= 0 else 'text-red-400' }}">
+          ${{ "%+.2f"|format(unrealized_bid_cents / 100) }}
+        </div>
+      </div>
+      <div class="text-slate-700">/</div>
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Ask</div>
+        <div class="text-xl font-bold {{ 'text-emerald-400' if unrealized_ask_cents >= 0 else 'text-red-400' }}">
+          ${{ "%+.2f"|format(unrealized_ask_cents / 100) }}
+        </div>
+      </div>
     </div>
   </div>
 </div>
