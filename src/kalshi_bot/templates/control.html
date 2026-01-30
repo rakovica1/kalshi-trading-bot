@@ -37,6 +37,11 @@
           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
         Dry Run
       </label>
+      <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
+        <input type="checkbox" name="with_ai" {{ 'checked' if settings.with_ai }}
+          class="rounded bg-slate-800 border-slate-600 text-purple-500 focus:ring-purple-500">
+        AI Analysis
+      </label>
     </div>
 
     <div class="flex items-center gap-3">
@@ -81,6 +86,7 @@ const TAG_COLORS = {
   'SKIP': 'text-slate-600',
   'INFO': 'text-slate-400',
   'HEAD': 'text-white',
+  'AI':   'text-purple-400',
 };
 
 function escapeHtml(s) {

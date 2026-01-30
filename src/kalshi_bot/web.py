@@ -680,6 +680,7 @@ def control():
     defaults = {
         "max_positions": 10,
         "dry_run": True,
+        "with_ai": False,
     }
     with _whale_lock:
         running = _whale_state["running"]
@@ -698,6 +699,7 @@ def control_start():
         _whale_state["logs"].clear()
 
     dry_run = request.form.get("dry_run") == "on"
+    with_ai = request.form.get("with_ai") == "on"
 
     # Parse max_positions — default to 10 if missing or invalid
     try:
@@ -717,6 +719,7 @@ def control_start():
         _whale_state["settings"] = {
             "max_positions": max_positions,
             "dry_run": dry_run,
+            "with_ai": with_ai,
         }
 
     def _log(msg):
@@ -733,8 +736,9 @@ def control_start():
             db.init_db()
             client = _get_client()
 
+            ai_tag = ", ai=ON" if with_ai else ""
             _log(f"[INFO] Config: max_positions={max_positions}, max_hours={max_hours}, "
-                 f"dry_run={dry_run}")
+                 f"dry_run={dry_run}{ai_tag}")
 
             strategy_kwargs = dict(
                 prefixes=None,
@@ -743,6 +747,7 @@ def control_start():
                 max_hours_to_expiration=max_hours,
                 log=_log,
                 stop_check=_is_stop_requested,
+                with_ai=with_ai,
             )
 
             trades_placed = 0
