@@ -103,12 +103,14 @@ def dashboard():
     try:
         client = _get_client()
         bal_data = client.get_balance()
-        # balance = available cash; portfolio_value = value of all positions
+        # balance = available cash; portfolio_value = market value of open positions
         balance_cents = bal_data.get("balance", 0)
+        portfolio_value_cents = bal_data.get("portfolio_value", 0)
         db.log_balance(balance_cents)
         balance_timestamp = datetime.now(timezone.utc).astimezone(_EST).strftime("%I:%M:%S %p EST")
     except Exception as e:
         balance_cents = 0
+        portfolio_value_cents = 0
 
     open_positions = db.get_open_positions()
     stats = db.get_stats()
@@ -137,14 +139,14 @@ def dashboard():
     # Re-fetch stats after auto-closing any settled positions
     stats = db.get_stats()
 
-    # Net P&L = current balance + total withdrawals - total deposits
+    # Net P&L = (cash + portfolio value) - deposits + withdrawals
     total_deposits, deposit_count = db.get_total_deposits()
     total_withdrawals, withdrawal_count = db.get_total_withdrawals()
-    net_pnl = balance_cents + total_withdrawals - total_deposits
+    total_account_value = balance_cents + portfolio_value_cents
+    net_pnl = total_account_value + total_withdrawals - total_deposits
 
     total_fees = stats["total_fees_cents"]
-    total_invested = stats["total_invested_cents"]
-    roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
+    roi_pct = (net_pnl / total_deposits * 100) if total_deposits > 0 else 0.0
 
     # Daily P&L history for chart
     daily_pnl = db.get_daily_pnl(days=90)
@@ -160,7 +162,8 @@ def dashboard():
         unrealized_cents=total_unrealized,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
-        total_invested_cents=total_invested,
+        portfolio_value_cents=portfolio_value_cents,
+        total_account_value_cents=total_account_value,
         roi_pct=roi_pct,
         open_count=db.count_open_positions(),
         total_trades=stats["total_orders"],
