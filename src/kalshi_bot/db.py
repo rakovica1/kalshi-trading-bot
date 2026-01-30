@@ -860,8 +860,11 @@ def get_daily_pnl(days=30, db_path=DEFAULT_DB_PATH):
         daily[d]["fees_cents"] = row["fees_cents"]
         daily[d]["trade_count"] = row["trade_count"]
 
-    # Sort by date and compute net P&L
-    result = sorted(daily.values(), key=lambda x: x["date"])
+    # Only include days with realized activity (positions closed)
+    result = sorted(
+        [v for v in daily.values() if v["positions_closed"] > 0],
+        key=lambda x: x["date"],
+    )
     for r in result:
         r["net_cents"] = r["realized_cents"] - r["fees_cents"]
 
