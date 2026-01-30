@@ -15,23 +15,32 @@
 
 {% if positions %}
 <div class="overflow-x-auto">
-  <table class="w-full text-sm">
+  <table class="w-full text-sm" id="positions-table">
     <thead>
       <tr class="border-b border-slate-800 text-left text-xs text-slate-500 uppercase tracking-wide">
-        <th class="pb-3 pr-4">Ticker</th>
-        <th class="pb-3 pr-4">Opened</th>
-        <th class="pb-3 pr-4">Side</th>
-        <th class="pb-3 pr-4 text-right">Qty</th>
-        <th class="pb-3 pr-4 text-right">Entry</th>
-        <th class="pb-3 pr-4 text-right">Cost</th>
-        <th class="pb-3 pr-4 text-right">Current</th>
-        <th class="pb-3 pr-4 text-right">Status</th>
-        <th class="pb-3 text-right">Unrealized P&amp;L</th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="ticker">Ticker <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="opened">Opened <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="side">Side <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="qty">Qty <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="entry">Entry <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="cost">Cost <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="current">Current <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="status">Status <span class="sort-arrow"></span></th>
+        <th class="pb-3 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="pnl">Unrealized P&amp;L <span class="sort-arrow"></span></th>
       </tr>
     </thead>
     <tbody>
       {% for p in positions %}
-      <tr class="border-b border-slate-800/50 hover:bg-slate-900/50">
+      <tr class="border-b border-slate-800/50 hover:bg-slate-900/50"
+          data-ticker="{{ p.ticker|decode_ticker }}"
+          data-opened="{{ p.opened_at }}"
+          data-side="{{ p.side }}"
+          data-qty="{{ p.quantity }}"
+          data-entry="{{ p.avg_entry_price_cents }}"
+          data-cost="{{ p.total_cost_cents }}"
+          data-current="{{ p.current_price }}"
+          data-status="{{ p.close_time }}"
+          data-pnl="{{ p.unrealized_bid_cents }}">
         <td class="py-3 pr-4">
           <div class="text-sm text-slate-200">{{ p.ticker|decode_ticker }}</div>
           <div class="text-[10px] font-mono text-slate-500 mt-0.5">{{ p.ticker }}</div>
@@ -271,6 +280,63 @@ function updateAll() {
 
 updateAll();
 setInterval(updateAll, 30000);
+
+// Table sorting
+(function() {
+  const table = document.getElementById('positions-table');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  const headers = table.querySelectorAll('th[data-sort]');
+  let currentSort = null;
+  let ascending = true;
+
+  function getValue(row, key) {
+    const v = row.dataset[key];
+    if (key === 'ticker' || key === 'side') return v || '';
+    if (key === 'opened' || key === 'status') return v || '';
+    return parseFloat(v) || 0;
+  }
+
+  function sortTable(key) {
+    if (currentSort === key) {
+      ascending = !ascending;
+    } else {
+      currentSort = key;
+      ascending = (key === 'ticker' || key === 'side' || key === 'opened');
+    }
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      let va = getValue(a, key);
+      let vb = getValue(b, key);
+      let cmp;
+      if (typeof va === 'string') {
+        cmp = va.localeCompare(vb);
+      } else {
+        cmp = va - vb;
+      }
+      return ascending ? cmp : -cmp;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+
+    // Update arrows
+    headers.forEach(h => {
+      const arrow = h.querySelector('.sort-arrow');
+      if (h.dataset.sort === key) {
+        arrow.textContent = ascending ? ' ▲' : ' ▼';
+        h.classList.add('text-slate-300');
+      } else {
+        arrow.textContent = '';
+        h.classList.remove('text-slate-300');
+      }
+    });
+  }
+
+  headers.forEach(h => {
+    h.addEventListener('click', () => sortTable(h.dataset.sort));
+  });
+})();
 </script>
 
 {% if portfolio_snapshots and portfolio_snapshots|length > 1 %}
