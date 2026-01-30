@@ -221,7 +221,7 @@ def _sort_key(column, reverse=False):
 @click.option("--min-volume", default=10000, type=int, help="Minimum 24h volume.", show_default=True)
 @click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (e.g. 'KXNFL,KXNBA,KXBTC,KXETH').")
 @click.option("--show-sizing", is_flag=True, help="Show position sizing based on current balance.")
-@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Top 200 $vol + $10k+ + ≤3% spread + ≤24h exp).")
+@click.option("--qualified-only", is_flag=True, help="Only show qualified markets (Top 200 $vol + $10k+ + ≤5% spread + ≤24h exp).")
 @click.option("--sort-by", "sort_by", default=None, type=click.Choice(_SORT_COLUMNS, case_sensitive=False),
               help="Sort column: tier, price, volume, spread, rank, expiration, open_int.")
 @click.option("--reverse", "reverse_sort", is_flag=True, help="Reverse the sort order.")
@@ -250,7 +250,7 @@ def scan_cmd(ctx, min_price, min_volume, prefixes, show_sizing, qualified_only, 
         qualified = [r for r in results if r.get("qualified")]
         non_qualified = [r for r in results if not r.get("qualified")]
         tier0_count = sum(1 for r in results if r.get("tier") == 0)
-        click.echo(f"Qualified (Top 200 + $10k+ + ≤3% spread + ≤24h exp + profitable): {len(qualified)}")
+        click.echo(f"Qualified (Top 200 + $10k+ + ≤5% spread + ≤24h exp + profitable): {len(qualified)}")
         if tier0_count:
             click.echo(f"Excluded: {tier0_count} market{'s' if tier0_count != 1 else ''} at 99¢ (break-even after 1¢ fee)")
 
@@ -598,7 +598,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
     24 hours (default), ranks them, picks the best one, and places a MARKET
     ORDER for instant execution at the current ask price.
 
-    Qualified = Top 200 by $vol + >=$10k daily + ≤3% spread + ≤24h expiration.
+    Qualified = Top 200 by $vol + >=$10k daily + ≤5% spread + ≤24h expiration.
 
     \b
     Expiration (default: 24 hours):
