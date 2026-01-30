@@ -20,7 +20,7 @@
   </div>
   <p id="status-detail" class="text-xs text-slate-500 mb-4 ml-6">
     {% if running %}Scanning for targets...
-    {% else %}Ready — select Standard or Riskier order mode
+    {% else %}Ready to scan and trade
     {% endif %}
   </p>
 
@@ -39,17 +39,10 @@
       </label>
     </div>
 
-    <input type="hidden" name="risk_mode" id="risk-mode-input" value="standard">
     <div class="flex items-center gap-3">
-      <button type="submit" id="start-standard-btn" {{ 'disabled' if running }}
-        onclick="document.getElementById('risk-mode-input').value='standard'"
+      <button type="submit" id="start-btn" {{ 'disabled' if running }}
         class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
-        Standard Order
-      </button>
-      <button type="submit" id="start-risky-btn" {{ 'disabled' if running }}
-        onclick="document.getElementById('risk-mode-input').value='risky'"
-        class="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
-        Riskier Order
+        Start
       </button>
       <button type="button" id="stop-btn" onclick="document.getElementById('stop-form').submit()" {{ '' if running else 'disabled' }}
         class="px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
@@ -83,8 +76,7 @@ function pollLogs() {
       const box = document.getElementById('log-box');
       const dot = document.getElementById('status-dot');
       const text = document.getElementById('status-text');
-      const startStdBtn = document.getElementById('start-standard-btn');
-      const startRiskyBtn = document.getElementById('start-risky-btn');
+      const startBtn = document.getElementById('start-btn');
       const stopBtn = document.getElementById('stop-btn');
 
       // Update status
@@ -93,8 +85,7 @@ function pollLogs() {
         dot.className = 'w-3 h-3 rounded-full bg-emerald-400 animate-pulse';
         text.className = 'text-sm font-medium text-emerald-400';
         text.textContent = 'Running';
-        startStdBtn.disabled = true;
-        startRiskyBtn.disabled = true;
+        startBtn.disabled = true;
         stopBtn.disabled = false;
         // Parse last few log lines for rich status
         const logs = data.logs;
@@ -103,7 +94,6 @@ function pollLogs() {
           const line = logs[i];
           const fillMatch = line.match(/(\d+)\/(\d+) (?:positions? )?filled/);
           const roundMatch = line.match(/Round (\d+)/);
-          const modeMatch = line.match(/\[(STANDARD|RISKIER)\]/);
           const retryMatch = line.match(/Retrying in (\d+)s/);
           if (retryMatch) {
             statusMsg = 'No targets — waiting to retry...';
@@ -112,8 +102,7 @@ function pollLogs() {
             statusMsg = 'Position ' + fillMatch[1] + '/' + fillMatch[2] + ' filled, scanning for next...';
             break;
           } else if (roundMatch) {
-            const mode = modeMatch ? modeMatch[1].toLowerCase() : '';
-            statusMsg = 'Scanning round ' + roundMatch[1] + (mode ? ' (' + mode + ')' : '') + '...';
+            statusMsg = 'Scanning round ' + roundMatch[1] + '...';
             break;
           }
         }
@@ -122,16 +111,15 @@ function pollLogs() {
         dot.className = 'w-3 h-3 rounded-full bg-slate-600';
         text.className = 'text-sm font-medium text-slate-400';
         text.textContent = 'Stopped';
-        startStdBtn.disabled = false;
-        startRiskyBtn.disabled = false;
+        startBtn.disabled = false;
         stopBtn.disabled = true;
         // Show completion message if logs indicate it
         const last = data.logs.length > 0 ? data.logs[data.logs.length - 1] : '';
         if (last.includes('Done') || last.includes('complete') || last.includes('Stopping')) {
-          detail.textContent = last.replace(/\[(STANDARD|RISKIER)\]\s*/, '');
+          detail.textContent = last.replace(/\[SNIPER\]\s*/, '');
         } else {
           const maxPos = document.querySelector('input[name="max_positions"]');
-          detail.textContent = 'Ready — select Standard or Riskier order mode';
+          detail.textContent = 'Ready to scan and trade';
         }
       }
 

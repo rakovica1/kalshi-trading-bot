@@ -585,13 +585,12 @@ def stats(ctx):
 @click.option("--continuous/--once", default=False, help="Loop: scan and trade until max-positions reached or Ctrl+C.", show_default=True)
 @click.option("--cooldown-minutes", default=1.0, type=float, help="Minutes to wait between trades in continuous mode.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
-@click.option("--risk-mode", default="standard", type=click.Choice(["standard", "risky"]), help="Standard (T1 only) or Risky (T2+T3 only).", show_default=True)
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
 @click.pass_context
 def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
                 max_days_to_expiration, max_hours_to_expiration,
                 no_expiration_limit, continuous, cooldown_minutes,
-                dry_run, risk_mode, skip_confirm):
+                dry_run, skip_confirm):
     """Last-Minute Sniper — ultra-short-term market order strategy.
 
     Scans all markets, filters to qualified opportunities expiring within
@@ -642,7 +641,6 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
             max_positions=max_positions,
             dry_run=dry_run,
             max_hours_to_expiration=max_hours,
-            risk_mode=risk_mode,
             log=click.echo,
         )
 

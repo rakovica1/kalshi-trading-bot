@@ -13,7 +13,6 @@ def run_whale_strategy(
     daily_loss_pct=0.05,
     dry_run=True,
     max_hours_to_expiration=24.0,
-    risk_mode="standard",
     log=print,
     stop_check=None,
 ):
@@ -154,30 +153,14 @@ def run_whale_strategy(
             log(f"{'='*60}\n")
             return {"scanned": total_found, "skipped": len(held) + before_exp, "traded": 0, "orders": 0, "stopped_reason": "no_expiring"}
 
-    # 8. Filter by risk mode tier
-    if risk_mode == "risky":
-        tier_filtered = [m for m in available if m.get("tier", 3) in (2, 3)]
-        tier_label = "RISKIER — T2+T3 only"
-    else:
-        tier_filtered = [m for m in available if m.get("tier", 3) == 1]
-        tier_label = "STANDARD — T1 only"
-
-    log(f"\n  Tier filter ({tier_label}): {len(tier_filtered)}/{len(available)} candidates")
-
-    if not tier_filtered:
-        log(f"  No markets match tier filter. Will retry.")
-        log(f"{'='*60}\n")
-        return {"scanned": total_found, "skipped": len(held), "traded": 0, "orders": 0, "stopped_reason": None}
-
-    available = tier_filtered
-
-    # Rank: soonest expiration -> highest price -> highest $volume
+    # 8. Rank all qualified: safest tier first, then soonest expiration
     available.sort(key=lambda m: (
+        m.get("tier", 3),
         m.get("hours_left") if m.get("hours_left") is not None else 9999,
         -m["signal_price"],
         -m["dollar_24h"],
     ))
-    log(f"\n  Ranking {len(available)} targets ({tier_label}):")
+    log(f"\n  Ranking {len(available)} qualified targets (T1 → T2 → T3):")
     log(f"  {'#':>3}  {'TICKER':<35} {'SIDE':<4} {'BID':>4} {'ASK':>4} {'24H $':>10} {'SPREAD':>7} {'EXPIRES':>10}")
     log(f"  {'-'*85}")
     for i, m in enumerate(available):
