@@ -3,7 +3,6 @@ import json
 from kalshi_python_sync import KalshiClient, Configuration
 from kalshi_python_sync.api import MarketApi, OrdersApi, PortfolioApi
 from kalshi_python_sync.auth import KalshiAuth
-from kalshi_python_sync.models.create_order_request import CreateOrderRequest
 
 
 def create_client(config: dict) -> "KalshiBotClient":
@@ -168,7 +167,6 @@ class KalshiBotClient:
         else:
             kwargs["no_price"] = effective_price
 
-        req = CreateOrderRequest(**kwargs)
-        resp = self._orders_api.create_order(create_order_request=req)
+        resp = self._orders_api.create_order(**kwargs)
         order = resp.order
         return _model_to_dict(order) if order else _model_to_dict(resp)
