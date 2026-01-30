@@ -654,6 +654,29 @@ def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     return row["balance_cents"] if row else None
 
 
+def get_today_trading_loss(db_path=DEFAULT_DB_PATH):
+    """Return total realized trading loss for today (cents, always >= 0).
+
+    Only counts negative realized P&L from positions closed today.
+    Deposits and withdrawals are excluded.
+    """
+    conn = _connect(db_path)
+    if _use_pg:
+        sql = """SELECT COALESCE(SUM(realized_pnl_cents), 0) as total
+                 FROM positions
+                 WHERE is_closed = 1 AND realized_pnl_cents < 0
+                   AND closed_at::date = CURRENT_DATE"""
+    else:
+        sql = """SELECT COALESCE(SUM(realized_pnl_cents), 0) as total
+                 FROM positions
+                 WHERE is_closed = 1 AND realized_pnl_cents < 0
+                   AND date(closed_at) = date('now')"""
+    row = _fetchone(conn, sql)
+    conn.close()
+    # Return as positive number (amount lost)
+    return abs(row["total"])
+
+
 def count_open_positions(db_path=DEFAULT_DB_PATH):
     """Return number of open positions."""
     conn = _connect(db_path)

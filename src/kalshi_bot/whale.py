@@ -48,12 +48,9 @@ def run_whale_strategy(
     log(f"  Balance:        ${balance_cents / 100:.2f}")
     log(f"  Risk per trade: {risk_pct*100:.0f}% = ${balance_cents * risk_pct / 100:.2f}")
 
-    # 2. Daily loss check
-    starting = db.get_today_starting_balance()
-    if starting is None:
-        starting = balance_cents
-    daily_loss = starting - balance_cents
-    max_daily_loss = int(starting * daily_loss_pct)
+    # 2. Daily loss check (realized trading losses only, ignores deposits/withdrawals)
+    daily_loss = db.get_today_trading_loss()
+    max_daily_loss = int(balance_cents * daily_loss_pct)
     log(f"  Daily loss:     ${daily_loss / 100:.2f} / ${max_daily_loss / 100:.2f} limit")
 
     if daily_loss >= max_daily_loss:
