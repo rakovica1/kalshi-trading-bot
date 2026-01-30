@@ -192,96 +192,74 @@ def fetch_settled_markets(client, start_date, end_date, log, stop_check,
 
 
 def _filter_whale_candidates(markets, params):
-    """Filter markets using whale strategy criteria, mirroring scanner.py logic.
+    """Filter markets using whale strategy criteria for backtesting.
 
-    Settled markets have zeroed-out orderbooks, so we use:
-    - `volume` (lifetime) instead of `volume_24h` (reset to 0 after settlement)
-    - `previous_yes_bid/ask` as fallback when `yes_bid/ask` are 0
-    - `last_price` as final fallback for the ask price
+    Settled markets don't preserve the transient 95-98c ask that the sniper
+    strategy trades at.  Instead we identify markets that were *trending
+    strongly* toward one outcome (using ``previous_yes_bid`` as a confidence
+    proxy) and simulate a sniper entry at a fixed price (``simulated_ask``).
 
-    params keys: min_ask, max_ask, min_volume_24h, max_spread_pct,
+    Confidence filter:
+    - YES-side candidate if ``previous_yes_bid >= min_confidence_bid``
+    - NO-side  candidate if ``previous_yes_bid <= (100 - min_confidence_bid)``
+    This mirrors real-world conditions where the sniper only buys when the
+    market is already near-certain.
+
+    params keys: simulated_ask, min_confidence_bid, min_volume_24h,
                  top_n_dollar_vol
     Returns list of candidate dicts with signal info.
     """
-    min_ask = params.get("min_ask", 95)
-    max_ask = params.get("max_ask", 98)
+    simulated_ask = params.get("simulated_ask", 97)
+    min_confidence = params.get("min_confidence_bid", 85)
     min_volume = params.get("min_volume_24h", 10000)
-    max_spread = params.get("max_spread_pct", 5.0)
     top_n = params.get("top_n_dollar_vol", 200)
 
-    # For settled markets: use `volume` (lifetime) since `volume_24h` is 0
     sorted_markets = sorted(markets,
                             key=lambda m: (m.get("volume", 0) or 0),
                             reverse=True)
 
     candidates = []
     for m in sorted_markets:
-        # Use lifetime volume for settled markets (volume_24h is always 0)
         vol = m.get("volume", 0) or 0
         if vol < min_volume:
             continue
 
-        # Use current bid/ask, falling back to previous (pre-settlement) values
-        yes_bid = m.get("yes_bid", 0) or m.get("previous_yes_bid", 0) or 0
-        yes_ask = m.get("yes_ask", 0) or m.get("previous_yes_ask", 0) or 0
-        no_bid = m.get("no_bid", 0) or 0
-        no_ask = m.get("no_ask", 0) or 0
-
-        # Use last_price as fallback for ask if both are missing
-        if not yes_ask and not no_ask:
-            last_price = m.get("last_price", 0) or 0
-            if last_price > 0:
-                yes_ask = last_price
-
-        # Infer missing ask from opposite bid
-        if not yes_ask and no_bid:
-            yes_ask = 100 - no_bid
-        if not no_ask and yes_bid:
-            no_ask = 100 - yes_bid
-
+        prev_yes_bid = m.get("previous_yes_bid", 0) or 0
         result = m.get("result", "")
+        if not result:
+            continue
 
-        # Check YES side
-        if yes_ask and min_ask <= yes_ask <= max_ask:
-            tier = _assign_tier(yes_ask)
-            if tier == 0:
-                continue
-            spread = _calc_spread_pct(yes_bid, yes_ask)
-            if spread > max_spread:
-                continue
-            dollar_vol = int(vol * yes_ask) // 100
+        # YES-side: market was strongly leaning YES
+        if prev_yes_bid >= min_confidence:
+            tier = _assign_tier(simulated_ask)
+            dollar_vol = int(vol * simulated_ask) // 100
             candidates.append({
                 "ticker": m.get("ticker", ""),
                 "event_ticker": m.get("event_ticker", ""),
                 "signal_side": "yes",
-                "signal_ask": yes_ask,
-                "signal_bid": yes_bid,
+                "signal_ask": simulated_ask,
+                "signal_bid": prev_yes_bid,
                 "volume_24h": vol,
                 "dollar_24h": dollar_vol,
                 "tier": tier,
-                "spread_pct": round(spread, 2),
+                "spread_pct": 0.0,
                 "result": result,
                 "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
             })
-        # Check NO side
-        elif no_ask and min_ask <= no_ask <= max_ask:
-            tier = _assign_tier(no_ask)
-            if tier == 0:
-                continue
-            spread = _calc_spread_pct(no_bid, no_ask)
-            if spread > max_spread:
-                continue
-            dollar_vol = int(vol * no_ask) // 100
+        # NO-side: market was strongly leaning NO
+        elif prev_yes_bid > 0 and prev_yes_bid <= (100 - min_confidence):
+            tier = _assign_tier(simulated_ask)
+            dollar_vol = int(vol * simulated_ask) // 100
             candidates.append({
                 "ticker": m.get("ticker", ""),
                 "event_ticker": m.get("event_ticker", ""),
                 "signal_side": "no",
-                "signal_ask": no_ask,
-                "signal_bid": no_bid,
+                "signal_ask": simulated_ask,
+                "signal_bid": 100 - prev_yes_bid,
                 "volume_24h": vol,
                 "dollar_24h": dollar_vol,
                 "tier": tier,
-                "spread_pct": round(spread, 2),
+                "spread_pct": 0.0,
                 "result": result,
                 "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
             })

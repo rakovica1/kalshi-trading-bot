@@ -26,24 +26,19 @@
           class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-40 focus:outline-none focus:border-brand-500">
       </div>
       <div>
-        <label class="block text-xs text-slate-500 mb-1">Min Ask</label>
-        <input type="number" name="min_ask" value="{{ params.min_ask }}" min="1" max="99"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+        <label class="block text-xs text-slate-500 mb-1">Sim. Ask (c)</label>
+        <input type="number" name="simulated_ask" value="{{ params.simulated_ask }}" min="90" max="99"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
       </div>
       <div>
-        <label class="block text-xs text-slate-500 mb-1">Max Ask</label>
-        <input type="number" name="max_ask" value="{{ params.max_ask }}" min="1" max="99"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+        <label class="block text-xs text-slate-500 mb-1">Min Conf. Bid</label>
+        <input type="number" name="min_confidence_bid" value="{{ params.min_confidence_bid }}" min="50" max="99"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
       </div>
       <div>
-        <label class="block text-xs text-slate-500 mb-1">Min Vol 24h</label>
+        <label class="block text-xs text-slate-500 mb-1">Min Volume</label>
         <input type="number" name="min_volume_24h" value="{{ params.min_volume_24h }}" min="0"
           class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-28 focus:outline-none focus:border-brand-500">
-      </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Max Spread %</label>
-        <input type="number" name="max_spread_pct" value="{{ params.max_spread_pct }}" min="0" max="100" step="0.1"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
       </div>
       <div>
         <label class="block text-xs text-slate-500 mb-1">Top N $ Vol</label>

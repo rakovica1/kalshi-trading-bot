@@ -229,6 +229,8 @@ def dashboard():
         total_invested_cents=total_invested,
         open_count=db.count_open_positions(),
         total_trades=stats["total_orders"],
+        winning_trades=stats["wins"],
+        losing_trades=stats["losses"],
         win_rate=stats["win_rate"],
         profit_factor=stats["profit_factor"],
         daily_pnl=daily_pnl,
@@ -1042,10 +1044,9 @@ def control_logs():
 _BT_DEFAULTS = {
     "start_date": (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d"),
     "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-    "min_ask": 95,
-    "max_ask": 98,
+    "simulated_ask": 97,
+    "min_confidence_bid": 85,
     "min_volume_24h": 10000,
-    "max_spread_pct": 5.0,
     "top_n_dollar_vol": 200,
     "position_size_dollars": 10,
 }
@@ -1092,27 +1093,24 @@ def backtest_run():
         end_date = datetime.now(timezone.utc).date()
 
     try:
-        min_ask = int(request.form.get("min_ask", _BT_DEFAULTS["min_ask"]))
-        max_ask = int(request.form.get("max_ask", _BT_DEFAULTS["max_ask"]))
+        simulated_ask = int(request.form.get("simulated_ask", _BT_DEFAULTS["simulated_ask"]))
+        min_confidence_bid = int(request.form.get("min_confidence_bid", _BT_DEFAULTS["min_confidence_bid"]))
         min_volume_24h = int(request.form.get("min_volume_24h", _BT_DEFAULTS["min_volume_24h"]))
-        max_spread_pct = float(request.form.get("max_spread_pct", _BT_DEFAULTS["max_spread_pct"]))
         top_n_dollar_vol = int(request.form.get("top_n_dollar_vol", _BT_DEFAULTS["top_n_dollar_vol"]))
         position_size_dollars = int(request.form.get("position_size_dollars", _BT_DEFAULTS["position_size_dollars"]))
     except (ValueError, TypeError):
-        min_ask = _BT_DEFAULTS["min_ask"]
-        max_ask = _BT_DEFAULTS["max_ask"]
+        simulated_ask = _BT_DEFAULTS["simulated_ask"]
+        min_confidence_bid = _BT_DEFAULTS["min_confidence_bid"]
         min_volume_24h = _BT_DEFAULTS["min_volume_24h"]
-        max_spread_pct = _BT_DEFAULTS["max_spread_pct"]
         top_n_dollar_vol = _BT_DEFAULTS["top_n_dollar_vol"]
         position_size_dollars = _BT_DEFAULTS["position_size_dollars"]
 
     params = {
         "start_date": start_date_str,
         "end_date": end_date_str,
-        "min_ask": min_ask,
-        "max_ask": max_ask,
+        "simulated_ask": simulated_ask,
+        "min_confidence_bid": min_confidence_bid,
         "min_volume_24h": min_volume_24h,
-        "max_spread_pct": max_spread_pct,
         "top_n_dollar_vol": top_n_dollar_vol,
         "position_size_dollars": position_size_dollars,
         "position_size_cents": position_size_dollars * 100,
