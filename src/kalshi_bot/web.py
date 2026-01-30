@@ -151,14 +151,15 @@ def dashboard():
     # Re-fetch stats after auto-closing any settled positions
     stats = db.get_stats()
 
-    # Net P&L = (cash + portfolio value) - deposits + withdrawals
+    # Deposits/withdrawals for display
     total_deposits, deposit_count = db.get_total_deposits()
     total_withdrawals, withdrawal_count = db.get_total_withdrawals()
-    total_account_value = balance_cents + portfolio_value_cents
-    net_pnl = total_account_value + total_withdrawals - total_deposits
 
+    # Net P&L from trade history: realized P&L - fees
     total_fees = stats["total_fees_cents"]
     total_invested = stats["total_invested_cents"]
+    realized_pnl = stats["realized_pnl_cents"]
+    net_pnl = realized_pnl - total_fees
     roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
 
     # Daily P&L history for chart
