@@ -652,6 +652,8 @@ def scanner():
     for r in results:
         r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
         r["hours_left"] = hours_until_close(r.get("close_time", ""))
+    # Build set of tickers with open positions
+    open_tickers = {p["ticker"] for p in db.get_open_positions()}
     return render_template(
         "scanner.html",
         results=results,
@@ -659,6 +661,7 @@ def scanner():
         scanned_at=scanned_at,
         scanning=scanning,
         scan_error=scan_error,
+        open_tickers=open_tickers,
     )
 
 
