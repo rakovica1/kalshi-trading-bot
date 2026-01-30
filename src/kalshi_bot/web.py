@@ -217,7 +217,13 @@ def positions():
                     )
             except Exception:
                 current = 0
-            unrealized = int(qty * (current - entry))
+                m = {}
+            unrealized_bid = int(qty * (current - entry))
+            if p["side"] == "yes":
+                ask = m.get("yes_ask", 0) or 0
+            else:
+                ask = m.get("no_ask", 0) or 0
+            unrealized_ask = int(qty * ((ask if ask else current) - entry))
             opened_at = p.get("opened_at", "")
             if opened_at and isinstance(opened_at, str):
                 opened_at_display = _utc_to_est(opened_at)
@@ -228,7 +234,10 @@ def positions():
             enriched.append({
                 **p,
                 "current_price": current,
-                "unrealized_cents": unrealized,
+                "ask_price": ask,
+                "unrealized_bid_cents": unrealized_bid,
+                "unrealized_ask_cents": unrealized_ask,
+                "unrealized_cents": unrealized_bid,
                 "opened_at_display": opened_at_display,
                 "close_time": close_time,
                 "is_settled": is_settled,
@@ -270,7 +279,8 @@ def positions():
     # Compute position totals
     total_value = sum(p["current_price"] * p["quantity"] for p in enriched)
     total_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in enriched)
-    total_unrealized = sum(p["unrealized_cents"] for p in enriched)
+    total_unrealized_bid = sum(p["unrealized_bid_cents"] for p in enriched)
+    total_unrealized_ask = sum(p["unrealized_ask_cents"] for p in enriched)
 
     return render_template(
         "positions.html",
@@ -278,7 +288,8 @@ def positions():
         closed_positions=closed_enriched,
         total_value_cents=total_value,
         total_cost_cents=total_cost,
-        total_unrealized_cents=total_unrealized,
+        total_unrealized_bid_cents=total_unrealized_bid,
+        total_unrealized_ask_cents=total_unrealized_ask,
     )
 
 

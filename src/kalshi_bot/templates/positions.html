@@ -47,8 +47,22 @@
             <div class="text-[10px] mt-0.5 expires-relative"></div>
           {% endif %}
         </td>
-        <td class="py-3 text-right font-medium {{ 'text-emerald-400' if p.unrealized_cents >= 0 else 'text-red-400' }}">
-          ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+        <td class="py-3 text-right">
+          <div class="flex items-center justify-end gap-2">
+            <div>
+              <div class="text-[9px] text-slate-600">Bid</div>
+              <div class="text-xs font-medium {{ 'text-emerald-400' if p.unrealized_bid_cents >= 0 else 'text-red-400' }}">
+                ${{ "%+.2f"|format(p.unrealized_bid_cents / 100) }}
+              </div>
+            </div>
+            <div class="text-slate-700 text-xs">/</div>
+            <div>
+              <div class="text-[9px] text-slate-600">Ask</div>
+              <div class="text-xs font-medium {{ 'text-emerald-400' if p.unrealized_ask_cents >= 0 else 'text-red-400' }}">
+                ${{ "%+.2f"|format(p.unrealized_ask_cents / 100) }}
+              </div>
+            </div>
+          </div>
         </td>
       </tr>
       {% endfor %}
@@ -72,8 +86,20 @@
     </div>
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Unrealized P&amp;L</div>
-      <div class="text-sm font-bold {{ 'text-emerald-400' if total_unrealized_cents >= 0 else 'text-red-400' }}">
-        ${{ "%+.2f"|format(total_unrealized_cents / 100) }}
+      <div class="flex items-center justify-center gap-2">
+        <div>
+          <div class="text-[9px] text-slate-600">Bid</div>
+          <div class="text-sm font-bold {{ 'text-emerald-400' if total_unrealized_bid_cents >= 0 else 'text-red-400' }}">
+            ${{ "%+.2f"|format(total_unrealized_bid_cents / 100) }}
+          </div>
+        </div>
+        <div class="text-slate-700">/</div>
+        <div>
+          <div class="text-[9px] text-slate-600">Ask</div>
+          <div class="text-sm font-bold {{ 'text-emerald-400' if total_unrealized_ask_cents >= 0 else 'text-red-400' }}">
+            ${{ "%+.2f"|format(total_unrealized_ask_cents / 100) }}
+          </div>
+        </div>
       </div>
     </div>
   </div>
