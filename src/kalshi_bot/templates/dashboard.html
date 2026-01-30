@@ -10,7 +10,6 @@
     <div class="text-2xl font-bold {{ 'text-emerald-400' if net_pnl_cents >= 0 else 'text-red-400' }}">
       ${{ "%+.2f"|format(net_pnl_cents / 100) }}
     </div>
-    <div class="text-[10px] text-slate-600 mt-1">${{ "%.2f"|format(total_deposits_cents / 100) }} deposited · ${{ "%.2f"|format(total_withdrawals_cents / 100) }} withdrawn</div>
   </div>
 
   <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
