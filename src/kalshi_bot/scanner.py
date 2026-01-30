@@ -157,19 +157,19 @@ def stop_background_refresh():
         _bg_refresh["running"] = False
 
 
-def _assign_tier(price):
-    """Assign a tier based on signal price.
+def _assign_tier(ask_price):
+    """Assign a tier based on ask price (what you actually pay to enter).
 
-    Tier 0 (Skip):  99c — unprofitable (0¢ profit after 1¢ fee)
-    Tier 1 (Best):  98c — 1¢ profit after fees
-    Tier 2 (Good):  96-97c — 2-3¢ profit
-    Tier 3 (Okay):  95c — 4¢ profit
+    Tier 0 (Skip):  ask >= 99c — unprofitable (0¢ profit after 1¢ fee)
+    Tier 1 (Best):  ask == 98c — 1¢ profit after fees
+    Tier 2 (Good):  ask 96-97c — 2-3¢ profit
+    Tier 3 (Okay):  ask <= 95c — 4¢+ profit
     """
-    if price >= 99:
+    if ask_price >= 99:
         return 0
-    elif price == 98:
+    elif ask_price == 98:
         return 1
-    elif price >= 96:
+    elif ask_price >= 96:
         return 2
     else:
         return 3
@@ -336,10 +336,10 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
 
         hrs_left = hours_until_close(close_time_raw)
 
-        if yes_bid >= min_price:
+        if yes_ask and min_price <= yes_ask <= 98:
             passed_price += 1
-            tier = _assign_tier(yes_bid)
-            dollar_24h = int(m["volume_24h"] * yes_bid) // 100
+            tier = _assign_tier(yes_ask)
+            dollar_24h = int(m["volume_24h"] * yes_ask) // 100
             spread_pct = _calc_spread_pct(yes_bid, yes_ask)
             results.append({
                 "ticker": m["ticker"],
@@ -359,10 +359,10 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
                 "close_time_fmt": format_close_time(close_time_raw),
                 "hours_left": hrs_left,
             })
-        elif no_bid >= min_price:
+        elif no_ask and min_price <= no_ask <= 98:
             passed_price += 1
-            tier = _assign_tier(no_bid)
-            dollar_24h = int(m["volume_24h"] * no_bid) // 100
+            tier = _assign_tier(no_ask)
+            dollar_24h = int(m["volume_24h"] * no_ask) // 100
             spread_pct = _calc_spread_pct(no_bid, no_ask)
             results.append({
                 "ticker": m["ticker"],

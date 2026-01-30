@@ -88,7 +88,7 @@ def run_whale_strategy(
     if held:
         log(f"[INFO] Skipping {held} already-held position{'s' if held != 1 else ''}")
 
-    available = [c for c in available if c["signal_price"] < 99]
+    available = [c for c in available if c.get("signal_ask", 100) <= 98]
 
     if max_hours_to_expiration is not None:
         available = [c for c in available
