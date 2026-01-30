@@ -707,10 +707,11 @@ def arbitrage_scan():
     def _log(msg):
         _arb_state["logs"].append(msg)
 
+    client = _get_client()
+
     def _run():
         from kalshi_bot.arbitrage import run_arbitrage_scan
         try:
-            client = _get_client()
             opps = run_arbitrage_scan(
                 client, log=_log,
                 min_profit_cents=1, quantity=10,
@@ -722,7 +723,9 @@ def arbitrage_scan():
                     __import__("datetime").timezone.utc
                 ).strftime("%Y-%m-%d %H:%M:%S UTC")
         except Exception as e:
+            import traceback
             _log(f"[FAIL] Error: {e}")
+            _log(f"[FAIL] {traceback.format_exc()}")
         finally:
             with _arb_lock:
                 _arb_state["running"] = False

@@ -110,9 +110,8 @@ function poll() {
     .catch(() => {});
 }
 
-{% if running %}
+// Always poll — catches state changes from scan thread
 pollInterval = setInterval(poll, 2000);
 poll();
-{% endif %}
 </script>
 {% endblock %}
