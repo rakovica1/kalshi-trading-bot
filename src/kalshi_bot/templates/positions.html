@@ -13,6 +13,7 @@
         <th class="pb-3 pr-4">Side</th>
         <th class="pb-3 pr-4 text-right">Qty</th>
         <th class="pb-3 pr-4 text-right">Entry</th>
+        <th class="pb-3 pr-4 text-right">Cost</th>
         <th class="pb-3 pr-4 text-right">Current</th>
         <th class="pb-3 pr-4 text-right">Status</th>
         <th class="pb-3 text-right">Unrealized P&amp;L</th>
@@ -36,6 +37,7 @@
         </td>
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.quantity }}</td>
         <td class="py-3 pr-4 text-right text-slate-400">{{ "%.0f"|format(p.avg_entry_price_cents) }}c</td>
+        <td class="py-3 pr-4 text-right text-slate-400">${{ "%.2f"|format(p.total_cost_cents / 100) }}</td>
         <td class="py-3 pr-4 text-right text-slate-300">{{ p.current_price }}c</td>
         <td class="py-3 pr-4 text-right expires-cell" data-close-time="{{ p.close_time }}" data-settled="{{ 'true' if p.is_settled else 'false' }}">
           {% if p.is_settled %}
