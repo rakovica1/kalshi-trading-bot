@@ -564,6 +564,39 @@ def get_first_balance(db_path=DEFAULT_DB_PATH):
     return row["balance_cents"] if row else None
 
 
+def get_total_deposits(db_path=DEFAULT_DB_PATH):
+    """Detect and sum all deposits by scanning balance_history for large jumps.
+
+    Any positive balance increase > $5 (500 cents) between consecutive snapshots
+    is classified as a deposit. Trade settlements are typically < $1 per contract,
+    so this threshold safely distinguishes deposits from trading gains.
+
+    Returns (total_deposits_cents, deposit_count).
+    """
+    conn = _connect(db_path)
+    rows = _fetchall(conn,
+        "SELECT balance_cents FROM balance_history ORDER BY id ASC"
+    )
+    conn.close()
+
+    if len(rows) < 2:
+        # Only one snapshot — the first balance is the initial deposit
+        return (rows[0]["balance_cents"] if rows else 0, 1 if rows else 0)
+
+    # First balance is always the initial deposit
+    total_deposits = rows[0]["balance_cents"]
+    deposit_count = 1
+    threshold = 500  # $5.00 — any jump larger than this is a deposit
+
+    for i in range(1, len(rows)):
+        delta = rows[i]["balance_cents"] - rows[i - 1]["balance_cents"]
+        if delta > threshold:
+            total_deposits += delta
+            deposit_count += 1
+
+    return (total_deposits, deposit_count)
+
+
 def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     """Return the earliest balance snapshot for today, or None."""
     conn = _connect(db_path)
