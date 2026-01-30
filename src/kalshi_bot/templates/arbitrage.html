@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Arbitrage - Nightrader{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Arbitrage Scanner</h1>
+  <form method="post" action="/arbitrage/scan">
+    <button type="submit" id="scan-btn" {{ 'disabled' if running }}
+      class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
+      {{ 'Scanning...' if running else 'Scan Markets' }}
+    </button>
+  </form>
+</div>
+
+<p class="text-xs text-slate-500 mb-6">
+  Scans all open markets for probability arbitrage (YES+NO &lt; 100c) and orderbook spread opportunities. Net profit calculated after Kalshi fees.
+  {% if scanned_at %}<span class="text-slate-600 ml-2">Last scan: {{ scanned_at }}</span>{% endif %}
+</p>
+
+<!-- Results -->
+<div id="results-section" class="space-y-3 mb-6">
+  {% if results %}
+    {% for opp in results %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium text-white">{{ opp.ticker }}</span>
+        <span class="text-xs px-2 py-0.5 rounded {% if opp.type == 'buy_both' %}bg-emerald-900 text-emerald-400{% elif opp.type == 'sell_both' %}bg-blue-900 text-blue-400{% else %}bg-purple-900 text-purple-400{% endif %}">
+          {{ opp.type | replace('_', ' ') | upper }}
+        </span>
+      </div>
+      <p class="text-xs text-slate-400 mb-2">{{ opp.description }}</p>
+      <div class="flex items-center gap-4 text-xs">
+        <span class="text-emerald-400 font-medium">Net profit: {{ opp.net_profit_cents }}c (${{ '%.2f' | format(opp.net_profit_cents / 100) }})</span>
+        <span class="text-slate-500">{{ opp.quantity }} contracts</span>
+        {% if opp.gross_edge is defined %}
+        <span class="text-slate-500">Edge: {{ opp.gross_edge }}c</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% elif not running %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center">
+      <p class="text-slate-500 text-sm">No opportunities found. Click "Scan Markets" to search.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Log viewer -->
+<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+    <span class="text-sm font-medium text-slate-400">Scan Log</span>
+  </div>
+  <div id="log-box" class="p-4 text-xs font-mono overflow-y-auto max-h-[300px] whitespace-pre-wrap text-slate-400">
+    {% if logs %}{{ logs | join('\n') }}{% else %}Ready to scan...{% endif %}
+  </div>
+</div>
+
+<script>
+const TAG_COLORS = {
+  'FILL': 'text-emerald-400',
+  'WARN': 'text-amber-400',
+  'FAIL': 'text-red-400',
+  'SKIP': 'text-slate-600',
+  'INFO': 'text-slate-400',
+  'HEAD': 'text-white',
+};
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function colorLine(line) {
+  const m = line.match(/^\[([A-Z]+)\]/);
+  if (m && TAG_COLORS[m[1]]) {
+    return '<span class="' + TAG_COLORS[m[1]] + '">' + escapeHtml(line) + '</span>';
+  }
+  return '<span class="text-slate-400">' + escapeHtml(line) + '</span>';
+}
+
+let pollInterval = null;
+
+function poll() {
+  fetch('/arbitrage/status')
+    .then(r => r.json())
+    .then(data => {
+      const btn = document.getElementById('scan-btn');
+      const box = document.getElementById('log-box');
+
+      if (data.running) {
+        btn.disabled = true;
+        btn.textContent = 'Scanning...';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Scan Markets';
+        if (data.count > 0 || data.logs.length > 0) {
+          // Reload page to show results when scan finishes
+          if (btn.dataset.wasRunning === 'true') {
+            location.reload();
+            return;
+          }
+        }
+      }
+      btn.dataset.wasRunning = data.running ? 'true' : 'false';
+
+      // Update logs
+      if (data.logs.length > 0) {
+        box.innerHTML = data.logs.map(colorLine).join('\n');
+        box.scrollTop = box.scrollHeight;
+      }
+    })
+    .catch(() => {});
+}
+
+{% if running %}
+pollInterval = setInterval(poll, 2000);
+poll();
+{% endif %}
+</script>
+{% endblock %}

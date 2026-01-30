@@ -145,6 +145,18 @@ class KalshiBotClient:
         data = json.loads(resp.data)
         return data.get("candlesticks", {})
 
+    def get_market_orderbook(self, ticker: str, depth: int = 10) -> dict:
+        """Fetch the orderbook for a market.
+
+        Returns dict with 'yes' and 'no' keys, each containing lists of
+        [price, quantity] pairs for bids/asks.
+        """
+        resp = self._market_api.get_market_orderbook_without_preload_content(
+            ticker=ticker, depth=depth
+        )
+        data = json.loads(resp.data)
+        return data.get("orderbook", data)
+
     def create_order(self, ticker, side, action, count, price=None, order_type="limit") -> dict:
         """Place an order.
 

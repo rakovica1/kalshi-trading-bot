@@ -671,6 +671,76 @@ def control_logout():
 
 
 # ---------------------------------------------------------------------------
+# Arbitrage Scanner
+# ---------------------------------------------------------------------------
+
+_arb_state = {"running": False, "results": [], "logs": [], "scanned_at": None}
+_arb_lock = threading.Lock()
+
+
+@app.route("/arbitrage")
+def arbitrage_page():
+    with _arb_lock:
+        running = _arb_state["running"]
+        results = list(_arb_state["results"])
+        logs = list(_arb_state["logs"])
+        scanned_at = _arb_state["scanned_at"]
+    return render_template("arbitrage.html",
+                           running=running, results=results,
+                           logs=logs, scanned_at=scanned_at)
+
+
+@app.route("/arbitrage/scan", methods=["POST"])
+def arbitrage_scan():
+    with _arb_lock:
+        if _arb_state["running"]:
+            return redirect(url_for("arbitrage_page"))
+        _arb_state["running"] = True
+        _arb_state["logs"].clear()
+        _arb_state["results"].clear()
+
+    def _log(msg):
+        _arb_state["logs"].append(msg)
+
+    def _run():
+        from kalshi_bot.arbitrage import run_arbitrage_scan
+        try:
+            client = _get_client()
+            opps = run_arbitrage_scan(
+                client, log=_log,
+                min_profit_cents=1, quantity=10,
+                check_orderbook=True, max_orderbook_checks=50,
+            )
+            with _arb_lock:
+                _arb_state["results"] = opps
+                _arb_state["scanned_at"] = __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ).strftime("%Y-%m-%d %H:%M:%S UTC")
+        except Exception as e:
+            _log(f"[FAIL] Error: {e}")
+        finally:
+            with _arb_lock:
+                _arb_state["running"] = False
+
+    import threading as _threading
+    t = _threading.Thread(target=_run, daemon=True)
+    t.start()
+    return redirect(url_for("arbitrage_page"))
+
+
+@app.route("/arbitrage/status")
+def arbitrage_status():
+    with _arb_lock:
+        return jsonify({
+            "running": _arb_state["running"],
+            "results": _arb_state["results"],
+            "logs": _arb_state["logs"],
+            "scanned_at": _arb_state["scanned_at"],
+            "count": len(_arb_state["results"]),
+        })
+
+
+# ---------------------------------------------------------------------------
 # Execute
 # ---------------------------------------------------------------------------
 

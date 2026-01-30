@@ -714,3 +714,50 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+
+
+@cli.command("scan-arb")
+@click.option("--min-profit", default=1, type=int, help="Minimum net profit in cents to report.", show_default=True)
+@click.option("--quantity", default=10, type=int, help="Contract quantity for profit calculation.", show_default=True)
+@click.option("--skip-orderbook", is_flag=True, help="Skip orderbook scan (faster, probability arb only).")
+@click.option("--max-checks", default=50, type=int, help="Max orderbooks to check.", show_default=True)
+@click.pass_context
+def scan_arb(ctx, min_profit, quantity, skip_orderbook, max_checks):
+    """Scan all markets for arbitrage opportunities.
+
+    Detects two types of arbitrage:
+
+    \b
+    1. Probability arb: YES_ask + NO_ask < 100c (buy both, guaranteed profit)
+                        YES_bid + NO_bid > 100c (sell both, guaranteed profit)
+    2. Orderbook spread: Best bids on both sides sum > 100c
+
+    Reports net profit after Kalshi's tiered fees.
+    """
+    from kalshi_bot.arbitrage import run_arbitrage_scan
+
+    try:
+        client = _get_client(ctx.obj["config_path"])
+        opps = run_arbitrage_scan(
+            client,
+            log=click.echo,
+            min_profit_cents=min_profit,
+            quantity=quantity,
+            check_orderbook=not skip_orderbook,
+            max_orderbook_checks=max_checks,
+        )
+        if not opps:
+            click.echo("\nNo arbitrage opportunities found.")
+        else:
+            click.echo(f"\n{'='*60}")
+            click.echo(f"  {len(opps)} opportunities found")
+            click.echo(f"{'='*60}")
+            for opp in opps:
+                click.echo(f"  [{opp['type']}] {opp['ticker']}")
+                click.echo(f"    {opp['description']}")
+                click.echo(f"    Net profit: {opp['net_profit_cents']}c "
+                           f"(${opp['net_profit_cents']/100:.2f})")
+                click.echo()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
