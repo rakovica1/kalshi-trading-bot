@@ -271,7 +271,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     Each result also gets a `qualified` flag: True when ALL of these hold:
       - Top 200 by 24h dollar volume
       - >= $10,000 in 24h dollar volume
-      - Bid/ask spread < 3%
+      - Bid/ask spread <= 3%
       - Expires within 24 hours
 
     min_volume applies to volume_24h (24-hour trading volume).
@@ -395,9 +395,10 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         is_profitable = r["tier"] > 0
         if not is_profitable:
             r["qualified"] = False
+            r["fail_reasons"] = ["tier0"]
             continue
 
-        is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
+        is_spread = r["spread_pct"] <= QUALIFIED_MAX_SPREAD_PCT
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         hrs = r.get("hours_left")
@@ -414,7 +415,17 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         if is_expiring:
             count_expires += 1
 
-        r["qualified"] = is_profitable and is_top_n and is_dollar and is_spread and is_expiring
+        fail_reasons = []
+        if not is_top_n:
+            fail_reasons.append("rank")
+        if not is_dollar:
+            fail_reasons.append("volume")
+        if not is_spread:
+            fail_reasons.append("spread")
+        if not is_expiring:
+            fail_reasons.append("expiry")
+        r["fail_reasons"] = fail_reasons
+        r["qualified"] = len(fail_reasons) == 0
         if r["qualified"]:
             qualified_count += 1
 

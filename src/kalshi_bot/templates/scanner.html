@@ -91,7 +91,7 @@
         </div>
         <div class="flex items-center gap-2">
           <span class="text-slate-600 text-[11px] w-16 text-right">&darr;</span>
-          <span class="text-slate-500">&lt;3% bid/ask spread</span>
+          <span class="text-slate-500">&le;3% bid/ask spread</span>
           <span class="text-slate-600">&rarr;</span>
           <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_spread|default(0) }}</span>
         </div>
@@ -134,7 +134,7 @@
   </div>
   <div class="flex items-center gap-1.5">
     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
-    <span class="text-slate-400">Top 200 $vol + $10k+ + &lt;3% spread + &le;24h exp</span>
+    <span class="text-slate-400">Top 200 $vol + $10k+ + &le;3% spread + &le;24h exp</span>
   </div>
 </div>
 
@@ -172,9 +172,13 @@
         {% elif m.tier == 2 %}border-yellow-900/40 bg-yellow-950/30 hover:bg-yellow-950/50
         {% else %}border-orange-900/40 bg-orange-950/30 hover:bg-orange-950/50
         {% endif %}">
-        <td class="py-2.5 pr-3 text-center">
+        <td class="py-2.5 pr-3 text-center whitespace-nowrap">
           {% if m.qualified %}
           <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
+          {% else %}
+            {% for reason in m.fail_reasons|default([]) %}
+            <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-red-900/30 text-red-400/70 border border-red-800/30">{{ reason }}</span>
+            {% endfor %}
           {% endif %}
         </td>
         <td class="py-2.5 pr-4">
@@ -230,7 +234,7 @@
 <div class="mb-8">
   <div class="flex items-center gap-2 mb-3">
     <span class="text-brand-400 font-semibold text-sm uppercase tracking-wide">Qualified for Whale-Trade ({{ qualified_markets|length }})</span>
-    <span class="text-slate-600 text-xs">— Top 200 $vol + $10k+ + &lt;3% spread + &le;24h exp</span>
+    <span class="text-slate-600 text-xs">— Top 200 $vol + $10k+ + &le;3% spread + &le;24h exp</span>
   </div>
   {{ market_table(qualified_markets, "qualified-table") }}
 </div>

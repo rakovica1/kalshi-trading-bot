@@ -25,7 +25,7 @@ def run_whale_strategy(
 
     Pipeline:
       1. Scan all markets
-      2. Filter to QUALIFIED (Top 200 $vol + $10k+ + <3% spread + ≤24h exp)
+      2. Filter to QUALIFIED (Top 200 $vol + $10k+ + ≤3% spread + ≤24h exp)
       3. Filter by expiration window (default: 24 hours)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
