@@ -148,25 +148,25 @@ class KalshiBotClient:
     def create_order(self, ticker, side, action, count, price=None, order_type="limit") -> dict:
         """Place an order.
 
-        For limit orders, price (1-99 cents) is required.
-        For market orders, no price is sent — Kalshi fills at best available.
+        Kalshi only supports limit orders via the API. For "market" orders,
+        we send an aggressive limit at the given price (default 98c) to fill
+        instantly against resting asks. Any unfilled remainder should be
+        cancelled by the caller.
         """
+        effective_price = price if price is not None else 98
+
         kwargs = {
             "ticker": ticker,
             "side": side,
             "action": action,
             "count": count,
-            "type": order_type,
+            "type": "limit",
         }
 
-        # Market orders: no price field (Kalshi fills at best available)
-        # Limit orders: set price on the appropriate side
-        if order_type != "market":
-            effective_price = price if price is not None else 99
-            if side == "yes":
-                kwargs["yes_price"] = effective_price
-            else:
-                kwargs["no_price"] = effective_price
+        if side == "yes":
+            kwargs["yes_price"] = effective_price
+        else:
+            kwargs["no_price"] = effective_price
 
         resp = self._orders_api.create_order(**kwargs)
         order = resp.order
