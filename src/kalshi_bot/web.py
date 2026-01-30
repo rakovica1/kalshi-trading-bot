@@ -773,7 +773,9 @@ def control():
     with _whale_lock:
         running = _whale_state["running"]
         settings = _whale_state.get("settings", defaults)
-    return render_template("control.html", running=running, settings=settings)
+    open_positions = db.get_open_positions()
+    return render_template("control.html", running=running, settings=settings,
+                           positions=open_positions)
 
 
 @app.route("/control/start", methods=["POST"])
