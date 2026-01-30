@@ -67,9 +67,10 @@ def run_whale_strategy(
         return {"scanned": 0, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": "max_positions"}
 
     # 4. Scan markets
-    prefix_list = list(prefixes)
+    prefix_list = list(prefixes) if prefixes else None
     log(f"\n  Scanning all markets...")
-    log(f"  Prefixes: {','.join(prefix_list)}")
+    if prefix_list:
+        log(f"  Prefixes: {','.join(prefix_list)}")
     log(f"  Min price: {min_price}c  Min 24h vol: {min_volume}")
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,

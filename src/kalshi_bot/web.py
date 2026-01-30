@@ -678,10 +678,7 @@ def control_logout():
 @_require_control_password
 def control():
     defaults = {
-        "prefixes": "KXNFL,KXNBA,KXBTC,KXETH",
         "max_positions": 10,
-        "max_hours": 24,
-        "tier1_only": True,
         "dry_run": True,
     }
     with _whale_lock:
@@ -701,7 +698,6 @@ def control_start():
         _whale_state["logs"].clear()
 
     dry_run = request.form.get("dry_run") == "on"
-    tier1_only = request.form.get("tier1_only") == "on"
     risk_mode = request.form.get("risk_mode", "standard")
 
     # Parse max_positions — default to 10 if missing or invalid
@@ -714,31 +710,16 @@ def control_start():
     except (ValueError, TypeError):
         max_positions = 10
 
-    prefixes_raw = request.form.get("prefixes", "KXNFL,KXNBA,KXBTC,KXETH")
-    prefixes = tuple(p.strip() for p in prefixes_raw.split(",") if p.strip())
+    # Hardcoded defaults (removed from UI)
+    tier1_only = True
+    max_hours = 24.0
 
     # Store form values so the UI preserves them after redirect
     with _whale_lock:
         _whale_state["settings"] = {
-            "prefixes": ",".join(prefixes),
             "max_positions": max_positions,
-            "max_hours": None,  # set below after parsing
-            "tier1_only": tier1_only,
             "dry_run": dry_run,
         }
-
-    # Parse max hours — default to 1.0 if empty
-    try:
-        max_hours_raw = request.form.get("max_hours_to_expiration", "").strip()
-        max_hours = float(max_hours_raw) if max_hours_raw else 24.0
-        if max_hours < 0.1:
-            max_hours = 0.1
-    except (ValueError, TypeError):
-        max_hours = 24.0
-
-    _mh = int(max_hours) if max_hours == int(max_hours) else max_hours
-    with _whale_lock:
-        _whale_state["settings"]["max_hours"] = _mh
 
     def _log(msg):
         _whale_state["logs"].append(msg)
@@ -759,7 +740,7 @@ def control_start():
                  f"mode={mode_label}, tier1_only={tier1_only}, dry_run={dry_run}")
 
             strategy_kwargs = dict(
-                prefixes=prefixes,
+                prefixes=None,
                 dry_run=dry_run,
                 tier1_only=tier1_only,
                 max_positions=max_positions,
@@ -809,9 +790,17 @@ def control_start():
                     if reason == "max_positions":
                         _log(f"[{mode_label}] All {max_positions} positions filled. Stopping.")
                         break
-                    # No trade and no blocking reason — no more targets available
-                    _log(f"[{mode_label}] No more targets available. Stopping.")
-                    break
+                    # No trade — wait 60s then rescan
+                    _log(f"[{mode_label}] No targets right now. Retrying in 60s...")
+                    for _ in range(60):
+                        if _is_stop_requested():
+                            _log(f"[{mode_label}] Stop requested. Finishing.")
+                            break
+                        import time as _time
+                        _time.sleep(1)
+                    else:
+                        continue
+                    break  # stop was requested during wait
 
             _log(f"[{mode_label}] Done — {round_num} rounds, {trades_placed} trades placed, "
                  f"{db.count_open_positions()}/{max_positions} positions")

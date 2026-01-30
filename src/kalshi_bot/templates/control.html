@@ -28,25 +28,10 @@
   <form method="post" action="/control/start" id="start-form">
     <div class="flex flex-wrap items-end gap-3 mb-4">
       <div>
-        <label class="block text-xs text-slate-500 mb-1">Prefixes</label>
-        <input type="text" name="prefixes" value="{{ settings.prefixes }}"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-64 focus:outline-none focus:border-brand-500">
-      </div>
-      <div>
         <label class="block text-xs text-slate-500 mb-1">Max Positions</label>
         <input type="number" name="max_positions" value="{{ settings.max_positions }}" min="1" max="50"
           class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
       </div>
-      <div>
-        <label class="block text-xs text-slate-500 mb-1">Max Hours to Exp.</label>
-        <input type="number" name="max_hours_to_expiration" value="{{ settings.max_hours }}" placeholder="24" min="1" step="1"
-          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-28 focus:outline-none focus:border-brand-500">
-      </div>
-      <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
-        <input type="checkbox" name="tier1_only" {{ 'checked' if settings.tier1_only }}
-          class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
-        Tier 1 Only
-      </label>
       <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
         <input type="checkbox" name="dry_run" {{ 'checked' if settings.dry_run }}
           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-brand-500">
@@ -119,7 +104,11 @@ function pollLogs() {
           const fillMatch = line.match(/(\d+)\/(\d+) (?:positions? )?filled/);
           const roundMatch = line.match(/Round (\d+)/);
           const modeMatch = line.match(/\[(STANDARD|RISKIER)\]/);
-          if (fillMatch) {
+          const retryMatch = line.match(/Retrying in (\d+)s/);
+          if (retryMatch) {
+            statusMsg = 'No targets — waiting to retry...';
+            break;
+          } else if (fillMatch) {
             statusMsg = 'Position ' + fillMatch[1] + '/' + fillMatch[2] + ' filled, scanning for next...';
             break;
           } else if (roundMatch) {
