@@ -15,7 +15,7 @@ def run_whale_strategy(
     max_hours_to_expiration=24.0,
     log=print,
     stop_check=None,
-    with_ai=False,
+    with_ai=True,
     min_confidence=75,
 ):
     """Last-Minute Sniper strategy.

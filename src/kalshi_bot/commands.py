@@ -586,7 +586,7 @@ def stats(ctx):
 @click.option("--cooldown-minutes", default=1.0, type=float, help="Minutes to wait between trades in continuous mode.", show_default=True)
 @click.option("--dry-run/--live", default=True, help="Simulate without placing real orders.", show_default=True)
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt for live mode.")
-@click.option("--with-ai", is_flag=True, default=False, help="Enable AI-powered market analysis before trading.")
+@click.option("--with-ai/--skip-ai", default=True, help="Enable/disable AI market analysis.", show_default=True)
 @click.option("--min-confidence", default=75, type=click.IntRange(0, 100), help="Minimum AI confidence to trade (0-100).", show_default=True)
 @click.pass_context
 def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,

@@ -680,7 +680,7 @@ def control():
     defaults = {
         "max_positions": 10,
         "dry_run": True,
-        "with_ai": False,
+        "with_ai": True,
     }
     with _whale_lock:
         running = _whale_state["running"]
