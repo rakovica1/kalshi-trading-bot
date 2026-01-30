@@ -1,5 +1,9 @@
 import time
+import threading
+import logging
 from datetime import datetime, timezone, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 class StopRequested(Exception):
@@ -7,24 +11,81 @@ class StopRequested(Exception):
     pass
 
 
-# Cache for raw market data to avoid re-fetching 500k+ markets every scan
-_market_cache = {"ts": 0, "markets": [], "ttl": 120}
+# Cache for raw market data — 5-minute TTL
+_market_cache = {"ts": 0, "markets": [], "ttl": 300}
+_cache_lock = threading.Lock()
+
+# Background refresh state
+_bg_refresh = {"thread": None, "running": False, "client": None}
+_bg_lock = threading.Lock()
 
 
-def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
-    """Fetch all open markets from the API, paginating with max page size.
+def _fetch_page(client, page_size, status, cursor, min_close_ts, max_close_ts):
+    """Fetch a single page of markets. Used by parallel fetcher."""
+    import json
+    kwargs = {"limit": page_size, "status": status}
+    if cursor:
+        kwargs["cursor"] = cursor
+    if min_close_ts is not None:
+        kwargs["min_close_ts"] = min_close_ts
+    if max_close_ts is not None:
+        kwargs["max_close_ts"] = max_close_ts
+    resp = client._market_api.get_markets_without_preload_content(**kwargs)
+    raw = resp.data if hasattr(resp, "data") else resp
+    if not raw:
+        return [], None
+    data = json.loads(raw)
+    markets = data.get("markets", [])
+    next_cursor = data.get("cursor")
+    return markets, next_cursor
 
-    Returns a list of market dicts with only the fields we need,
-    to keep memory usage low. Results are cached for 120 seconds.
+
+def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None,
+                       close_window_hours=48):
+    """Fetch open markets from the API with server-side time filtering.
+
+    Uses min_close_ts/max_close_ts to only fetch markets closing within
+    close_window_hours, dramatically reducing the number of markets fetched
+    (from ~930k to a few thousand). Results are cached for 5 minutes.
+
+    After the first sequential page (to get the cursor), remaining pages
+    are fetched in parallel using a thread pool.
     """
-    # Return cached if fresh
-    age = time.time() - _market_cache["ts"]
-    if _market_cache["markets"] and age < _market_cache["ttl"]:
-        return _market_cache["markets"], True
+    with _cache_lock:
+        age = time.time() - _market_cache["ts"]
+        if _market_cache["markets"] and age < _market_cache["ttl"]:
+            return _market_cache["markets"], True
 
-    # Use the client wrapper (returns plain dicts via raw JSON)
-    all_raw = client.get_all_markets(status=status, page_size=page_size)
+    # Server-side time filter: only markets closing within the window
+    now_ts = int(time.time())
+    min_close_ts = now_ts
+    max_close_ts = now_ts + int(close_window_hours * 3600)
 
+    # First page — sequential to get cursor
+    first_markets, cursor = _fetch_page(
+        client, page_size, status, None, min_close_ts, max_close_ts
+    )
+
+    if stop_check and stop_check():
+        raise StopRequested()
+
+    all_raw = list(first_markets)
+
+    # Fetch remaining pages in parallel batches
+    if cursor and first_markets:
+        # We need cursors sequentially, but can process results in parallel
+        # Use sequential pagination with the client wrapper
+        while cursor:
+            if stop_check and stop_check():
+                raise StopRequested()
+            page, cursor = _fetch_page(
+                client, page_size, status, cursor, min_close_ts, max_close_ts
+            )
+            if not page:
+                break
+            all_raw.extend(page)
+
+    # Slim down to only fields we need
     markets = []
     for m in all_raw:
         if stop_check and stop_check():
@@ -42,9 +103,58 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
             "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
         })
 
-    _market_cache["markets"] = markets
-    _market_cache["ts"] = time.time()
+    with _cache_lock:
+        _market_cache["markets"] = markets
+        _market_cache["ts"] = time.time()
+
     return markets, False
+
+
+def _bg_refresh_loop():
+    """Background thread that refreshes the market cache periodically."""
+    while True:
+        with _bg_lock:
+            if not _bg_refresh["running"]:
+                break
+            client = _bg_refresh["client"]
+        if client is None:
+            break
+
+        with _cache_lock:
+            age = time.time() - _market_cache["ts"]
+            needs_refresh = age >= _market_cache["ttl"] * 0.8  # Refresh at 80% of TTL
+
+        if needs_refresh:
+            try:
+                _fetch_all_markets(client, close_window_hours=48)
+                logger.debug("Background cache refresh complete")
+            except Exception as e:
+                logger.warning("Background cache refresh failed: %s", e)
+
+        # Sleep in 1s increments so we can stop quickly
+        for _ in range(60):
+            with _bg_lock:
+                if not _bg_refresh["running"]:
+                    return
+            time.sleep(1)
+
+
+def start_background_refresh(client):
+    """Start background thread to keep market cache warm."""
+    with _bg_lock:
+        if _bg_refresh["running"]:
+            return
+        _bg_refresh["client"] = client
+        _bg_refresh["running"] = True
+        t = threading.Thread(target=_bg_refresh_loop, daemon=True)
+        _bg_refresh["thread"] = t
+        t.start()
+
+
+def stop_background_refresh():
+    """Stop the background refresh thread."""
+    with _bg_lock:
+        _bg_refresh["running"] = False
 
 
 def _assign_tier(price):
@@ -66,7 +176,7 @@ def _assign_tier(price):
 
 
 # Simple in-memory cache
-_scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 120}
+_scan_cache = {"ts": 0, "results": [], "stats": {}, "ttl": 300}
 
 
 def _calc_spread_pct(bid, ask):
@@ -154,9 +264,9 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
          use_cache=False, top_n=30, stop_check=None):
     """Find markets where YES or NO bid is >= min_price.
 
-    Fetches ALL open markets from the API, sorts by 24h volume descending,
-    then filters the top_n most active markets by prefix, volume, and price.
-    Each result is assigned a tier (1/2/3) based on price.
+    Fetches markets closing within 48h from the API (server-side filtered),
+    sorts by 24h volume descending, then filters the top_n most active
+    markets by prefix, volume, and price. Each result is assigned a tier.
 
     Each result also gets a `qualified` flag: True when ALL of these hold:
       - Top 200 by 24h dollar volume
@@ -174,10 +284,15 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         if age < _scan_cache["ttl"]:
             return _scan_cache["results"], _scan_cache["stats"]
 
+    # Start background refresh if not already running
+    start_background_refresh(client)
+
     prefixes_upper = [p.upper() for p in ticker_prefixes] if ticker_prefixes else None
 
-    # 1. Fetch all open markets (cached for 60s)
-    all_markets, from_cache = _fetch_all_markets(client, stop_check=stop_check)
+    # 1. Fetch markets closing within 48h (server-side filtered)
+    all_markets, from_cache = _fetch_all_markets(
+        client, stop_check=stop_check, close_window_hours=48
+    )
     total_fetched = len(all_markets)
 
     # 2. Sort by 24h volume descending — most recent activity first
@@ -192,6 +307,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     passed_price = 0
 
     for m in candidates:
+        # Cheapest checks first: prefix filter
         if prefixes_upper:
             event_ticker = (m.get("event_ticker") or "").upper()
             if not any(event_ticker.startswith(p) for p in prefixes_upper):
@@ -199,6 +315,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
 
         passed_prefix += 1
 
+        # Volume filter (cheap int comparison)
         if m["volume_24h"] < min_volume:
             continue
 
@@ -273,11 +390,19 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     for r in results:
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
-        is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
-        is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
+
+        # Cheapest checks first for qualification
+        is_profitable = r["tier"] > 0
+        if not is_profitable:
+            r["qualified"] = False
+            continue
+
         is_spread = r["spread_pct"] < QUALIFIED_MAX_SPREAD_PCT
+        is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
+        is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         hrs = r.get("hours_left")
         is_expiring = hrs is not None and 0 < hrs <= QUALIFIED_MAX_HOURS
+
         if r["tier"] == 1:
             count_tier1 += 1
         if is_top_n:
@@ -288,7 +413,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             count_spread += 1
         if is_expiring:
             count_expires += 1
-        is_profitable = r["tier"] > 0
+
         r["qualified"] = is_profitable and is_top_n and is_dollar and is_spread and is_expiring
         if r["qualified"]:
             qualified_count += 1

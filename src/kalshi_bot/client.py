@@ -69,14 +69,23 @@ class KalshiBotClient:
         data = json.loads(resp.data)
         return data.get("market", data)
 
-    def get_all_markets(self, status="open", page_size=1000) -> list:
-        """Fetch all markets using cursor pagination."""
+    def get_all_markets(self, status="open", page_size=1000,
+                        min_close_ts=None, max_close_ts=None) -> list:
+        """Fetch all markets using cursor pagination.
+
+        min_close_ts/max_close_ts: optional epoch timestamps to filter by
+        close time server-side (avoids fetching 900k+ irrelevant markets).
+        """
         all_markets = []
         cursor = None
         while True:
             kwargs = {"limit": page_size, "status": status}
             if cursor:
                 kwargs["cursor"] = cursor
+            if min_close_ts is not None:
+                kwargs["min_close_ts"] = min_close_ts
+            if max_close_ts is not None:
+                kwargs["max_close_ts"] = max_close_ts
             resp = self._market_api.get_markets_without_preload_content(**kwargs)
             raw = resp.data if hasattr(resp, "data") else resp
             if not raw:
