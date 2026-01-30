@@ -867,8 +867,8 @@ def control_start():
         max_positions = int(request.form.get("max_positions", "10"))
         if max_positions < 1:
             max_positions = 1
-        elif max_positions > 50:
-            max_positions = 50
+        elif max_positions > 100:
+            max_positions = 100
     except (ValueError, TypeError):
         max_positions = 10
 
