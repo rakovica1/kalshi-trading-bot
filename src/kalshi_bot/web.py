@@ -280,6 +280,7 @@ def _utc_to_est(val):
 
 
 @app.route("/trades")
+@_require_control_password
 def trades():
     db.init_db()
     ticker = request.args.get("ticker", "").strip() or None
