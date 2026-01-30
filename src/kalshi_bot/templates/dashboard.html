@@ -8,7 +8,7 @@
   <div class="bg-slate-900 border {{ 'border-emerald-900/50' if net_pnl_cents >= 0 else 'border-red-900/50' }} rounded-lg p-5">
     <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Net P&amp;L</div>
     <div class="text-2xl font-bold {{ 'text-emerald-400' if net_pnl_cents >= 0 else 'text-red-400' }}">
-      ${{ "%+.2f"|format(net_pnl_cents / 100) }}
+      {{ net_pnl_cents|signed_dollar }}
     </div>
   </div>
 
@@ -18,14 +18,14 @@
       <div>
         <div class="text-[10px] text-slate-600 mb-0.5">Bid</div>
         <div class="text-xl font-bold {{ 'text-emerald-400' if unrealized_bid_cents >= 0 else 'text-red-400' }}">
-          ${{ "%+.2f"|format(unrealized_bid_cents / 100) }}
+          {{ unrealized_bid_cents|signed_dollar }}
         </div>
       </div>
       <div class="text-slate-700">/</div>
       <div>
         <div class="text-[10px] text-slate-600 mb-0.5">Ask</div>
         <div class="text-xl font-bold {{ 'text-emerald-400' if unrealized_ask_cents >= 0 else 'text-red-400' }}">
-          ${{ "%+.2f"|format(unrealized_ask_cents / 100) }}
+          {{ unrealized_ask_cents|signed_dollar }}
         </div>
       </div>
     </div>
@@ -258,7 +258,7 @@ function updateSummary(data) {
   const stat = (label, value, color) =>
     '<div>' +
       '<div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">' + label + '</div>' +
-      '<div class="text-sm font-semibold ' + color + '">$' + (value >= 0 ? '+' : '') + value.toFixed(2) + '</div>' +
+      '<div class="text-sm font-semibold ' + color + '">' + (value >= 0 ? '+' : '-') + '$' + Math.abs(value).toFixed(2) + '</div>' +
     '</div>';
 
   document.getElementById('pnl-summary').innerHTML =

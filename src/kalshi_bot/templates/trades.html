@@ -134,7 +134,7 @@
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Realized P&amp;L</div>
       <div class="text-sm font-semibold {{ 'text-emerald-400' if realized_pnl_cents >= 0 else 'text-red-400' }}">
-        ${{ "%+.2f"|format(realized_pnl_cents / 100) }}
+        {{ realized_pnl_cents|signed_dollar }}
       </div>
     </div>
     <div>
@@ -144,7 +144,7 @@
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Net P&amp;L</div>
       <div class="text-sm font-bold {{ 'text-emerald-400' if trade_net_pnl_cents >= 0 else 'text-red-400' }}">
-        ${{ "%+.2f"|format(trade_net_pnl_cents / 100) }}
+        {{ trade_net_pnl_cents|signed_dollar }}
       </div>
     </div>
     <div>

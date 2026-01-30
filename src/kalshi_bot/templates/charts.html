@@ -31,7 +31,7 @@
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Unrealized P&amp;L</div>
       <div class="text-sm font-bold {{ 'text-emerald-400' if portfolio_unrealized_cents >= 0 else 'text-red-400' }}">
-        ${{ "%+.2f"|format(portfolio_unrealized_cents / 100) }}
+        {{ portfolio_unrealized_cents|signed_dollar }}
       </div>
     </div>
   </div>
@@ -61,7 +61,7 @@
           <div class="flex items-center justify-end gap-1.5">
             <span class="text-lg direction-arrow {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">{{ '▲' if is_winning else '▼' }}</span>
             <span class="text-xl font-bold pnl-display {{ 'text-emerald-400' if is_winning else 'text-red-400' }}">
-              ${{ "%+.2f"|format(p.unrealized_cents / 100) }}
+              {{ p.unrealized_cents|signed_dollar }}
             </span>
           </div>
           <!-- % change -->
@@ -166,7 +166,7 @@
               <div class="flex items-center justify-end gap-1.5">
                 <span class="text-lg {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">{{ '▲' if is_winning else '▼' }}</span>
                 <span class="text-xl font-bold {{ 'text-emerald-400/70' if is_winning else 'text-red-400/70' }}">
-                  ${{ "%+.2f"|format(pnl_per / 100) }}
+                  {{ pnl_per|signed_dollar }}
                 </span>
               </div>
               <div class="text-[10px] text-slate-600 uppercase tracking-wide">Realized P&amp;L</div>
@@ -576,7 +576,7 @@ async function refreshPrices() {
       // Update P&L display
       const pnlEl = card.querySelector('.pnl-display');
       const pnlVal = pos.unrealized_cents / 100;
-      pnlEl.textContent = '$' + (pnlVal >= 0 ? '+' : '') + pnlVal.toFixed(2);
+      pnlEl.textContent = (pnlVal >= 0 ? '+' : '-') + '$' + Math.abs(pnlVal).toFixed(2);
       pnlEl.className = 'text-xl font-bold pnl-display ' +
         (isWinning ? 'text-emerald-400' : 'text-red-400');
 

@@ -24,6 +24,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "kalshi-bot-dev-key")
 app.jinja_env.filters["decode_ticker"] = decode_ticker
 
+
+def _signed_dollar(cents):
+    """Format cents as signed dollar string: +$2.30 or -$8.08."""
+    val = cents / 100
+    if val >= 0:
+        return "+$%.2f" % val
+    else:
+        return "-$%.2f" % (-val,)
+
+
+app.jinja_env.filters["signed_dollar"] = _signed_dollar
+
 # ---------------------------------------------------------------------------
 # Shared state for background whale-trade
 # ---------------------------------------------------------------------------
