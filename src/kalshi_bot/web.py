@@ -679,7 +679,7 @@ def control_logout():
 def control():
     defaults = {
         "prefixes": "KXNFL,KXNBA,KXBTC,KXETH",
-        "max_positions": 5,
+        "max_positions": 10,
         "max_hours": 24,
         "cooldown_minutes": 1,
         "continuous": True,
@@ -708,15 +708,15 @@ def control_start():
     tier1_only = request.form.get("tier1_only") == "on"
     continuous = request.form.get("continuous") == "on"
 
-    # Parse max_positions — default to 5 if missing or invalid
+    # Parse max_positions — default to 10 if missing or invalid
     try:
-        max_positions = int(request.form.get("max_positions", "5"))
+        max_positions = int(request.form.get("max_positions", "10"))
         if max_positions < 1:
             max_positions = 1
         elif max_positions > 50:
             max_positions = 50
     except (ValueError, TypeError):
-        max_positions = 5
+        max_positions = 10
 
     # Parse cooldown
     try:
