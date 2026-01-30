@@ -189,60 +189,64 @@ def run_whale_strategy(
             f"{m['signal_price']:>3}c {ask:>3}c ${m['dollar_24h']:>8,} "
             f"{m.get('spread_pct', 0):>6.1f}% {exp_str:>10}")
 
-    # 9. Select #1 ranked market
-    selected = available[0]
-    ticker = selected["ticker"]
-    side = selected["signal_side"]
-    bid_price = selected["signal_price"]
-    ask_price = selected.get("signal_ask", 0)
-    dollar_24h = selected["dollar_24h"]
-    spread = selected.get("spread_pct", 0)
-    sel_close = selected.get("close_time_fmt") or format_close_time(selected.get("close_time", ""))
-    hrs_left = selected.get("hours_left")
-
-    log(f"\n  TARGET: {ticker}")
-    log(f"  Side:    {side.upper()}")
-    log(f"  Bid:     {bid_price}c")
-    log(f"  Ask:     {ask_price}c (market order execution price)")
-    log(f"  Spread:  {spread:.1f}%")
-    log(f"  Expires: {sel_close}")
-
-    # Slippage warning for wide spreads
-    if spread >= 3.0:
-        log(f"\n  WARNING: Wide spread ({spread:.1f}%). Market order may execute "
-            f"at {ask_price}c vs bid {bid_price}c ({ask_price - bid_price}c slippage).")
-
-    # Use ask price for position sizing estimate (actual fill price determined by order book)
-    est_price = ask_price if ask_price > 0 else bid_price
-
-    # 10. Calculate position size (based on ask price for conservative estimate)
-    total_contracts = calculate_position(balance_cents, est_price, risk_pct)
-    if total_contracts <= 0:
-        log(f"  SKIP: Insufficient balance for even 1 contract at ~{est_price}c")
-        log(f"{'='*60}\n")
-        return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
-
-    est_cost = total_contracts * est_price
-    log(f"\n  ORDER: {total_contracts} contracts @ 98c limit")
-    log(f"  Est cost: ~{est_price}c each = ~${est_cost / 100:.2f}")
-
     summary = {
         "scanned": total_found,
         "skipped": len(held),
         "traded": 0,
         "orders": 0,
         "stopped_reason": None,
-        "selected_ticker": ticker,
+        "selected_ticker": None,
     }
 
-    # 11. Execute order (aggressive limit at 99c for instant fill)
-    if dry_run:
-        log(f"\n  DRY RUN — would place {total_contracts} "
-            f"{side.upper()} contracts on {ticker} @ 98c limit (est ~{est_price}c)")
-        summary["traded"] = 1
-        summary["orders"] = 1
-    else:
-        log(f"\n  PLACING ORDER: {total_contracts} {side.upper()} on {ticker} @ 98c limit...")
+    # 9. Iterate through all candidates until one fills
+    for idx, selected in enumerate(available):
+        if stop_check and stop_check():
+            log(f"\n  Stop requested.")
+            summary["stopped_reason"] = "stopped"
+            break
+
+        ticker = selected["ticker"]
+        side = selected["signal_side"]
+        bid_price = selected["signal_price"]
+        ask_price = selected.get("signal_ask", 0)
+        spread = selected.get("spread_pct", 0)
+        sel_close = selected.get("close_time_fmt") or format_close_time(selected.get("close_time", ""))
+
+        log(f"\n  TARGET #{idx+1}/{len(available)}: {ticker}")
+        log(f"  Side:    {side.upper()}")
+        log(f"  Bid:     {bid_price}c")
+        log(f"  Ask:     {ask_price}c")
+        log(f"  Spread:  {spread:.1f}%")
+        log(f"  Expires: {sel_close}")
+
+        # Slippage warning for wide spreads
+        if spread >= 3.0:
+            log(f"  WARNING: Wide spread ({spread:.1f}%). May execute "
+                f"at {ask_price}c vs bid {bid_price}c ({ask_price - bid_price}c slippage).")
+
+        # Use ask price for position sizing estimate
+        est_price = ask_price if ask_price > 0 else bid_price
+
+        # 10. Calculate position size
+        total_contracts = calculate_position(balance_cents, est_price, risk_pct)
+        if total_contracts <= 0:
+            log(f"  SKIP: Insufficient balance for even 1 contract at ~{est_price}c")
+            continue
+
+        est_cost = total_contracts * est_price
+        log(f"  ORDER: {total_contracts} contracts @ 98c limit (est ~{est_price}c each = ~${est_cost / 100:.2f})")
+
+        summary["selected_ticker"] = ticker
+
+        # 11. Execute order
+        if dry_run:
+            log(f"  DRY RUN — would place {total_contracts} "
+                f"{side.upper()} contracts on {ticker} @ 98c limit")
+            summary["traded"] = 1
+            summary["orders"] += 1
+            break
+
+        log(f"  PLACING ORDER: {total_contracts} {side.upper()} on {ticker} @ 98c limit...")
         try:
             result = client.create_order(
                 ticker=ticker,
@@ -252,28 +256,25 @@ def run_whale_strategy(
                 price=98,
             )
 
-            # Log raw API response for debugging
             log(f"  API response: {result}")
 
             order_id = result.get("order_id")
             api_status = result.get("status", "unknown")
-            api_type = result.get("type", "unknown")
             fill_count = result.get("fill_count", 0)
             remaining = result.get("remaining_count", 0)
             taker_fill_cost = result.get("taker_fill_cost", 0)
             taker_fees = result.get("taker_fees", 0)
 
             log(f"  Order ID:     {order_id}")
-            log(f"  API type:     {api_type}")
             log(f"  API status:   {api_status}")
             log(f"  Filled:       {fill_count}/{total_contracts}")
             log(f"  Remaining:    {remaining}")
             log(f"  Fill cost:    {taker_fill_cost}c (${taker_fill_cost / 100:.2f})")
             log(f"  Taker fees:   {taker_fees}c (${taker_fees / 100:.2f})")
 
-            # Auto-cancel if order is resting (should not happen with market orders)
+            # Auto-cancel if order is resting
             if api_status == "resting" and remaining > 0 and order_id:
-                log(f"  WARNING: Order is resting with {remaining} unfilled. Cancelling...")
+                log(f"  Resting with {remaining} unfilled — cancelling and trying next...")
                 try:
                     client.cancel_order(order_id)
                     log(f"  Cancelled resting order {order_id}")
@@ -281,19 +282,15 @@ def run_whale_strategy(
                 except Exception as cancel_err:
                     log(f"  Failed to cancel resting order: {cancel_err}")
 
-            # Use Kalshi's actual status
             status = api_status
-
-            # Use actual fees from Kalshi API; fallback to 1¢ per filled contract
             actual_fees = taker_fees if taker_fees > 0 else fill_count * 1
-            # Use actual fill cost for entry price if available
             if fill_count > 0 and taker_fill_cost > 0:
                 actual_entry = int(taker_fill_cost / fill_count)
             else:
                 actual_entry = est_price
                 if fill_count > 0:
                     log(f"  WARNING: taker_fill_cost=0 but fill_count={fill_count}. "
-                        f"Using est_price={est_price}c as fallback — verify in Kalshi dashboard.")
+                        f"Using est_price={est_price}c as fallback.")
 
             db.log_trade(
                 ticker=ticker,
@@ -308,10 +305,16 @@ def run_whale_strategy(
                 fee_cents=actual_fees,
             )
 
+            summary["orders"] += 1
+
             if fill_count > 0:
                 db.update_position_on_buy(ticker, side, fill_count, actual_entry)
-            summary["traded"] = 1
-            summary["orders"] = 1
+                summary["traded"] = 1
+                log(f"  FILLED: {fill_count} contracts on {ticker}")
+                break
+            else:
+                log(f"  No fill on {ticker} — trying next candidate...")
+                continue
 
         except Exception as e:
             db.log_trade(
@@ -324,17 +327,16 @@ def run_whale_strategy(
                 error_message=str(e),
                 fee_cents=0,
             )
-            log(f"  ORDER FAILED: {e}")
-            summary["orders"] = 1
+            log(f"  ORDER FAILED: {e} — trying next candidate...")
+            summary["orders"] += 1
+            continue
 
     # 12. Summary
+    sel_ticker = summary.get("selected_ticker") or "none"
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
-    log(f"  Strategy:  Last-Minute Sniper")
-    log(f"  Market:    {ticker} {side.upper()} @ 98c limit (est ~{est_price}c)")
-    log(f"  Expires:   {sel_close}")
-    log(f"  Scanned:   {summary['scanned']}  Qualified: {len(candidates)}  "
-        f"Traded: {summary['traded']}  Orders: {summary['orders']}")
+    log(f"  Strategy:    Last-Minute Sniper")
+    log(f"  Candidates:  {len(available)}  Orders attempted: {summary['orders']}  Filled: {summary['traded']}")
     if summary["stopped_reason"]:
         log(f"  Stopped: {summary['stopped_reason']}")
     log(f"{'='*60}\n")
