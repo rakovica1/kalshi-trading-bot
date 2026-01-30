@@ -29,7 +29,7 @@ def run_whale_strategy(
       3. Filter by expiration window (default: 24 hours)
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
-      6. Place aggressive limit order at 99c (fills at best available)
+      6. Place market order (fills at best available, auto-cancels if resting)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -38,7 +38,7 @@ def run_whale_strategy(
     log(f"\n{'='*60}")
     log(f"  LAST-MINUTE SNIPER [{mode}]")
     log(f"  Expiration window: {exp_label}")
-    log(f"  Order type: Aggressive limit @ 99c (instant fill)")
+    log(f"  Order type: Market order (instant fill)")
     log(f"{'='*60}")
 
     # 1. Fetch balance
@@ -209,7 +209,7 @@ def run_whale_strategy(
         return {"scanned": total_found, "skipped": len(held) + 1, "traded": 0, "orders": 0, "stopped_reason": "no_budget"}
 
     est_cost = total_contracts * est_price
-    log(f"\n  ORDER: {total_contracts} contracts @ 99c limit (fills at best available)")
+    log(f"\n  ORDER: {total_contracts} contracts (market order)")
     log(f"  Est cost: ~{est_price}c each = ~${est_cost / 100:.2f}")
 
     summary = {
@@ -224,11 +224,11 @@ def run_whale_strategy(
     # 11. Execute order (aggressive limit at 99c for instant fill)
     if dry_run:
         log(f"\n  DRY RUN — would place {total_contracts} "
-            f"{side.upper()} contracts on {ticker} @ 99c limit (est ~{est_price}c)")
+            f"{side.upper()} contracts on {ticker} market order (est ~{est_price}c)")
         summary["traded"] = 1
         summary["orders"] = 1
     else:
-        log(f"\n  PLACING ORDER: {total_contracts} {side.upper()} on {ticker} @ 99c limit...")
+        log(f"\n  PLACING MARKET ORDER: {total_contracts} {side.upper()} on {ticker}...")
         try:
             result = client.create_order(
                 ticker=ticker,
@@ -256,6 +256,16 @@ def run_whale_strategy(
             log(f"  Remaining:    {remaining}")
             log(f"  Fill cost:    {taker_fill_cost}c (${taker_fill_cost / 100:.2f})")
             log(f"  Taker fees:   {taker_fees}c (${taker_fees / 100:.2f})")
+
+            # Auto-cancel if order is resting (should not happen with market orders)
+            if api_status == "resting" and remaining > 0 and order_id:
+                log(f"  WARNING: Order is resting with {remaining} unfilled. Cancelling...")
+                try:
+                    client.cancel_order(order_id)
+                    log(f"  Cancelled resting order {order_id}")
+                    api_status = "canceled"
+                except Exception as cancel_err:
+                    log(f"  Failed to cancel resting order: {cancel_err}")
 
             # Use Kalshi's actual status
             status = api_status
@@ -307,7 +317,7 @@ def run_whale_strategy(
     log(f"\n{'='*60}")
     log(f"  SUMMARY [{mode}]")
     log(f"  Strategy:  Last-Minute Sniper")
-    log(f"  Market:    {ticker} {side.upper()} @ 99c limit (est ~{est_price}c)")
+    log(f"  Market:    {ticker} {side.upper()} market order (est ~{est_price}c)")
     log(f"  Expires:   {sel_close}")
     log(f"  Scanned:   {summary['scanned']}  Qualified: {len(candidates)}  "
         f"Traded: {summary['traded']}  Orders: {summary['orders']}")

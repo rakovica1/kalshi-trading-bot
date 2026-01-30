@@ -171,3 +171,8 @@ class KalshiBotClient:
         resp = self._orders_api.create_order(**kwargs)
         order = resp.order
         return _model_to_dict(order) if order else _model_to_dict(resp)
+
+    def cancel_order(self, order_id: str) -> dict:
+        """Cancel a resting order by ID."""
+        resp = self._orders_api.cancel_order(order_id=order_id)
+        return _model_to_dict(resp)
