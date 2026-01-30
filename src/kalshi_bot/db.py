@@ -319,6 +319,8 @@ def init_db(db_path=DEFAULT_DB_PATH):
             "count_spread": "INTEGER NOT NULL DEFAULT 0",
             "count_expires": "INTEGER NOT NULL DEFAULT 0",
         })
+        # One-time: log pre-existing balance as deposit
+        _seed_deposits(conn)
         conn.close()
     else:
         db_path = Path(db_path)
@@ -343,7 +345,33 @@ def init_db(db_path=DEFAULT_DB_PATH):
             "count_spread": "INTEGER NOT NULL DEFAULT 0",
             "count_expires": "INTEGER NOT NULL DEFAULT 0",
         })
+        # One-time: log pre-existing balance as deposit
+        _seed_deposits(conn)
         conn.close()
+
+
+def _seed_deposits(conn):
+    """One-time: ensure the pre-existing Kalshi balance is logged as a deposit."""
+    note = "Pre-existing balance adjustment"
+    if _use_pg:
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT 1 FROM deposits WHERE notes = %s LIMIT 1", (note,))
+    else:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM deposits WHERE notes = ? LIMIT 1", (note,))
+    if cur.fetchone() is None:
+        if _use_pg:
+            cur.execute(
+                "INSERT INTO deposits (amount_cents, notes) VALUES (%s, %s)",
+                (7684, note),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO deposits (amount_cents, notes) VALUES (?, ?)",
+                (7684, note),
+            )
+            conn.commit()
 
 
 def _migrate_columns(conn, table, columns):
