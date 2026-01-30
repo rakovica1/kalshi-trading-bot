@@ -103,8 +103,8 @@ def dashboard():
     try:
         client = _get_client()
         bal_data = client.get_balance()
-        # Include payout_available (settled contract payouts pending credit)
-        balance_cents = bal_data.get("balance", 0) + bal_data.get("payout_available", 0)
+        # balance = available cash; portfolio_value = value of all positions
+        balance_cents = bal_data.get("balance", 0)
         db.log_balance(balance_cents)
         balance_timestamp = datetime.now(timezone.utc).astimezone(_EST).strftime("%I:%M:%S %p EST")
     except Exception as e:

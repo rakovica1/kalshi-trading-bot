@@ -1,4 +1,3 @@
-import json
 import time
 from datetime import datetime, timezone, timedelta
 
@@ -23,33 +22,25 @@ def _fetch_all_markets(client, status="open", page_size=1000, stop_check=None):
     if _market_cache["markets"] and age < _market_cache["ttl"]:
         return _market_cache["markets"], True
 
+    # Use the client wrapper (returns plain dicts via raw JSON)
+    all_raw = client.get_all_markets(status=status, page_size=page_size)
+
     markets = []
-    cursor = None
-    while True:
+    for m in all_raw:
         if stop_check and stop_check():
             raise StopRequested()
-        kwargs = {"limit": page_size, "status": status}
-        if cursor:
-            kwargs["cursor"] = cursor
-        resp = client._market_api.get_markets_without_preload_content(**kwargs)
-        data = json.loads(resp.data)
-        page = data.get("markets", [])
-        for m in page:
-            markets.append({
-                "ticker": m.get("ticker", "?"),
-                "event_ticker": m.get("event_ticker", ""),
-                "volume_24h": m.get("volume_24h", 0) or 0,
-                "volume": m.get("volume", 0) or 0,
-                "open_interest": m.get("open_interest", 0) or 0,
-                "yes_bid": m.get("yes_bid", 0) or 0,
-                "yes_ask": m.get("yes_ask", 0) or 0,
-                "no_bid": m.get("no_bid", 0) or 0,
-                "no_ask": m.get("no_ask", 0) or 0,
-                "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
-            })
-        cursor = data.get("cursor")
-        if not cursor or not page:
-            break
+        markets.append({
+            "ticker": m.get("ticker", "?"),
+            "event_ticker": m.get("event_ticker", ""),
+            "volume_24h": m.get("volume_24h", 0) or 0,
+            "volume": m.get("volume", 0) or 0,
+            "open_interest": m.get("open_interest", 0) or 0,
+            "yes_bid": m.get("yes_bid", 0) or 0,
+            "yes_ask": m.get("yes_ask", 0) or 0,
+            "no_bid": m.get("no_bid", 0) or 0,
+            "no_ask": m.get("no_ask", 0) or 0,
+            "close_time": m.get("close_time") or m.get("expected_expiration_time") or "",
+        })
 
     _market_cache["markets"] = markets
     _market_cache["ts"] = time.time()

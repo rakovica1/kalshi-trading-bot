@@ -1,4 +1,4 @@
-kalshi_python_sync
+kalshi_python_sync>=3.2.0
 pyyaml
 click
 flask
