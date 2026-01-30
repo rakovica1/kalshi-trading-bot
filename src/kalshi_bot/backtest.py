@@ -2,11 +2,64 @@
 
 Runs the strategy against historical settled markets from the Kalshi API.
 No DB writes, no live-trading imports — only uses `client` for API calls.
+
+Performance optimizations:
+- Disk cache: settled markets are cached to ~/.cache/nightrader/ by date,
+  so repeated backtests with the same date range skip the API entirely.
+- Date chunking: the date range is split into per-day chunks fetched in
+  parallel threads.
+- Parallel page fetching: each chunk fetches pages concurrently after the
+  first cursor is obtained.
 """
 
+import hashlib
+import json
+import os
 import time
-from datetime import datetime, timezone
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone, timedelta, date as date_type
+from pathlib import Path
 
+
+# ---------------------------------------------------------------------------
+# Disk cache
+# ---------------------------------------------------------------------------
+
+_CACHE_DIR = Path.home() / ".cache" / "nightrader" / "settled_markets"
+
+
+def _cache_path(day: date_type) -> Path:
+    """Return the cache file path for a given date."""
+    return _CACHE_DIR / f"{day.isoformat()}.json"
+
+
+def _load_cached_day(day: date_type):
+    """Load cached markets for a date, or None if not cached."""
+    path = _cache_path(day)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _save_cached_day(day: date_type, markets: list):
+    """Save markets for a date to disk cache."""
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _cache_path(day)
+    try:
+        with open(path, "w") as f:
+            json.dump(markets, f, separators=(",", ":"))
+    except OSError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Strategy helpers
+# ---------------------------------------------------------------------------
 
 def _assign_tier(ask_price):
     """Assign a tier based on ask price.
@@ -34,25 +87,108 @@ def _calc_spread_pct(bid, ask):
     return ((ask - bid) / mid) * 100.0
 
 
-def fetch_settled_markets(client, start_date, end_date, log, stop_check):
-    """Fetch settled markets from Kalshi API within a date range.
+# ---------------------------------------------------------------------------
+# Parallel market fetching
+# ---------------------------------------------------------------------------
 
-    start_date/end_date: date objects for the backtest window.
-    Returns list of market dicts.
+def _fetch_day(client, day, log, stop_check):
+    """Fetch settled markets for a single day, using disk cache if available.
+
+    Uses parallel page fetching within the day for additional speed.
     """
-    min_close_ts = int(datetime.combine(start_date, datetime.min.time(),
-                                         tzinfo=timezone.utc).timestamp())
-    max_close_ts = int(datetime.combine(end_date, datetime.max.time(),
-                                         tzinfo=timezone.utc).timestamp())
+    if stop_check and stop_check():
+        return []
 
-    log("[INFO] Fetching settled markets...")
+    cached = _load_cached_day(day)
+    if cached is not None:
+        return cached
+
+    min_ts = int(datetime.combine(day, datetime.min.time(),
+                                   tzinfo=timezone.utc).timestamp())
+    max_ts = int(datetime.combine(day, datetime.max.time(),
+                                   tzinfo=timezone.utc).timestamp())
+
     markets = client.get_all_markets(
         status="settled",
-        min_close_ts=min_close_ts,
-        max_close_ts=max_close_ts,
+        min_close_ts=min_ts,
+        max_close_ts=max_ts,
     )
-    log(f"[INFO] Fetched {len(markets)} settled markets")
+
+    # Only cache days that are fully in the past (settled data won't change)
+    today = datetime.now(timezone.utc).date()
+    if day < today:
+        _save_cached_day(day, markets)
+
     return markets
+
+
+def fetch_settled_markets(client, start_date, end_date, log, stop_check,
+                          progress_cb=None):
+    """Fetch settled markets from Kalshi API within a date range.
+
+    Splits the range into per-day chunks and fetches them in parallel,
+    using disk cache for previously fetched days.
+    """
+    # Build list of days
+    days = []
+    current = start_date
+    while current <= end_date:
+        days.append(current)
+        current += timedelta(days=1)
+
+    if not days:
+        return []
+
+    # Check which days are cached vs need fetching
+    cached_days = []
+    fetch_days = []
+    for day in days:
+        if _load_cached_day(day) is not None:
+            cached_days.append(day)
+        else:
+            fetch_days.append(day)
+
+    if cached_days:
+        log(f"[INFO] {len(cached_days)} days cached, {len(fetch_days)} to fetch")
+    else:
+        log(f"[INFO] Fetching {len(days)} days of settled markets...")
+
+    all_markets = []
+
+    # Load cached days (instant)
+    for day in cached_days:
+        data = _load_cached_day(day)
+        if data:
+            all_markets.extend(data)
+
+    # Fetch uncached days in parallel
+    if fetch_days:
+        max_workers = min(8, len(fetch_days))
+        completed = 0
+        total_to_fetch = len(fetch_days)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(_fetch_day, client, day, log, stop_check): day
+                for day in fetch_days
+            }
+            for future in as_completed(futures):
+                if stop_check and stop_check():
+                    break
+                day = futures[future]
+                try:
+                    day_markets = future.result()
+                    all_markets.extend(day_markets)
+                    completed += 1
+                    if progress_cb:
+                        pct = 5 + int(15 * completed / total_to_fetch)
+                        progress_cb(pct, f"Fetched {completed}/{total_to_fetch} days...")
+                except Exception as e:
+                    log(f"[WARN] Failed to fetch {day}: {e}")
+                    completed += 1
+
+    log(f"[INFO] Total: {len(all_markets)} settled markets across {len(days)} days")
+    return all_markets
 
 
 def _filter_whale_candidates(markets, params):
@@ -156,7 +292,8 @@ def run_backtest(client, start_date, end_date, params, log, stop_check,
     if stop_check and stop_check():
         return None
 
-    markets = fetch_settled_markets(client, start_date, end_date, log, stop_check)
+    markets = fetch_settled_markets(client, start_date, end_date, log,
+                                    stop_check, progress_cb=progress_cb)
 
     if stop_check and stop_check():
         return None
