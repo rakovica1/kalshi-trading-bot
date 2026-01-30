@@ -857,6 +857,7 @@ def control():
         "max_positions": 10,
         "dry_run": True,
         "with_ai": True,
+        "risk_pct": 1.0,
     }
     with _whale_lock:
         running = _whale_state["running"]
@@ -889,6 +890,16 @@ def control_start():
     except (ValueError, TypeError):
         max_positions = 10
 
+    # Parse risk_pct — default to 1% if missing or invalid
+    try:
+        risk_pct = float(request.form.get("risk_pct", "1.0"))
+        if risk_pct < 0.5:
+            risk_pct = 0.5
+        elif risk_pct > 5:
+            risk_pct = 5
+    except (ValueError, TypeError):
+        risk_pct = 1.0
+
     # Hardcoded default (removed from UI)
     max_hours = 24.0
 
@@ -898,6 +909,7 @@ def control_start():
             "max_positions": max_positions,
             "dry_run": dry_run,
             "with_ai": with_ai,
+            "risk_pct": risk_pct,
         }
 
     def _log(msg):
@@ -915,13 +927,14 @@ def control_start():
             client = _get_client()
 
             ai_tag = ", ai=ON" if with_ai else ""
-            _log(f"[INFO] Config: max_positions={max_positions}, max_hours={max_hours}, "
-                 f"dry_run={dry_run}{ai_tag}")
+            _log(f"[INFO] Config: max_positions={max_positions}, risk={risk_pct}%, "
+                 f"max_hours={max_hours}, dry_run={dry_run}{ai_tag}")
 
             strategy_kwargs = dict(
                 prefixes=None,
                 dry_run=dry_run,
                 max_positions=max_positions,
+                risk_pct=risk_pct / 100.0,
                 max_hours_to_expiration=max_hours,
                 log=_log,
                 stop_check=_is_stop_requested,
