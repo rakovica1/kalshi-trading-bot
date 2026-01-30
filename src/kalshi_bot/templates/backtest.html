@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block title %}Backtest - Nightrader{% endblock %}
+{% block content %}
+
+<h1 class="text-xl font-bold text-white mb-6">Backtest — Whale Strategy</h1>
+
+<!-- Parameter Form -->
+<div class="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+  <div class="flex items-center gap-3 mb-3">
+    <div class="w-3 h-3 rounded-full {{ 'bg-emerald-400 animate-pulse' if running else 'bg-slate-600' }}"></div>
+    <span class="text-sm font-medium {{ 'text-emerald-400' if running else 'text-slate-400' }}">
+      {{ 'Running' if running else 'Ready' }}
+    </span>
+  </div>
+
+  <form method="post" action="/backtest/run" id="bt-form">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Start Date</label>
+        <input type="date" name="start_date" value="{{ params.start_date }}"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-40 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">End Date</label>
+        <input type="date" name="end_date" value="{{ params.end_date }}"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-40 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Min Ask</label>
+        <input type="number" name="min_ask" value="{{ params.min_ask }}" min="1" max="99"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Max Ask</label>
+        <input type="number" name="max_ask" value="{{ params.max_ask }}" min="1" max="99"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-20 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Min Vol 24h</label>
+        <input type="number" name="min_volume_24h" value="{{ params.min_volume_24h }}" min="0"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-28 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Max Spread %</label>
+        <input type="number" name="max_spread_pct" value="{{ params.max_spread_pct }}" min="0" max="100" step="0.1"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Top N $ Vol</label>
+        <input type="number" name="top_n_dollar_vol" value="{{ params.top_n_dollar_vol }}" min="1"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Position $</label>
+        <input type="number" name="position_size_dollars" value="{{ params.position_size_dollars }}" min="1" step="1"
+          class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 w-24 focus:outline-none focus:border-brand-500">
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="submit" {{ 'disabled' if running }}
+        class="px-5 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
+        Run Backtest
+      </button>
+      <button type="button" onclick="document.getElementById('stop-form').submit()" {{ '' if running else 'disabled' }}
+        class="px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm text-white font-medium">
+        Stop
+      </button>
+    </div>
+  </form>
+  <form method="post" action="/backtest/stop" id="stop-form" class="hidden"></form>
+</div>
+
+<!-- Progress Bar -->
+{% if running %}
+<div id="progress-section" class="bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 mb-4">
+  <div class="flex items-center justify-between mb-2">
+    <span id="progress-msg" class="text-xs text-slate-400">{{ progress_msg or 'Starting...' }}</span>
+    <span id="progress-pct" class="text-xs text-brand-500 font-medium">{{ progress }}%</span>
+  </div>
+  <div class="w-full bg-slate-800 rounded-full h-2">
+    <div id="progress-bar" class="bg-brand-500 h-2 rounded-full transition-all" style="width: {{ progress }}%"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Log Viewer -->
+{% if running or logs %}
+<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden mb-6">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+    <span class="text-sm font-medium text-slate-400">Logs</span>
+  </div>
+  <div id="log-box" class="p-4 text-xs font-mono overflow-y-auto max-h-[300px] whitespace-pre-wrap text-slate-400">
+    {%- for line in logs %}
+{{ line }}
+    {%- endfor %}
+    {%- if not logs %}Waiting for logs...{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Results Section -->
+{% if results %}
+<!-- Summary Stats -->
+<h2 class="text-lg font-semibold text-white mb-4">Summary</h2>
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+  <div class="bg-slate-900 border {{ 'border-emerald-900/50' if results.summary.total_pnl >= 0 else 'border-red-900/50' }} rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Net P&L</div>
+    <div class="text-2xl font-bold {{ 'text-emerald-400' if results.summary.total_pnl >= 0 else 'text-red-400' }}">
+      {{ "$%.2f"|format(results.summary.total_pnl_dollars) }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Win Rate</div>
+    <div class="text-2xl font-bold {{ 'text-emerald-400' if results.summary.win_rate >= 50 else 'text-red-400' }}">
+      {{ results.summary.win_rate }}%
+    </div>
+    <div class="text-[11px] text-slate-500 mt-1">{{ results.summary.total_wins }}W / {{ results.summary.total_losses }}L</div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">ROI</div>
+    <div class="text-xl font-semibold {{ 'text-emerald-400' if results.summary.roi_pct >= 0 else 'text-red-400' }}">
+      {{ "%+.2f"|format(results.summary.roi_pct) }}%
+    </div>
+    <div class="text-[11px] text-slate-500 mt-1">of ${{ "%.2f"|format(results.summary.total_cost_dollars) }} invested</div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Profit Factor</div>
+    <div class="text-xl font-semibold {{ 'text-emerald-400' if results.summary.profit_factor is string or results.summary.profit_factor >= 1 else 'text-red-400' }}">
+      {{ results.summary.profit_factor }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-red-900/50 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Max Drawdown</div>
+    <div class="text-xl font-semibold text-red-400">
+      ${{ "%.2f"|format(results.summary.max_drawdown_dollars) }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Avg Win</div>
+    <div class="text-xl font-semibold text-emerald-400">
+      ${{ "%.2f"|format(results.summary.avg_win_dollars) }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Avg Loss</div>
+    <div class="text-xl font-semibold text-red-400">
+      ${{ "%.2f"|format(results.summary.avg_loss_dollars) }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Expectancy</div>
+    <div class="text-xl font-semibold {{ 'text-emerald-400' if results.summary.expectancy >= 0 else 'text-red-400' }}">
+      ${{ "%.2f"|format(results.summary.expectancy_dollars) }}
+    </div>
+    <div class="text-[11px] text-slate-500 mt-1">per trade</div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Total Trades</div>
+    <div class="text-xl font-semibold text-slate-200">{{ results.summary.total_trades }}</div>
+  </div>
+  <div class="bg-slate-900 border border-amber-900/50 rounded-lg p-5">
+    <div class="text-xs text-amber-500/70 uppercase tracking-wide mb-1">Total Fees</div>
+    <div class="text-xl font-semibold text-amber-400">
+      ${{ "%.2f"|format(results.summary.total_fees_dollars) }}
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Win Streak</div>
+    <div class="text-xl font-semibold text-emerald-400">{{ results.summary.max_win_streak }}</div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Loss Streak</div>
+    <div class="text-xl font-semibold text-red-400">{{ results.summary.max_loss_streak }}</div>
+  </div>
+</div>
+
+<!-- Equity Curve -->
+{% if results.equity_curve %}
+<h2 class="text-lg font-semibold text-white mb-4">Equity Curve</h2>
+<div class="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-8">
+  <canvas id="equity-chart" height="100"></canvas>
+</div>
+{% endif %}
+
+<!-- Trade Table -->
+{% if results.trades %}
+<h2 class="text-lg font-semibold text-white mb-4">Trade Breakdown</h2>
+<div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden mb-8">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left">
+      <thead class="text-xs text-slate-500 uppercase border-b border-slate-800">
+        <tr>
+          <th class="px-4 py-3">#</th>
+          <th class="px-4 py-3">Date</th>
+          <th class="px-4 py-3">Ticker</th>
+          <th class="px-4 py-3">Side</th>
+          <th class="px-4 py-3 text-right">Entry</th>
+          <th class="px-4 py-3 text-right">Qty</th>
+          <th class="px-4 py-3 text-right">Cost</th>
+          <th class="px-4 py-3 text-right">Fee</th>
+          <th class="px-4 py-3 text-center">Result</th>
+          <th class="px-4 py-3 text-right">P&L</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800/50">
+        {% for t in results.trades %}
+        <tr class="hover:bg-slate-800/30">
+          <td class="px-4 py-2.5 text-slate-500">{{ t.num }}</td>
+          <td class="px-4 py-2.5 text-slate-400">{{ t.date }}</td>
+          <td class="px-4 py-2.5 text-slate-300 font-mono text-xs">{{ t.ticker }}</td>
+          <td class="px-4 py-2.5">
+            <span class="px-1.5 py-0.5 rounded text-xs font-medium {{ 'bg-emerald-900/30 text-emerald-400' if t.side == 'YES' else 'bg-red-900/30 text-red-400' }}">
+              {{ t.side }}
+            </span>
+          </td>
+          <td class="px-4 py-2.5 text-right text-slate-300">{{ t.entry }}c</td>
+          <td class="px-4 py-2.5 text-right text-slate-300">{{ t.qty }}</td>
+          <td class="px-4 py-2.5 text-right text-slate-400">${{ "%.2f"|format(t.cost / 100) }}</td>
+          <td class="px-4 py-2.5 text-right text-slate-500">${{ "%.2f"|format(t.fee / 100) }}</td>
+          <td class="px-4 py-2.5 text-center">
+            <span class="px-2 py-0.5 rounded text-xs font-bold {{ 'bg-emerald-900/40 text-emerald-400' if t.result == 'WON' else 'bg-red-900/40 text-red-400' }}">
+              {{ t.result }}
+            </span>
+          </td>
+          <td class="px-4 py-2.5 text-right font-medium {{ 'text-emerald-400' if t.pnl >= 0 else 'text-red-400' }}">
+            {{ "$%.2f"|format(t.pnl / 100) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Chart.js -->
+{% if results and results.equity_curve %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  const data = {{ results.equity_curve | tojson }};
+  const labels = data.map(p => p.date ? '#' + p.x + ' (' + p.date + ')' : '#' + p.x);
+  const values = data.map(p => p.y / 100);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Cumulative P&L ($)',
+        data: values,
+        borderColor: values[values.length - 1] >= 0 ? '#34d399' : '#f87171',
+        backgroundColor: values[values.length - 1] >= 0 ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return 'P&L: $' + ctx.parsed.y.toFixed(2);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748b', maxTicksLimit: 20, font: { size: 10 } },
+          grid: { color: 'rgba(51,65,85,0.3)' },
+        },
+        y: {
+          ticks: {
+            color: '#64748b',
+            callback: function(v) { return '$' + v.toFixed(2); }
+          },
+          grid: { color: 'rgba(51,65,85,0.3)' },
+        }
+      }
+    }
+  });
+</script>
+{% endif %}
+
+<!-- Polling script for running state -->
+{% if running %}
+<script>
+  const TAG_COLORS = {
+    'FILL': 'text-emerald-400',
+    'WARN': 'text-amber-400',
+    'FAIL': 'text-red-400',
+    'SKIP': 'text-slate-600',
+    'INFO': 'text-slate-400',
+    'HEAD': 'text-white',
+  };
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function colorLine(line) {
+    const m = line.match(/^\[([A-Z]+)\]/);
+    if (m && TAG_COLORS[m[1]]) {
+      return '<span class="' + TAG_COLORS[m[1]] + '">' + escapeHtml(line) + '</span>';
+    }
+    return '<span class="text-slate-400">' + escapeHtml(line) + '</span>';
+  }
+
+  function pollStatus() {
+    fetch('/backtest/status')
+      .then(r => r.json())
+      .then(data => {
+        const bar = document.getElementById('progress-bar');
+        const pct = document.getElementById('progress-pct');
+        const msg = document.getElementById('progress-msg');
+        const logBox = document.getElementById('log-box');
+
+        if (bar) bar.style.width = data.progress + '%';
+        if (pct) pct.textContent = data.progress + '%';
+        if (msg) msg.textContent = data.progress_msg || '';
+
+        if (logBox && data.logs && data.logs.length > 0) {
+          logBox.innerHTML = data.logs.map(colorLine).join('\n');
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        if (!data.running) {
+          window.location.reload();
+        }
+      })
+      .catch(() => {});
+  }
+
+  setInterval(pollStatus, 2000);
+  pollStatus();
+</script>
+{% endif %}
+
+{% endblock %}

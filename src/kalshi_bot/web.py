@@ -59,6 +59,23 @@ _scan_state = {
 }
 _scan_lock = threading.Lock()
 
+# ---------------------------------------------------------------------------
+# Shared state for backtest
+# ---------------------------------------------------------------------------
+
+_bt_state = {
+    "running": False,
+    "thread": None,
+    "logs": [],
+    "progress": 0,
+    "progress_msg": "",
+    "results": None,
+    "error": None,
+    "stop_requested": False,
+    "params": None,
+}
+_bt_lock = threading.Lock()
+
 
 def _require_control_password(f):
     """Decorator: require CONTROL_PASSWORD session auth for protected routes."""
@@ -996,6 +1013,154 @@ def control_logs():
         running = _whale_state["running"]
         logs = list(_whale_state["logs"])
     return jsonify({"running": running, "logs": logs})
+
+
+# ---------------------------------------------------------------------------
+# Backtest
+# ---------------------------------------------------------------------------
+
+_BT_DEFAULTS = {
+    "start_date": (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d"),
+    "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    "min_ask": 95,
+    "max_ask": 98,
+    "min_volume_24h": 10000,
+    "max_spread_pct": 5.0,
+    "top_n_dollar_vol": 200,
+    "position_size_dollars": 10,
+}
+
+
+@app.route("/backtest")
+@_require_control_password
+def backtest_page():
+    with _bt_lock:
+        running = _bt_state["running"]
+        logs = list(_bt_state["logs"])
+        progress = _bt_state["progress"]
+        progress_msg = _bt_state["progress_msg"]
+        results = _bt_state["results"]
+        params = _bt_state["params"] or dict(_BT_DEFAULTS)
+    return render_template("backtest.html",
+                           running=running, logs=logs,
+                           progress=progress, progress_msg=progress_msg,
+                           results=results, params=params)
+
+
+@app.route("/backtest/run", methods=["POST"])
+@_require_control_password
+def backtest_run():
+    with _bt_lock:
+        if _bt_state["running"]:
+            return redirect(url_for("backtest_page"))
+        _bt_state["running"] = True
+        _bt_state["stop_requested"] = False
+        _bt_state["logs"] = []
+        _bt_state["progress"] = 0
+        _bt_state["progress_msg"] = "Starting..."
+        _bt_state["results"] = None
+        _bt_state["error"] = None
+
+    # Parse form params
+    start_date_str = request.form.get("start_date", _BT_DEFAULTS["start_date"])
+    end_date_str = request.form.get("end_date", _BT_DEFAULTS["end_date"])
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        start_date = (datetime.now(timezone.utc) - timedelta(days=7)).date()
+        end_date = datetime.now(timezone.utc).date()
+
+    try:
+        min_ask = int(request.form.get("min_ask", _BT_DEFAULTS["min_ask"]))
+        max_ask = int(request.form.get("max_ask", _BT_DEFAULTS["max_ask"]))
+        min_volume_24h = int(request.form.get("min_volume_24h", _BT_DEFAULTS["min_volume_24h"]))
+        max_spread_pct = float(request.form.get("max_spread_pct", _BT_DEFAULTS["max_spread_pct"]))
+        top_n_dollar_vol = int(request.form.get("top_n_dollar_vol", _BT_DEFAULTS["top_n_dollar_vol"]))
+        position_size_dollars = int(request.form.get("position_size_dollars", _BT_DEFAULTS["position_size_dollars"]))
+    except (ValueError, TypeError):
+        min_ask = _BT_DEFAULTS["min_ask"]
+        max_ask = _BT_DEFAULTS["max_ask"]
+        min_volume_24h = _BT_DEFAULTS["min_volume_24h"]
+        max_spread_pct = _BT_DEFAULTS["max_spread_pct"]
+        top_n_dollar_vol = _BT_DEFAULTS["top_n_dollar_vol"]
+        position_size_dollars = _BT_DEFAULTS["position_size_dollars"]
+
+    params = {
+        "start_date": start_date_str,
+        "end_date": end_date_str,
+        "min_ask": min_ask,
+        "max_ask": max_ask,
+        "min_volume_24h": min_volume_24h,
+        "max_spread_pct": max_spread_pct,
+        "top_n_dollar_vol": top_n_dollar_vol,
+        "position_size_dollars": position_size_dollars,
+        "position_size_cents": position_size_dollars * 100,
+        "fee_per_contract": 1,
+    }
+
+    with _bt_lock:
+        _bt_state["params"] = params
+
+    def _log(msg):
+        with _bt_lock:
+            _bt_state["logs"].append(msg)
+
+    def _stop_check():
+        with _bt_lock:
+            return _bt_state["stop_requested"]
+
+    def _progress_cb(pct, msg):
+        with _bt_lock:
+            _bt_state["progress"] = pct
+            _bt_state["progress_msg"] = msg
+
+    def _run():
+        from kalshi_bot.backtest import run_backtest
+        try:
+            client = _get_client()
+            result = run_backtest(
+                client, start_date, end_date, params,
+                log=_log, stop_check=_stop_check, progress_cb=_progress_cb,
+            )
+            with _bt_lock:
+                _bt_state["results"] = result
+        except Exception as e:
+            import traceback
+            _log(f"[FAIL] Error: {e}")
+            _log(f"[FAIL] {traceback.format_exc()}")
+            with _bt_lock:
+                _bt_state["error"] = str(e)
+        finally:
+            with _bt_lock:
+                _bt_state["running"] = False
+
+    t = threading.Thread(target=_run, daemon=True)
+    _bt_state["thread"] = t
+    t.start()
+    return redirect(url_for("backtest_page"))
+
+
+@app.route("/backtest/stop", methods=["POST"])
+@_require_control_password
+def backtest_stop():
+    with _bt_lock:
+        _bt_state["stop_requested"] = True
+        _bt_state["logs"].append("[WARN] Stop requested...")
+    return redirect(url_for("backtest_page"))
+
+
+@app.route("/backtest/status")
+@_require_control_password
+def backtest_status():
+    with _bt_lock:
+        return jsonify({
+            "running": _bt_state["running"],
+            "progress": _bt_state["progress"],
+            "progress_msg": _bt_state["progress_msg"],
+            "logs": list(_bt_state["logs"]),
+            "error": _bt_state["error"],
+        })
 
 
 # ---------------------------------------------------------------------------
