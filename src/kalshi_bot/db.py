@@ -803,13 +803,13 @@ def get_daily_pnl(days=30, db_path=DEFAULT_DB_PATH):
         ORDER BY day ASC
     """)
 
-    # Fees and trade count by trade date
+    # Fees and trade count by trade date (only filled trades)
     fee_rows = _fetchall(conn, f"""
         SELECT {trade_date_fn} as day,
                COALESCE(SUM(fee_cents), 0) as fees_cents,
                COUNT(*) as trade_count
         FROM trades
-        WHERE status != 'failed' AND {trade_day_filter}
+        WHERE fill_count > 0 AND status != 'failed' AND {trade_day_filter}
         GROUP BY {trade_date_fn}
         ORDER BY day ASC
     """)
