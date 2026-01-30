@@ -135,6 +135,25 @@ def run_whale_strategy(
             log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} {bid_price}c/{ask_price}c — insufficient balance")
             continue
 
+        # Re-check current ask before ordering
+        try:
+            live = client.get_market(ticker=ticker)
+            live_ask = live.get(f"{side}_ask", 0) or 0
+            live_bid = live.get(f"{side}_bid", 0) or 0
+            if live_ask < min_price or live_ask > 98:
+                log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} — live ask {live_ask}c outside {min_price}-98c range")
+                continue
+            # Update prices to live values
+            ask_price = live_ask
+            bid_price = live_bid
+            est_price = ask_price
+            total_contracts = calculate_position(balance_cents, est_price, risk_pct)
+            if total_contracts <= 0:
+                log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} — insufficient balance at live ask {ask_price}c")
+                continue
+        except Exception as e:
+            log(f"[WARN] #{idx+1}/{len(available)} {ticker} — failed to re-check price: {e}")
+
         spread_warn = f" (spread {spread:.1f}%)" if spread >= 3.0 else ""
         prefix = f"#{idx+1}/{len(available)}"
 
@@ -167,17 +186,19 @@ def run_whale_strategy(
             if ai_confidence > 0:
                 log(f"[AI] PASS {prefix} {ticker} — confidence {ai_confidence}%, approved")
 
+        limit_price = ask_price if ask_price > 0 else 98
+
         if dry_run:
-            log(f"[FILL] {prefix} {ticker} {side.upper()} {bid_price}c/{ask_price}c — DRY RUN {total_contracts}x @ 98c{spread_warn}")
+            log(f"[FILL] {prefix} {ticker} {side.upper()} {bid_price}c/{ask_price}c — DRY RUN {total_contracts}x @ {limit_price}c{spread_warn}")
             summary["traded"] = 1
             summary["orders"] += 1
             break
 
-        # Place order
+        # Place order at the current ask price
         try:
             result = client.create_order(
                 ticker=ticker, side=side, action="buy",
-                count=total_contracts, price=98,
+                count=total_contracts, price=limit_price,
             )
 
             order_id = result.get("order_id")
