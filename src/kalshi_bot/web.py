@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -91,6 +92,22 @@ def _market_position_value(market_data, side):
         return (market_data.get("no_bid", 0) or 0, False)
 
 
+def _batch_fetch_markets(client, tickers):
+    """Fetch multiple markets in parallel. Returns dict: ticker -> market data."""
+    if not tickers:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(client.get_market, ticker=t): t for t in tickers}
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                results[ticker] = future.result()
+            except Exception:
+                results[ticker] = None
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -121,30 +138,30 @@ def dashboard():
     portfolio_ask_value = 0
     try:
         client = _get_client()
+        market_map = _batch_fetch_markets(client, [p["ticker"] for p in open_positions])
         for p in open_positions:
-            try:
-                m = client.get_market(ticker=p["ticker"])
-                current, is_settled = _market_position_value(m, p["side"])
-                if is_settled:
-                    db.close_position_settled(
-                        p["ticker"], p["side"],
-                        settlement_value_cents=current,
-                    )
+            m = market_map.get(p["ticker"])
+            if m is None:
+                continue
+            current, is_settled = _market_position_value(m, p["side"])
+            if is_settled:
+                db.close_position_settled(
+                    p["ticker"], p["side"],
+                    settlement_value_cents=current,
+                )
+            else:
+                qty = p["quantity"]
+                entry = p["avg_entry_price_cents"]
+                # Bid-based (what you'd get selling now)
+                total_unrealized_bid += int(qty * (current - entry))
+                # Ask-based
+                if p["side"] == "yes":
+                    ask = m.get("yes_ask", 0) or 0
                 else:
-                    qty = p["quantity"]
-                    entry = p["avg_entry_price_cents"]
-                    # Bid-based (what you'd get selling now)
-                    total_unrealized_bid += int(qty * (current - entry))
-                    # Ask-based
-                    if p["side"] == "yes":
-                        ask = m.get("yes_ask", 0) or 0
-                    else:
-                        ask = m.get("no_ask", 0) or 0
-                    ask_val = ask if ask else current
-                    total_unrealized_ask += int(qty * (ask_val - entry))
-                    portfolio_ask_value += int(qty * ask_val)
-            except Exception:
-                pass
+                    ask = m.get("no_ask", 0) or 0
+                ask_val = ask if ask else current
+                total_unrealized_ask += int(qty * (ask_val - entry))
+                portfolio_ask_value += int(qty * ask_val)
     except Exception:
         pass
 
@@ -201,13 +218,14 @@ def positions():
     enriched = []
     try:
         client = _get_client()
+        market_map = _batch_fetch_markets(client, [p["ticker"] for p in open_positions])
         for p in open_positions:
             entry = p["avg_entry_price_cents"]
             qty = p["quantity"]
             close_time = ""
             is_settled = False
-            try:
-                m = client.get_market(ticker=p["ticker"])
+            m = market_map.get(p["ticker"])
+            if m is not None:
                 current, is_settled = _market_position_value(m, p["side"])
                 close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
                 if is_settled:
@@ -215,7 +233,7 @@ def positions():
                         p["ticker"], p["side"],
                         settlement_value_cents=current,
                     )
-            except Exception:
+            else:
                 current = 0
                 m = {}
             unrealized_bid = int(qty * (current - entry))
@@ -466,15 +484,15 @@ def _fetch_candlestick_history(client, tickers, hours=24):
     return result
 
 
-def _build_position_data(client, open_positions, candle_history):
+def _build_position_data(market_map, open_positions, candle_history):
     """Enrich open positions with current prices and chart history."""
     enriched = []
     for p in open_positions:
         entry = p["avg_entry_price_cents"]
         qty = p["quantity"]
         is_settled = False
-        try:
-            m = client.get_market(ticker=p["ticker"])
+        m = market_map.get(p["ticker"])
+        if m is not None:
             bid, is_settled = _market_position_value(m, p["side"])
             if is_settled:
                 ask = bid  # settled: bid == ask == settlement value
@@ -489,7 +507,7 @@ def _build_position_data(client, open_positions, candle_history):
                     ask = m.get("no_ask", 0) or 0
                 db.log_price_snapshot(p["ticker"], p["side"], bid, ask)
             close_time = m.get("close_time") or m.get("expected_expiration_time") or ""
-        except Exception:
+        else:
             bid = 0
             ask = 0
             close_time = ""
@@ -547,7 +565,8 @@ def charts():
         client = _get_client()
         tickers = [p["ticker"] for p in open_positions]
         candle_history = _fetch_candlestick_history(client, tickers, hours=24) if tickers else {}
-        enriched = _build_position_data(client, open_positions, candle_history)
+        market_map = _batch_fetch_markets(client, tickers)
+        enriched = _build_position_data(market_map, open_positions, candle_history)
     except Exception:
         enriched = [{
             **p,
@@ -612,7 +631,8 @@ def api_charts_prices():
         client = _get_client()
         tickers = [p["ticker"] for p in open_positions]
         candle_history = _fetch_candlestick_history(client, tickers, hours=24) if tickers else {}
-        enriched = _build_position_data(client, open_positions, candle_history)
+        market_map = _batch_fetch_markets(client, tickers)
+        enriched = _build_position_data(market_map, open_positions, candle_history)
         result = []
         for pos in enriched:
             if pos.get("is_settled"):
