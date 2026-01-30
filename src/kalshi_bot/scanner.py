@@ -305,6 +305,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
 
     results = []
     passed_prefix = 0
+    excluded_category = 0
     passed_volume = 0
     passed_price = 0
 
@@ -318,6 +319,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         # Category exclusion (e.g. crypto)
         if exclude_categories:
             if detect_category(m.get("event_ticker", "")) in exclude_categories:
+                excluded_category += 1
                 continue
 
         passed_prefix += 1
@@ -467,6 +469,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         "min_price": min_price,
         "min_volume": min_volume,
         "prefixes": ticker_prefixes or [],
+        "exclude_categories": exclude_categories or [],
+        "excluded_category": excluded_category,
         "cached": from_cache,
     }
 
