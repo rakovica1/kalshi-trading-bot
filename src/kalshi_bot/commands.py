@@ -528,6 +528,26 @@ def import_trades(ctx, csv_file, keep_existing, skip_confirm):
         sys.exit(1)
 
 
+@cli.command("log-deposit")
+@click.argument("amount_cents", type=int)
+@click.option("--notes", default=None, help="Optional note for this deposit.")
+@click.pass_context
+def log_deposit(ctx, amount_cents, notes):
+    """Record a deposit (amount in cents)."""
+    db.log_deposit(amount_cents, notes=notes)
+    click.echo(f"Logged deposit: ${amount_cents / 100:.2f}" + (f" ({notes})" if notes else ""))
+
+
+@cli.command("log-withdrawal")
+@click.argument("amount_cents", type=int)
+@click.option("--notes", default=None, help="Optional note for this withdrawal.")
+@click.pass_context
+def log_withdrawal(ctx, amount_cents, notes):
+    """Record a withdrawal (amount in cents)."""
+    db.log_withdrawal(amount_cents, notes=notes)
+    click.echo(f"Logged withdrawal: ${amount_cents / 100:.2f}" + (f" ({notes})" if notes else ""))
+
+
 @cli.command()
 @click.pass_context
 def stats(ctx):

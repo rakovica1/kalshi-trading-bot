@@ -137,9 +137,10 @@ def dashboard():
     # Re-fetch stats after auto-closing any settled positions
     stats = db.get_stats()
 
-    # Net P&L = current balance - total deposits (source of truth)
+    # Net P&L = current balance + total withdrawals - total deposits
     total_deposits, deposit_count = db.get_total_deposits()
-    net_pnl = balance_cents - total_deposits
+    total_withdrawals, withdrawal_count = db.get_total_withdrawals()
+    net_pnl = balance_cents + total_withdrawals - total_deposits
 
     total_fees = stats["total_fees_cents"]
     total_invested = stats["total_invested_cents"]
@@ -154,6 +155,8 @@ def dashboard():
         balance_timestamp=balance_timestamp,
         total_deposits_cents=total_deposits,
         deposit_count=deposit_count,
+        total_withdrawals_cents=total_withdrawals,
+        withdrawal_count=withdrawal_count,
         unrealized_cents=total_unrealized,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,

@@ -115,6 +115,20 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
     ask_cents INTEGER NOT NULL DEFAULT 0,
     recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount_cents INTEGER NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    amount_cents INTEGER NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 _PG_TABLES = [
@@ -203,6 +217,18 @@ _PG_TABLES = [
         bid_cents INTEGER NOT NULL DEFAULT 0,
         ask_cents INTEGER NOT NULL DEFAULT 0,
         recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS deposits (
+        id SERIAL PRIMARY KEY,
+        amount_cents INTEGER NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        amount_cents INTEGER NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )""",
 ]
 
@@ -566,37 +592,54 @@ def get_first_balance(db_path=DEFAULT_DB_PATH):
     return row["balance_cents"] if row else None
 
 
-def get_total_deposits(db_path=DEFAULT_DB_PATH):
-    """Detect and sum all deposits by scanning balance_history for large jumps.
+def log_deposit(amount_cents, notes=None, db_path=DEFAULT_DB_PATH):
+    """Record a deposit."""
+    conn = _connect(db_path)
+    _execute(conn,
+        "INSERT INTO deposits (amount_cents, notes) VALUES (?, ?)",
+        (amount_cents, notes),
+    )
+    if not _use_pg:
+        conn.commit()
+    conn.close()
 
-    Any positive balance increase > $5 (500 cents) between consecutive snapshots
-    is classified as a deposit. Trade settlements are typically < $1 per contract,
-    so this threshold safely distinguishes deposits from trading gains.
+
+def log_withdrawal(amount_cents, notes=None, db_path=DEFAULT_DB_PATH):
+    """Record a withdrawal."""
+    conn = _connect(db_path)
+    _execute(conn,
+        "INSERT INTO withdrawals (amount_cents, notes) VALUES (?, ?)",
+        (amount_cents, notes),
+    )
+    if not _use_pg:
+        conn.commit()
+    conn.close()
+
+
+def get_total_deposits(db_path=DEFAULT_DB_PATH):
+    """Sum all deposits from the deposits table.
 
     Returns (total_deposits_cents, deposit_count).
     """
     conn = _connect(db_path)
-    rows = _fetchall(conn,
-        "SELECT balance_cents FROM balance_history ORDER BY id ASC"
+    row = _fetchone(conn,
+        "SELECT COALESCE(SUM(amount_cents), 0) as total, COUNT(*) as cnt FROM deposits"
     )
     conn.close()
+    return (row["total"], row["cnt"])
 
-    if len(rows) < 2:
-        # Only one snapshot — the first balance is the initial deposit
-        return (rows[0]["balance_cents"] if rows else 0, 1 if rows else 0)
 
-    # First balance is always the initial deposit
-    total_deposits = rows[0]["balance_cents"]
-    deposit_count = 1
-    threshold = 500  # $5.00 — any jump larger than this is a deposit
+def get_total_withdrawals(db_path=DEFAULT_DB_PATH):
+    """Sum all withdrawals from the withdrawals table.
 
-    for i in range(1, len(rows)):
-        delta = rows[i]["balance_cents"] - rows[i - 1]["balance_cents"]
-        if delta > threshold:
-            total_deposits += delta
-            deposit_count += 1
-
-    return (total_deposits, deposit_count)
+    Returns (total_withdrawals_cents, withdrawal_count).
+    """
+    conn = _connect(db_path)
+    row = _fetchone(conn,
+        "SELECT COALESCE(SUM(amount_cents), 0) as total, COUNT(*) as cnt FROM withdrawals"
+    )
+    conn.close()
+    return (row["total"], row["cnt"])
 
 
 def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
