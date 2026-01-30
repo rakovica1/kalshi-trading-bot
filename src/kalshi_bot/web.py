@@ -164,6 +164,7 @@ def dashboard():
     # Unrealized P&L from open positions (and auto-close settled ones)
     total_unrealized_bid = 0
     total_unrealized_ask = 0
+    total_unrealized_max = 0
     portfolio_ask_value = 0
     try:
         client = _get_client()
@@ -191,6 +192,8 @@ def dashboard():
                 ask_val = ask if ask else current
                 total_unrealized_ask += int(qty * (ask_val - entry))
                 portfolio_ask_value += int(qty * ask_val)
+                # Max (all settle at 100c)
+                total_unrealized_max += int(qty * (100 - entry))
     except Exception:
         pass
 
@@ -222,6 +225,7 @@ def dashboard():
         withdrawal_count=withdrawal_count,
         unrealized_bid_cents=total_unrealized_bid,
         unrealized_ask_cents=total_unrealized_ask,
+        unrealized_max_cents=total_unrealized_max,
         total_fees_cents=total_fees,
         net_pnl_cents=net_pnl,
         portfolio_value_cents=portfolio_value_cents,

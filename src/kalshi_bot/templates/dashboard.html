@@ -28,6 +28,13 @@
           {{ unrealized_ask_cents|signed_dollar }}
         </div>
       </div>
+      <div class="text-slate-700">/</div>
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">If all win</div>
+        <div class="text-xl font-bold {{ 'text-emerald-400' if unrealized_max_cents >= 0 else 'text-red-400' }}">
+          {{ unrealized_max_cents|signed_dollar }}
+        </div>
+      </div>
     </div>
   </div>
 </div>
