@@ -430,12 +430,12 @@ def get_trade_history(limit=50, ticker=None, db_path=DEFAULT_DB_PATH):
     conn = _connect(db_path)
     if ticker:
         rows = _fetchall(conn,
-            "SELECT * FROM trades WHERE ticker = ? ORDER BY id DESC LIMIT ?",
+            "SELECT * FROM trades WHERE ticker = ? AND fill_count > 0 ORDER BY id DESC LIMIT ?",
             (ticker, limit),
         )
     else:
         rows = _fetchall(conn,
-            "SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,)
+            "SELECT * FROM trades WHERE fill_count > 0 ORDER BY id DESC LIMIT ?", (limit,)
         )
     conn.close()
     return rows
