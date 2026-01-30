@@ -10,9 +10,9 @@
       <div class="text-xs text-slate-500 uppercase tracking-wide">Balance</div>
       <a href="/" class="text-[10px] text-slate-600 hover:text-slate-400 transition-colors" title="Refresh">&circlearrowright;</a>
     </div>
-    <div class="text-2xl font-bold text-white">${{ "%.2f"|format(balance_cents / 100) }}</div>
+    <div class="text-2xl font-bold text-white">${{ "%.2f"|format(total_balance_cents / 100) }}</div>
     {% if balance_timestamp %}
-    <div class="text-[10px] text-slate-600 mt-1">as of {{ balance_timestamp }}</div>
+    <div class="text-[10px] text-slate-600 mt-1">${{ "%.2f"|format(balance_cents / 100) }} cash · as of {{ balance_timestamp }}</div>
     {% endif %}
   </div>
 

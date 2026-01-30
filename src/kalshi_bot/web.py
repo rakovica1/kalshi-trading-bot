@@ -118,6 +118,7 @@ def dashboard():
     # Unrealized P&L from open positions (and auto-close settled ones)
     total_unrealized_bid = 0
     total_unrealized_ask = 0
+    portfolio_ask_value = 0
     try:
         client = _get_client()
         for p in open_positions:
@@ -134,12 +135,14 @@ def dashboard():
                     entry = p["avg_entry_price_cents"]
                     # Bid-based (what you'd get selling now)
                     total_unrealized_bid += int(qty * (current - entry))
-                    # Ask-based (cost to buy the opposite side)
+                    # Ask-based
                     if p["side"] == "yes":
                         ask = m.get("yes_ask", 0) or 0
                     else:
                         ask = m.get("no_ask", 0) or 0
-                    total_unrealized_ask += int(qty * (ask - entry)) if ask else int(qty * (current - entry))
+                    ask_val = ask if ask else current
+                    total_unrealized_ask += int(qty * (ask_val - entry))
+                    portfolio_ask_value += int(qty * ask_val)
             except Exception:
                 pass
     except Exception:
@@ -164,6 +167,7 @@ def dashboard():
     return render_template(
         "dashboard.html",
         balance_cents=balance_cents,
+        total_balance_cents=balance_cents + portfolio_ask_value,
         balance_timestamp=balance_timestamp,
         total_deposits_cents=total_deposits,
         deposit_count=deposit_count,
