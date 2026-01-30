@@ -363,10 +363,10 @@ def trades():
     total_traded_cents = sum(t["fill_count"] * t["price_cents"] for t in filled_trades)
     total_fees_cents = sum(t.get("fee_cents", 0) or 0 for t in filled_trades)
 
-    # Net P&L and ROI from position history
+    # Total invested from closed positions only
     total_invested_cents = sum(
-        t["fill_count"] * t["price_cents"]
-        for t in filled_trades if t.get("action") == "buy"
+        p.get("total_cost_cents", 0)
+        for p in all_positions if p.get("is_closed")
     )
     # Realized P&L from all closed positions
     realized_pnl_cents = sum(

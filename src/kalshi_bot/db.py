@@ -768,12 +768,11 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed' AND fill_count > 0"
     )["total"]
 
-    # Total invested = sum of (fill_count × price_cents) for trades with actual fills
+    # Total invested = sum of total_cost for closed positions only
     total_invested = _fetchone(conn,
-        """SELECT COALESCE(SUM(fill_count * price_cents), 0) as total
-           FROM trades
-           WHERE action = 'buy' AND fill_count > 0
-             AND status != 'failed'"""
+        """SELECT COALESCE(SUM(total_cost_cents), 0) as total
+           FROM positions
+           WHERE is_closed = 1"""
     )["total"]
 
     conn.close()
