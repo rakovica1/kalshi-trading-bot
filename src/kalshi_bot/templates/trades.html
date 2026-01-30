@@ -122,18 +122,37 @@
 </div>
 <!-- Trade Summary -->
 <div class="mt-4 bg-slate-900 border border-slate-800 rounded-lg p-4">
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-center mb-4">
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Executed Trades</div>
       <div class="text-sm font-semibold text-slate-300">{{ filled_count }}</div>
     </div>
     <div>
-      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total Traded</div>
-      <div class="text-sm font-semibold text-slate-400">${{ "%.2f"|format(total_traded_cents / 100) }}</div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total Invested</div>
+      <div class="text-sm font-semibold text-slate-400">${{ "%.2f"|format(total_invested_cents / 100) }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Realized P&amp;L</div>
+      <div class="text-sm font-semibold {{ 'text-emerald-400' if realized_pnl_cents >= 0 else 'text-red-400' }}">
+        ${{ "%+.2f"|format(realized_pnl_cents / 100) }}
+      </div>
     </div>
     <div>
       <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total Fees</div>
-      <div class="text-sm font-semibold text-amber-400">${{ "%.2f"|format(total_fees_cents / 100) }}</div>
+      <div class="text-sm font-semibold text-amber-400">-${{ "%.2f"|format(total_fees_cents / 100) }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Net P&amp;L</div>
+      <div class="text-sm font-bold {{ 'text-emerald-400' if trade_net_pnl_cents >= 0 else 'text-red-400' }}">
+        ${{ "%+.2f"|format(trade_net_pnl_cents / 100) }}
+      </div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">ROI</div>
+      <div class="text-sm font-bold {{ 'text-emerald-400' if trade_roi_pct >= 0 else 'text-red-400' }}">
+        {{ "%+.1f"|format(trade_roi_pct) }}%
+      </div>
+      <div class="text-[10px] text-slate-600 mt-0.5">of ${{ "%.2f"|format(total_invested_cents / 100) }}</div>
     </div>
   </div>
   {% if daily_summary %}

@@ -363,6 +363,19 @@ def trades():
     total_traded_cents = sum(t["fill_count"] * t["price_cents"] for t in filled_trades)
     total_fees_cents = sum(t.get("fee_cents", 0) or 0 for t in filled_trades)
 
+    # Net P&L and ROI from position history
+    total_invested_cents = sum(
+        t["fill_count"] * t["price_cents"]
+        for t in filled_trades if t.get("action") == "buy"
+    )
+    # Realized P&L from all closed positions
+    realized_pnl_cents = sum(
+        p.get("realized_pnl_cents", 0)
+        for p in all_positions if p.get("is_closed")
+    )
+    trade_net_pnl_cents = realized_pnl_cents - total_fees_cents
+    trade_roi_pct = (trade_net_pnl_cents / total_invested_cents * 100) if total_invested_cents > 0 else 0.0
+
     # Group by date for daily subtotals
     daily_groups = {}
     for t in filled_trades:
@@ -382,6 +395,10 @@ def trades():
         filter_limit=limit,
         total_traded_cents=total_traded_cents,
         total_fees_cents=total_fees_cents,
+        total_invested_cents=total_invested_cents,
+        realized_pnl_cents=realized_pnl_cents,
+        trade_net_pnl_cents=trade_net_pnl_cents,
+        trade_roi_pct=trade_roi_pct,
         filled_count=len(filled_trades),
         daily_summary=daily_summary,
         import_result=request.args.get("import_result"),
