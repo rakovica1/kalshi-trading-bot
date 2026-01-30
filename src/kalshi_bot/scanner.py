@@ -3,6 +3,8 @@ import threading
 import logging
 from datetime import datetime, timezone, timedelta
 
+from kalshi_bot.ai import detect_category
+
 logger = logging.getLogger(__name__)
 
 
@@ -261,7 +263,7 @@ QUALIFIED_MAX_HOURS = 24.0
 
 
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
-         use_cache=False, top_n=30, stop_check=None):
+         use_cache=False, top_n=30, stop_check=None, exclude_categories=None):
     """Find markets where YES or NO bid is >= min_price.
 
     Fetches markets closing within 48h from the API (server-side filtered),
@@ -311,6 +313,11 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         if prefixes_upper:
             event_ticker = (m.get("event_ticker") or "").upper()
             if not any(event_ticker.startswith(p) for p in prefixes_upper):
+                continue
+
+        # Category exclusion (e.g. crypto)
+        if exclude_categories:
+            if detect_category(m.get("event_ticker", "")) in exclude_categories:
                 continue
 
         passed_prefix += 1

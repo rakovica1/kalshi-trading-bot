@@ -1,4 +1,5 @@
 from kalshi_bot import db
+from kalshi_bot.ai import detect_category
 from kalshi_bot.scanner import scan, format_close_time, hours_until_close, StopRequested
 from kalshi_bot.sizing import calculate_position
 
@@ -17,6 +18,7 @@ def run_whale_strategy(
     stop_check=None,
     with_ai=True,
     min_confidence=75,
+    exclude_categories=None,
 ):
     """Last-Minute Sniper strategy.
 
@@ -64,7 +66,7 @@ def run_whale_strategy(
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,
         min_volume=min_volume, top_n=500, use_cache=True,
-        stop_check=stop_check,
+        stop_check=stop_check, exclude_categories=exclude_categories,
     )
     if scan_stats.get("cached"):
         log(f"[INFO] (cached data)")
@@ -80,6 +82,17 @@ def run_whale_strategy(
     if not candidates:
         log(f"[WARN] No qualified markets found")
         return {"scanned": total_found, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
+
+    # 5b. Exclude categories (e.g. crypto)
+    if exclude_categories:
+        before = len(candidates)
+        candidates = [
+            c for c in candidates
+            if detect_category(c.get("event_ticker", "")) not in exclude_categories
+        ]
+        excluded = before - len(candidates)
+        if excluded:
+            log(f"[INFO] Excluded {excluded} {', '.join(exclude_categories)} market{'s' if excluded != 1 else ''}")
 
     # 6. Remove already-held, 99c, and out-of-window markets
     existing_tickers = db.get_position_tickers()

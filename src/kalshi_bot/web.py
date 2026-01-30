@@ -858,6 +858,7 @@ def control():
         "dry_run": True,
         "with_ai": True,
         "risk_pct": 1.0,
+        "exclude_crypto": True,
     }
     with _whale_lock:
         running = _whale_state["running"]
@@ -900,6 +901,8 @@ def control_start():
     except (ValueError, TypeError):
         risk_pct = 1.0
 
+    exclude_crypto = request.form.get("exclude_crypto") == "on"
+
     # Hardcoded default (removed from UI)
     max_hours = 24.0
 
@@ -910,6 +913,7 @@ def control_start():
             "dry_run": dry_run,
             "with_ai": with_ai,
             "risk_pct": risk_pct,
+            "exclude_crypto": exclude_crypto,
         }
 
     def _log(msg):
@@ -927,9 +931,11 @@ def control_start():
             client = _get_client()
 
             ai_tag = ", ai=ON" if with_ai else ""
+            crypto_tag = ", crypto=OFF" if exclude_crypto else ""
             _log(f"[INFO] Config: max_positions={max_positions}, risk={risk_pct}%, "
-                 f"max_hours={max_hours}, dry_run={dry_run}{ai_tag}")
+                 f"max_hours={max_hours}, dry_run={dry_run}{ai_tag}{crypto_tag}")
 
+            exclude_cats = ["crypto"] if exclude_crypto else None
             strategy_kwargs = dict(
                 prefixes=None,
                 dry_run=dry_run,
@@ -939,6 +945,7 @@ def control_start():
                 log=_log,
                 stop_check=_is_stop_requested,
                 with_ai=with_ai,
+                exclude_categories=exclude_cats,
             )
 
             trades_placed = 0

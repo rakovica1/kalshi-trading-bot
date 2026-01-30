@@ -50,6 +50,11 @@
           class="rounded bg-slate-800 border-slate-600 text-purple-500 focus:ring-purple-500">
         AI Analysis
       </label>
+      <label class="flex items-center gap-2 text-sm text-slate-400 pb-1">
+        <input type="checkbox" name="exclude_crypto" {{ 'checked' if settings.exclude_crypto }}
+          class="rounded bg-slate-800 border-slate-600 text-amber-500 focus:ring-amber-500">
+        Exclude Crypto
+      </label>
     </div>
 
     <div class="flex items-center gap-3">
