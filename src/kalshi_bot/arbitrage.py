@@ -224,9 +224,38 @@ def run_arbitrage_scan(client, log=print, min_profit_cents=1,
     Returns list of all opportunities found.
     """
     log("[HEAD] Arbitrage Scanner")
-    log("[INFO] Fetching all open markets...")
 
-    markets = client.get_all_markets(status="open")
+    # Only fetch markets closing within 7 days to avoid 500k+ market pagination
+    max_ts = int(time.time()) + 7 * 86400
+    log("[INFO] Fetching open markets (closing within 7 days)...")
+
+    all_markets = []
+    cursor = None
+    page = 0
+    while True:
+        kwargs = {"limit": 1000, "status": "open", "max_close_ts": max_ts}
+        if cursor:
+            kwargs["cursor"] = cursor
+        try:
+            resp = client._market_api.get_markets_without_preload_content(**kwargs)
+            import json as _json
+            raw = resp.data if hasattr(resp, "data") else resp
+            if not raw:
+                break
+            data = _json.loads(raw)
+            batch = data.get("markets", [])
+            all_markets.extend(batch)
+            page += 1
+            if page % 5 == 0:
+                log(f"[INFO] ...{len(all_markets)} markets fetched so far")
+            cursor = data.get("cursor")
+            if not cursor or not batch:
+                break
+        except Exception as e:
+            log(f"[FAIL] Error fetching markets: {e}")
+            break
+
+    markets = all_markets
     log(f"[INFO] {len(markets)} markets fetched")
 
     # Extract price data
