@@ -482,6 +482,52 @@ def pnl(ctx):
         sys.exit(1)
 
 
+@cli.command("import-trades")
+@click.argument("csv_file", type=click.Path(exists=True))
+@click.option("--keep-existing", is_flag=True, help="Append to existing trades instead of replacing.")
+@click.option("--yes", "skip_confirm", is_flag=True, help="Skip confirmation prompt.")
+@click.pass_context
+def import_trades(ctx, csv_file, keep_existing, skip_confirm):
+    """Import trades from a Kalshi CSV export file.
+
+    Replaces all existing trades and positions with data from the CSV.
+    Use --keep-existing to append instead.
+    """
+    clear = not keep_existing
+
+    if clear and not skip_confirm:
+        click.confirm(
+            "This will DELETE all existing trades and positions, then import from CSV. Continue?",
+            abort=True,
+        )
+
+    click.echo(f"Importing from {csv_file}...")
+    try:
+        imported, skipped = db.import_trades_from_csv_file(csv_file, clear_existing=clear)
+        click.echo(f"Done! Imported {imported} trade{'s' if imported != 1 else ''}, "
+                    f"skipped {skipped} row{'s' if skipped != 1 else ''}.")
+
+        # Show summary
+        trades = db.get_trade_history(limit=100)
+        filled = [t for t in trades if (t.get("fill_count") or 0) > 0]
+        total_cost = sum(t["fill_count"] * t["price_cents"] for t in filled)
+        total_fees = sum(t.get("fee_cents", 0) or 0 for t in filled)
+        click.echo(f"\nSummary:")
+        click.echo(f"  Total trades:   {len(filled)}")
+        click.echo(f"  Total invested: ${total_cost / 100:.2f}")
+        click.echo(f"  Total fees:     ${total_fees / 100:.2f}")
+
+        positions = db.get_open_positions()
+        click.echo(f"  Open positions: {len(positions)}")
+        for p in positions:
+            click.echo(f"    {p['ticker']} {p['side'].upper()} x{p['quantity']} @ {p['avg_entry_price_cents']:.0f}c")
+    except click.Abort:
+        click.echo("Import cancelled.")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 @cli.command()
 @click.pass_context
 def stats(ctx):

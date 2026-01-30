@@ -266,7 +266,13 @@ def run_whale_strategy(
             # Use actual fees from Kalshi API; fallback to 1¢ per filled contract
             actual_fees = taker_fees if taker_fees > 0 else fill_count * 1
             # Use actual fill cost for entry price if available
-            actual_entry = int(taker_fill_cost / fill_count) if fill_count > 0 and taker_fill_cost > 0 else est_price
+            if fill_count > 0 and taker_fill_cost > 0:
+                actual_entry = int(taker_fill_cost / fill_count)
+            else:
+                actual_entry = est_price
+                if fill_count > 0:
+                    log(f"  WARNING: taker_fill_cost=0 but fill_count={fill_count}. "
+                        f"Using est_price={est_price}c as fallback — verify in Kalshi dashboard.")
 
             db.log_trade(
                 ticker=ticker,

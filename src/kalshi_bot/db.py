@@ -1,6 +1,8 @@
+import csv
+import io
 import os
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -914,3 +916,108 @@ def cleanup_old_snapshots(hours=48, db_path=DEFAULT_DB_PATH):
         )
         conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# CSV Import
+# ---------------------------------------------------------------------------
+
+def clear_all_trades(db_path=DEFAULT_DB_PATH):
+    """Delete all trades from the database."""
+    conn = _connect(db_path)
+    _execute(conn, "DELETE FROM trades")
+    if not _use_pg:
+        conn.commit()
+    conn.close()
+
+
+def clear_all_positions(db_path=DEFAULT_DB_PATH):
+    """Delete all positions from the database."""
+    conn = _connect(db_path)
+    _execute(conn, "DELETE FROM positions")
+    if not _use_pg:
+        conn.commit()
+    conn.close()
+
+
+def _parse_kalshi_csv_datetime(date_str):
+    """Parse Kalshi CSV Original_Date to a UTC datetime string.
+
+    Input format: 2026-01-29T22:46:06.724Z
+    Output format: 2026-01-29 22:46:06
+    """
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return date_str
+
+
+def import_trades_from_csv(csv_content, clear_existing=True, db_path=DEFAULT_DB_PATH):
+    """Import trades from a Kalshi CSV export.
+
+    CSV columns: type, Market_Ticker, Market_Id, Original_Date, Price_In_Cents,
+                 Amount_In_Dollars, Fee_In_Dollars, Traded_Time, Direction, Order_Type
+
+    Returns (imported_count, skipped_count).
+    """
+    if clear_existing:
+        clear_all_trades(db_path)
+        clear_all_positions(db_path)
+
+    # Handle BOM
+    if csv_content.startswith("\ufeff"):
+        csv_content = csv_content[1:]
+
+    reader = csv.DictReader(io.StringIO(csv_content))
+    imported = 0
+    skipped = 0
+
+    for row in reader:
+        trade_type = (row.get("type") or "").strip()
+        if not trade_type:
+            continue  # skip empty rows
+
+        ticker = (row.get("Market_Ticker") or "").strip()
+        if not ticker:
+            skipped += 1
+            continue
+
+        price_cents = int(row.get("Price_In_Cents", 0))
+        direction = (row.get("Direction") or "").strip().lower()  # "yes" or "no"
+        fee_dollars = float(row.get("Fee_In_Dollars", 0))
+        fee_cents = int(round(fee_dollars * 100))
+        # Amount_In_Dollars = number of contracts (each contract is worth $1 at max payout)
+        count = max(1, int(float(row.get("Amount_In_Dollars", 1))))
+        created_at = _parse_kalshi_csv_datetime(row.get("Original_Date", ""))
+        market_id = (row.get("Market_Id") or "").strip()
+
+        # Insert trade with correct timestamp
+        conn = _connect(db_path)
+        _execute(conn,
+            """INSERT INTO trades
+               (order_id, ticker, side, action, count, price_cents, fee_cents, status,
+                fill_count, remaining_count, error_message, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (market_id, ticker, direction, "buy", count, price_cents, fee_cents,
+             "executed", count, 0, None, created_at),
+        )
+        if not _use_pg:
+            conn.commit()
+        conn.close()
+
+        # Also create/update the position
+        update_position_on_buy(ticker, direction, count, price_cents, db_path=db_path)
+        imported += 1
+
+    return imported, skipped
+
+
+def import_trades_from_csv_file(file_path, clear_existing=True, db_path=DEFAULT_DB_PATH):
+    """Import trades from a Kalshi CSV file on disk.
+
+    Returns (imported_count, skipped_count).
+    """
+    with open(file_path, "r", encoding="utf-8-sig") as f:
+        content = f.read()
+    return import_trades_from_csv(content, clear_existing=clear_existing, db_path=db_path)

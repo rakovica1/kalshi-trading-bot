@@ -346,7 +346,26 @@ def trades():
         total_fees_cents=total_fees_cents,
         filled_count=len(filled_trades),
         daily_summary=daily_summary,
+        import_result=request.args.get("import_result"),
+        import_count=request.args.get("import_count", 0, type=int),
     )
+
+
+@app.route("/trades/import", methods=["POST"])
+@_require_control_password
+def trades_import():
+    """Import trades from an uploaded Kalshi CSV file."""
+    db.init_db()
+    file = request.files.get("csv_file")
+    if not file or not file.filename:
+        return redirect(url_for("trades", import_result="error"))
+
+    try:
+        content = file.read().decode("utf-8-sig")
+        imported, skipped = db.import_trades_from_csv(content, clear_existing=True)
+        return redirect(url_for("trades", import_result="success", import_count=imported))
+    except Exception as e:
+        return redirect(url_for("trades", import_result="error"))
 
 
 # ---------------------------------------------------------------------------
