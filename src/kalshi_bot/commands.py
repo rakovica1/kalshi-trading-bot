@@ -580,7 +580,7 @@ def stats(ctx):
 @click.option("--min-volume", default=10000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
 @click.option("--max-days-to-expiration", default=None, type=float, help="Only trade markets expiring within N days.")
-@click.option("--max-hours-to-expiration", default=24.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
+@click.option("--max-hours-to-expiration", default=2.0, type=float, help="Only trade markets expiring within N hours (overrides --max-days).", show_default=True)
 @click.option("--no-expiration-limit", is_flag=True, help="Remove expiration filter (trade any expiration).")
 @click.option("--continuous/--once", default=False, help="Loop: scan and trade until max-positions reached or Ctrl+C.", show_default=True)
 @click.option("--cooldown-minutes", default=1.0, type=float, help="Minutes to wait between trades in continuous mode.", show_default=True)

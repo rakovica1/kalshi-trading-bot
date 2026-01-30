@@ -906,7 +906,7 @@ def control_start():
     exclude_crypto = request.form.get("exclude_crypto") == "on"
 
     # Hardcoded default (removed from UI)
-    max_hours = 24.0
+    max_hours = 2.0
 
     # Store form values so the UI preserves them after redirect
     with _whale_lock:

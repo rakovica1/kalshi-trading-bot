@@ -259,7 +259,7 @@ def hours_until_close(raw):
 QUALIFIED_MIN_DOLLAR_24H = 10_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
 QUALIFIED_TOP_N_DOLLAR = 200
-QUALIFIED_MAX_HOURS = 24.0
+QUALIFIED_MAX_HOURS = 2.0
 
 
 def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,

@@ -13,7 +13,7 @@ def run_whale_strategy(
     max_positions=10,
     daily_loss_pct=0.05,
     dry_run=True,
-    max_hours_to_expiration=24.0,
+    max_hours_to_expiration=2.0,
     log=print,
     stop_check=None,
     with_ai=True,
