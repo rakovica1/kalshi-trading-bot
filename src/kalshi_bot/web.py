@@ -245,7 +245,19 @@ def positions():
             "closed_at_display": closed_at_display,
         })
 
-    return render_template("positions.html", positions=enriched, closed_positions=closed_enriched)
+    # Compute position totals
+    total_value = sum(p["current_price"] * p["quantity"] for p in enriched)
+    total_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in enriched)
+    total_unrealized = sum(p["unrealized_cents"] for p in enriched)
+
+    return render_template(
+        "positions.html",
+        positions=enriched,
+        closed_positions=closed_enriched,
+        total_value_cents=total_value,
+        total_cost_cents=total_cost,
+        total_unrealized_cents=total_unrealized,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -308,11 +320,32 @@ def trades():
                 t["settlement"] = "pending"
                 t["settlement_label"] = "Pending"
 
+    # Compute trade totals (only filled trades)
+    filled_trades = [t for t in trade_list if (t.get("fill_count") or 0) > 0]
+    total_traded_cents = sum(t["fill_count"] * t["price_cents"] for t in filled_trades)
+    total_fees_cents = sum(t.get("fee_cents", 0) or 0 for t in filled_trades)
+
+    # Group by date for daily subtotals
+    daily_groups = {}
+    for t in filled_trades:
+        # Extract date from formatted EST string (YYYY-MM-DD ...)
+        date_str = str(t.get("created_at", ""))[:10]
+        if date_str not in daily_groups:
+            daily_groups[date_str] = {"date": date_str, "count": 0, "cost_cents": 0, "fees_cents": 0}
+        daily_groups[date_str]["count"] += 1
+        daily_groups[date_str]["cost_cents"] += t["fill_count"] * t["price_cents"]
+        daily_groups[date_str]["fees_cents"] += t.get("fee_cents", 0) or 0
+    daily_summary = sorted(daily_groups.values(), key=lambda x: x["date"], reverse=True)
+
     return render_template(
         "trades.html",
         trades=trade_list,
         filter_ticker=ticker or "",
         filter_limit=limit,
+        total_traded_cents=total_traded_cents,
+        total_fees_cents=total_fees_cents,
+        filled_count=len(filled_trades),
+        daily_summary=daily_summary,
     )
 
 
@@ -481,7 +514,19 @@ def charts():
     except Exception:
         pass
 
-    return render_template("charts.html", positions=active_positions, closed_positions=all_closed)
+    # Compute portfolio totals for active positions
+    portfolio_value = sum(p["current_bid"] * p["quantity"] for p in active_positions)
+    portfolio_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in active_positions)
+    portfolio_unrealized = sum(p["unrealized_cents"] for p in active_positions)
+
+    return render_template(
+        "charts.html",
+        positions=active_positions,
+        closed_positions=all_closed,
+        portfolio_value_cents=portfolio_value,
+        portfolio_cost_cents=portfolio_cost,
+        portfolio_unrealized_cents=portfolio_unrealized,
+    )
 
 
 @app.route("/api/charts/prices")

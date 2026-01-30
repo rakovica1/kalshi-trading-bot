@@ -83,7 +83,37 @@
     </tbody>
   </table>
 </div>
-<p class="mt-4 text-sm text-slate-500">{{ trades|length }} trade{{ 's' if trades|length != 1 }} shown</p>
+<!-- Trade Summary -->
+<div class="mt-4 bg-slate-900 border border-slate-800 rounded-lg p-4">
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Executed Trades</div>
+      <div class="text-sm font-semibold text-slate-300">{{ filled_count }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total Traded</div>
+      <div class="text-sm font-semibold text-slate-400">${{ "%.2f"|format(total_traded_cents / 100) }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Total Fees</div>
+      <div class="text-sm font-semibold text-amber-400">${{ "%.2f"|format(total_fees_cents / 100) }}</div>
+    </div>
+  </div>
+  {% if daily_summary %}
+  <div class="border-t border-slate-800/50 pt-3">
+    <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Daily Breakdown</div>
+    <div class="space-y-1.5">
+      {% for d in daily_summary %}
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-mono">{{ d.date }}</span>
+        <span class="text-slate-300">{{ d.count }} trade{{ 's' if d.count != 1 }} &middot; ${{ "%.2f"|format(d.cost_cents / 100) }} traded &middot; <span class="text-amber-400/70">${{ "%.2f"|format(d.fees_cents / 100) }} fees</span></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<p class="mt-2 text-sm text-slate-500">{{ trades|length }} trade{{ 's' if trades|length != 1 }} shown</p>
 {% else %}
 <div class="text-center py-16">
   <div class="text-slate-600 text-lg mb-2">No trades recorded</div>

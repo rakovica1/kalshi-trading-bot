@@ -53,7 +53,29 @@
     </tbody>
   </table>
 </div>
-<p class="mt-4 text-sm text-slate-500">{{ positions|length }} open position{{ 's' if positions|length != 1 }}</p>
+<!-- Position Summary -->
+<div class="mt-4 bg-slate-900 border border-slate-800 rounded-lg p-4">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Positions</div>
+      <div class="text-sm font-semibold text-slate-300">{{ positions|length }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Cost Basis</div>
+      <div class="text-sm font-semibold text-slate-400">${{ "%.2f"|format(total_cost_cents / 100) }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Current Value</div>
+      <div class="text-sm font-semibold text-slate-300">${{ "%.2f"|format(total_value_cents / 100) }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">Unrealized P&amp;L</div>
+      <div class="text-sm font-bold {{ 'text-emerald-400' if total_unrealized_cents >= 0 else 'text-red-400' }}">
+        ${{ "%+.2f"|format(total_unrealized_cents / 100) }}
+      </div>
+    </div>
+  </div>
+</div>
 {% else %}
 <div class="text-center py-16">
   <div class="text-slate-600 text-lg mb-2">No open positions</div>
