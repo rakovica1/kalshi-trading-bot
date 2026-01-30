@@ -710,8 +710,7 @@ def control_start():
     except (ValueError, TypeError):
         max_positions = 10
 
-    # Hardcoded defaults (removed from UI)
-    tier1_only = True
+    # Hardcoded default (removed from UI)
     max_hours = 24.0
 
     # Store form values so the UI preserves them after redirect
@@ -737,12 +736,11 @@ def control_start():
 
             mode_label = "RISKIER" if risk_mode == "risky" else "STANDARD"
             _log(f"Config: max_positions={max_positions}, max_hours={max_hours}, "
-                 f"mode={mode_label}, tier1_only={tier1_only}, dry_run={dry_run}")
+                 f"mode={mode_label}, dry_run={dry_run}")
 
             strategy_kwargs = dict(
                 prefixes=None,
                 dry_run=dry_run,
-                tier1_only=tier1_only,
                 max_positions=max_positions,
                 max_hours_to_expiration=max_hours,
                 risk_mode=risk_mode,

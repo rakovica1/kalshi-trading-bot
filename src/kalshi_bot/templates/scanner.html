@@ -153,15 +153,16 @@
         <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="1">Tier <span class="sort-arrow"></span></th>
         <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="2">Ticker <span class="sort-arrow"></span></th>
         <th class="pb-3 pr-4 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="3">Side <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="4">Price <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="5">24h $ <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="6">Rank <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="7">Spread <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="8">24h Vol <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="9">Open Int <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="10">Time Left <span class="sort-arrow"></span></th>
-        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="11">Closes <span class="sort-arrow"></span></th>
-        <th class="pb-3 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="12">Event <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="4">Bid <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="5">Ask <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="6">24h $ <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="7">Rank <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="8">Spread <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="9">24h Vol <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="10">Open Int <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="num" data-col="11">Time Left <span class="sort-arrow"></span></th>
+        <th class="pb-3 pr-4 text-right cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="12">Closes <span class="sort-arrow"></span></th>
+        <th class="pb-3 cursor-pointer hover:text-slate-300 select-none" data-sort="text" data-col="13">Event <span class="sort-arrow"></span></th>
       </tr>
     </thead>
     <tbody>
@@ -205,6 +206,7 @@
           {% if m.tier == 0 %}text-slate-500{% elif m.tier == 1 %}text-emerald-300{% elif m.tier == 2 %}text-yellow-300{% else %}text-orange-300{% endif %}">
           {{ m.signal_price }}c
         </td>
+        <td class="py-2.5 pr-4 text-right text-slate-400">{{ m.signal_ask|default(0) }}c</td>
         <td class="py-2.5 pr-4 text-right text-emerald-400 font-medium">${{ "{:,}".format(m.dollar_24h|default(0)) }}</td>
         <td class="py-2.5 pr-4 text-right text-slate-400">#{{ m.dollar_rank|default(0) }}</td>
         <td class="py-2.5 pr-4 text-right {{ 'text-emerald-400' if m.spread_pct|default(0) < 5 else 'text-red-400' }}">{{ "%.1f"|format(m.spread_pct|default(0)) }}%</td>
