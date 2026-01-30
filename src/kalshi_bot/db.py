@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS scan_results (
     event_ticker TEXT,
     signal_side TEXT NOT NULL,
     signal_price INTEGER NOT NULL,
+    signal_ask INTEGER NOT NULL DEFAULT 0,
     tier INTEGER NOT NULL DEFAULT 3,
     volume_24h INTEGER NOT NULL DEFAULT 0,
     dollar_24h INTEGER NOT NULL DEFAULT 0,
@@ -180,6 +181,7 @@ _PG_TABLES = [
         event_ticker TEXT,
         signal_side TEXT NOT NULL,
         signal_price INTEGER NOT NULL,
+        signal_ask INTEGER NOT NULL DEFAULT 0,
         tier INTEGER NOT NULL DEFAULT 3,
         volume_24h INTEGER NOT NULL DEFAULT 0,
         dollar_24h INTEGER NOT NULL DEFAULT 0,
@@ -307,6 +309,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
             "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
             "qualified": "INTEGER NOT NULL DEFAULT 0",
             "close_time": "TEXT NOT NULL DEFAULT ''",
+            "signal_ask": "INTEGER NOT NULL DEFAULT 0",
         })
         _migrate_columns(conn, "scan_meta", {
             "qualified": "INTEGER NOT NULL DEFAULT 0",
@@ -330,6 +333,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
             "dollar_rank": "INTEGER NOT NULL DEFAULT 0",
             "qualified": "INTEGER NOT NULL DEFAULT 0",
             "close_time": "TEXT NOT NULL DEFAULT ''",
+            "signal_ask": "INTEGER NOT NULL DEFAULT 0",
         })
         _migrate_columns(conn, "scan_meta", {
             "qualified": "INTEGER NOT NULL DEFAULT 0",
@@ -847,12 +851,12 @@ def save_scan_results(results, stats, db_path=DEFAULT_DB_PATH):
     for m in results:
         _execute(conn,
             """INSERT INTO scan_results
-               (ticker, event_ticker, signal_side, signal_price, tier,
+               (ticker, event_ticker, signal_side, signal_price, signal_ask, tier,
                 volume_24h, dollar_24h, volume, open_interest,
                 spread_pct, dollar_rank, qualified, close_time)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (m["ticker"], m.get("event_ticker", ""), m["signal_side"],
-             m["signal_price"], m.get("tier", 3),
+             m["signal_price"], m.get("signal_ask", 0), m.get("tier", 3),
              m.get("volume_24h", 0), m.get("dollar_24h", 0),
              m.get("volume", 0), m.get("open_interest", 0),
              m.get("spread_pct", 0), m.get("dollar_rank", 0),
