@@ -4,15 +4,56 @@ import re
 
 # Known event prefix → display name mappings
 _PREFIX_MAP = {
-    "KXBTCD": "Bitcoin Daily",
+    # Crypto
     "KXBTC": "Bitcoin",
+    "KXBTC15M": "Bitcoin 15m",
+    "KXBTCD": "Bitcoin Daily",
     "KXBTCMAX": "Bitcoin Max",
     "KXBTCMAXMON": "Bitcoin Max Monthly",
     "KXBTCMIN": "Bitcoin Min",
     "KXBTCW": "Bitcoin Weekly",
-    "KXETHD": "Ethereum Daily",
     "KXETH": "Ethereum",
+    "KXETH15M": "Ethereum 15m",
+    "KXETHD": "Ethereum Daily",
     "KXETHW": "Ethereum Weekly",
+    "KXDOGE": "Dogecoin",
+    "KXDOGED": "Dogecoin Daily",
+    "KXSHIBA": "Shiba Inu",
+    "KXSHIBAD": "Shiba Inu Daily",
+    "KXSOL15M": "Solana 15m",
+    "KXSOLD": "Solana Daily",
+    "KXSOLE": "Solana",
+    "KXXRP": "XRP",
+    "KXXRPD": "XRP Daily",
+
+    # Indices & stocks
+    "KXINX": "S&P 500",
+    "KXINXU": "S&P 500",
+    "KXNASDAQ100": "Nasdaq 100",
+    "KXNASDAQ100U": "Nasdaq 100",
+    "KXSP500": "S&P 500",
+    "KXNAS": "Nasdaq",
+
+    # Forex
+    "KXEURUSD": "EUR/USD",
+    "KXEURUSDH": "EUR/USD Hourly",
+    "KXUSDJPY": "USD/JPY",
+    "KXUSDJPYH": "USD/JPY Hourly",
+
+    # Commodities
+    "KXWTIW": "WTI Oil Weekly",
+
+    # Rates & bonds
+    "KXTNOTEW": "10Y Treasury",
+    "KXFED": "Fed Rate",
+
+    # Economics
+    "KXCPI": "CPI",
+    "KXGDP": "GDP",
+    "KXREALWAGES": "Real Wages",
+    "RECSSNBER": "NBER Recession",
+
+    # Sports
     "KXNBA": "NBA",
     "KXNBAMENTION": "NBA Mention",
     "KXNBAGAME": "NBA Game",
@@ -21,15 +62,73 @@ _PREFIX_MAP = {
     "KXNFLSBMVP": "NFL SB MVP",
     "KXNFLMVP": "NFL MVP",
     "KXNFLANYTD": "NFL Any TD",
+    "KXNCAABMENTION": "NCAAB Mention",
     "KXSOCCER": "Soccer",
+    "KXSWISSLEAGUEGAME": "Swiss League",
     "KXMLB": "MLB",
     "KXNHL": "NHL",
-    "KXLOWTAUS": "Australia CPI",
-    "KXCPI": "CPI",
-    "KXFED": "Fed Rate",
-    "KXGDP": "GDP",
-    "KXSP500": "S&P 500",
-    "KXNAS": "Nasdaq",
+    "KXMVESPORTSMULTIGAMEEXTENDED": "Esports",
+
+    # Weather — high temps
+    "KXHIGHAUS": "Austin High",
+    "KXHIGHCHI": "Chicago High",
+    "KXHIGHDEN": "Denver High",
+    "KXHIGHLAX": "LA High",
+    "KXHIGHMIA": "Miami High",
+    "KXHIGHNY": "NYC High",
+    "KXHIGHPHIL": "Philly High",
+    "KXHIGHTDC": "DC High",
+    "KXHIGHTLV": "Las Vegas High",
+    "KXHIGHTNOLA": "New Orleans High",
+    "KXHIGHTSEA": "Seattle High",
+    "KXHIGHTSFO": "San Francisco High",
+
+    # Weather — low temps
+    "KXLOWTAUS": "Austin Low",
+    "KXLOWTCHI": "Chicago Low",
+    "KXLOWTDEN": "Denver Low",
+    "KXLOWTLAX": "LA Low",
+    "KXLOWTMIA": "Miami Low",
+    "KXLOWTNYC": "NYC Low",
+    "KXLOWTPHIL": "Philly Low",
+
+    # Weather — rain
+    "KXRAINNYC": "NYC Rain",
+
+    # Music & entertainment
+    "KXSPOTIFYW": "Spotify Weekly",
+    "KXSPOTIFYD": "Spotify Daily",
+    "KXSPOTIFY2D": "Spotify 2-Day",
+    "KXSPOTIFYGLOBALD": "Spotify Global Daily",
+    "KXSPOTIFYARTISTD": "Spotify Artist Daily",
+    "KXSPOTIFYARTISTW": "Spotify Artist Weekly",
+    "KXSPOTIFYALBUMW": "Spotify Album Weekly",
+    "KXSPOTIFYALBUMRELEASEDATEKANYE": "Spotify Kanye Album",
+    "KXSPOTSTREAMGLOBAL": "Spotify Streams Global",
+    "KXSPOTSTREAMSUSA": "Spotify Streams USA",
+    "KXALBUMSALES": "Album Sales",
+    "KXAAAGASM": "AAA Game Score",
+
+    # Politics & government
+    "KXAPRPOTUS": "Trump Approval",
+    "KXGOVSHUT": "Govt Shutdown",
+    "KXGOVTFUND": "Govt Funding",
+    "KXVOTEHUBTRUMPUPDOWN": "Trump Up/Down",
+
+    # AI & tech
+    "KXLLM1": "LLM Benchmark",
+    "KXTOPMODEL": "Top AI Model",
+    "KXTOPMONTHLY": "Top Monthly",
+    "KXRANKLISTGOOGLEPASSING": "Google Passing",
+
+    # TV mentions
+    "KXHOCHULMENTION": "Hochul Mention",
+    "KXLASTWORDMENTION": "Last Word Mention",
+    "KXFEATUREDONTOLIVER": "John Oliver Feature",
+
+    # Other
+    "KXCABLEAVE": "Cable News Avg",
+    "KXMNDAYCARECHARGE": "Monday Care Charge",
 }
 
 _MONTHS = {
@@ -64,7 +163,18 @@ def _parse_date_segment(seg):
     return None
 
 
-def _parse_threshold(seg):
+_TEMP_PREFIXES = {
+    "KXHIGHAUS", "KXHIGHCHI", "KXHIGHDEN", "KXHIGHLAX", "KXHIGHMIA",
+    "KXHIGHNY", "KXHIGHPHIL", "KXHIGHTDC", "KXHIGHTLV", "KXHIGHTNOLA",
+    "KXHIGHTSEA", "KXHIGHTSFO",
+    "KXLOWTAUS", "KXLOWTCHI", "KXLOWTDEN", "KXLOWTLAX", "KXLOWTMIA",
+    "KXLOWTNYC", "KXLOWTPHIL",
+}
+
+_RAIN_PREFIXES = {"KXRAINNYC"}
+
+
+def _parse_threshold(seg, prefix=None):
     """Parse a threshold segment like 'T90749.99' or 'B105000'.
 
     Returns (direction, formatted_number) or None.
@@ -73,9 +183,18 @@ def _parse_threshold(seg):
         return None
     direction = _DIRECTION[seg[0]]
     num_str = seg[1:]
+    if not num_str:
+        return None
     try:
         num = float(num_str)
-        if num == int(num):
+    except ValueError:
+        return None
+    try:
+        if prefix and prefix in _TEMP_PREFIXES:
+            formatted = f"{int(num)}°F"
+        elif prefix and prefix in _RAIN_PREFIXES:
+            formatted = f"{num:g} in"
+        elif num == int(num):
             formatted = f"${int(num):,}"
         else:
             formatted = f"${num:,.2f}"
@@ -125,7 +244,20 @@ def decode_ticker(ticker):
     threshold = None
     extra_parts = []
 
-    for seg in parts[1:]:
+    # Rejoin segments for negative thresholds: ['T', '4'] -> ['T-4']
+    remaining_parts = []
+    i = 0
+    raw_parts = parts[1:]
+    while i < len(raw_parts):
+        seg = raw_parts[i]
+        if seg in _DIRECTION and i + 1 < len(raw_parts) and re.match(r"^\d+\.?\d*$", raw_parts[i + 1]):
+            remaining_parts.append(f"{seg}-{raw_parts[i + 1]}")
+            i += 2
+        else:
+            remaining_parts.append(seg)
+            i += 1
+
+    for seg in remaining_parts:
         # Try date extraction
         d = _parse_date_segment(seg)
         if d:
@@ -133,7 +265,7 @@ def decode_ticker(ticker):
             continue
 
         # Try threshold
-        t = _parse_threshold(seg)
+        t = _parse_threshold(seg, prefix=prefix_part)
         if t:
             threshold = t
             continue
