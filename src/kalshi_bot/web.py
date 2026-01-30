@@ -733,7 +733,7 @@ def control_start():
             db.init_db()
             client = _get_client()
 
-            _log(f"Config: max_positions={max_positions}, max_hours={max_hours}, "
+            _log(f"[INFO] Config: max_positions={max_positions}, max_hours={max_hours}, "
                  f"dry_run={dry_run}")
 
             strategy_kwargs = dict(
@@ -746,24 +746,24 @@ def control_start():
             )
 
             trades_placed = 0
-            _log(f"[SNIPER] Starting ({'DRY RUN' if dry_run else 'LIVE'}) — "
-                 f"max {max_positions} positions")
+            mode = "DRY RUN" if dry_run else "LIVE"
+            _log(f"[HEAD] Starting [{mode}] — max {max_positions} positions")
 
             round_num = 0
             while True:
                 if _is_stop_requested():
-                    _log(f"[SNIPER] Stop requested. Finishing.")
+                    _log(f"[WARN] Stop requested. Finishing.")
                     break
 
                 round_num += 1
                 open_count = db.count_open_positions()
 
                 if open_count >= max_positions:
-                    _log(f"[SNIPER] All {max_positions} positions filled. Stopping.")
+                    _log(f"[FILL] All {max_positions} positions filled. Stopping.")
                     break
 
                 remaining = max_positions - open_count
-                _log(f"[SNIPER] Round {round_num} — "
+                _log(f"[HEAD] Round {round_num} — "
                      f"{open_count}/{max_positions} filled, "
                      f"{remaining} slot{'s' if remaining != 1 else ''} remaining")
 
@@ -772,24 +772,24 @@ def control_start():
                 if result.get("traded", 0) > 0:
                     trades_placed += 1
                     open_now = db.count_open_positions()
-                    _log(f"[SNIPER] Trade {trades_placed} complete. "
+                    _log(f"[FILL] Trade {trades_placed} complete. "
                          f"{open_now}/{max_positions} positions filled.")
                     if open_now >= max_positions:
-                        _log(f"[SNIPER] All {max_positions} positions filled. Stopping.")
+                        _log(f"[FILL] All {max_positions} positions filled. Stopping.")
                         break
                 else:
                     reason = result.get("stopped_reason")
                     if reason == "daily_loss":
-                        _log(f"[SNIPER] Daily loss limit hit. Stopping.")
+                        _log(f"[FAIL] Daily loss limit hit. Stopping.")
                         break
                     if reason == "max_positions":
-                        _log(f"[SNIPER] All {max_positions} positions filled. Stopping.")
+                        _log(f"[FILL] All {max_positions} positions filled. Stopping.")
                         break
                     # No trade — wait 60s then rescan
-                    _log(f"[SNIPER] No targets right now. Retrying in 60s...")
+                    _log(f"[WARN] No targets right now. Retrying in 60s...")
                     for _ in range(60):
                         if _is_stop_requested():
-                            _log(f"[SNIPER] Stop requested. Finishing.")
+                            _log(f"[WARN] Stop requested. Finishing.")
                             break
                         import time as _time
                         _time.sleep(1)
@@ -797,12 +797,12 @@ def control_start():
                         continue
                     break  # stop was requested during wait
 
-            _log(f"[SNIPER] Done — {round_num} rounds, {trades_placed} trades placed, "
+            _log(f"[HEAD] Done — {round_num} rounds, {trades_placed} trades placed, "
                  f"{db.count_open_positions()}/{max_positions} positions")
         except StopRequested:
-            _log("Strategy stopped by user.")
+            _log("[WARN] Strategy stopped by user.")
         except Exception as e:
-            _log(f"ERROR: {e}")
+            _log(f"[FAIL] ERROR: {e}")
         finally:
             with _whale_lock:
                 _whale_state["running"] = False

@@ -53,18 +53,76 @@
   <form method="post" action="/control/stop" id="stop-form" class="hidden"></form>
 </div>
 
+<!-- Progress bar -->
+<div id="progress-bar" class="hidden bg-slate-900 border border-slate-800 rounded-lg px-4 py-2.5 mb-4 flex items-center gap-5 text-xs">
+  <span id="prog-round" class="text-slate-400">Round: —</span>
+  <span id="prog-filled" class="text-emerald-400">Filled: 0</span>
+  <span id="prog-orders" class="text-slate-400">Orders: 0</span>
+  <span id="prog-status" class="text-amber-400"></span>
+</div>
+
 <!-- Log viewer -->
 <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
   <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
     <span class="text-sm font-medium text-slate-400">Logs</span>
     <button onclick="clearLogs()" class="text-xs text-slate-600 hover:text-slate-400">Clear</button>
   </div>
-  <pre id="log-box" class="p-4 text-xs text-slate-400 font-mono overflow-y-auto max-h-[500px] whitespace-pre-wrap">Waiting for logs...</pre>
+  <div id="log-box" class="p-4 text-xs font-mono overflow-y-auto max-h-[500px] whitespace-pre-wrap text-slate-400">Waiting for logs...</div>
 </div>
 
 <script>
 let pollInterval = null;
 let lastLogCount = 0;
+
+const TAG_COLORS = {
+  'FILL': 'text-emerald-400',
+  'WARN': 'text-amber-400',
+  'FAIL': 'text-red-400',
+  'SKIP': 'text-slate-600',
+  'INFO': 'text-slate-400',
+  'HEAD': 'text-white',
+};
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function colorLine(line) {
+  const m = line.match(/^\[([A-Z]+)\]/);
+  if (m && TAG_COLORS[m[1]]) {
+    return '<span class="' + TAG_COLORS[m[1]] + '">' + escapeHtml(line) + '</span>';
+  }
+  return '<span class="text-slate-400">' + escapeHtml(line) + '</span>';
+}
+
+function parseProgress(logs) {
+  let round = null, filled = null, total = null, orders = 0, status = '';
+  for (let i = logs.length - 1; i >= 0; i--) {
+    const line = logs[i];
+    // Round N — X/Y filled
+    if (round === null) {
+      const rm = line.match(/Round (\d+).*?(\d+)\/(\d+) filled/);
+      if (rm) { round = rm[1]; filled = rm[2]; total = rm[3]; }
+    }
+    // Trade N complete. X/Y positions filled.
+    if (filled === null) {
+      const fm = line.match(/(\d+)\/(\d+) positions filled/);
+      if (fm) { filled = fm[1]; total = fm[2]; }
+    }
+    // Count orders
+    if (line.match(/\[FILL\].*(?:FILLED|DRY RUN)/)) orders++;
+    if (line.match(/\[SKIP\].*no fill/)) orders++;
+    if (line.match(/\[FAIL\].*FAIL/)) orders++;
+    // Status hints
+    if (!status) {
+      if (line.includes('Retrying in')) status = 'Waiting to retry...';
+      else if (line.includes('Scanning markets')) status = 'Scanning...';
+      else if (line.match(/\[FILL\].*(?:FILLED|DRY RUN)/)) status = 'Filled!';
+      else if (line.includes('All') && line.includes('filled')) status = 'Complete';
+    }
+  }
+  return { round, filled, total, orders, status };
+}
 
 function pollLogs() {
   fetch('/control/logs')
@@ -78,34 +136,29 @@ function pollLogs() {
       const text = document.getElementById('status-text');
       const startBtn = document.getElementById('start-btn');
       const stopBtn = document.getElementById('stop-btn');
-
-      // Update status
       const detail = document.getElementById('status-detail');
+      const progBar = document.getElementById('progress-bar');
+
       if (data.running) {
         dot.className = 'w-3 h-3 rounded-full bg-emerald-400 animate-pulse';
         text.className = 'text-sm font-medium text-emerald-400';
         text.textContent = 'Running';
         startBtn.disabled = true;
         stopBtn.disabled = false;
-        // Parse last few log lines for rich status
-        const logs = data.logs;
+
+        // Progress bar
+        const prog = parseProgress(data.logs);
+        progBar.classList.remove('hidden');
+        document.getElementById('prog-round').textContent = 'Round: ' + (prog.round || '—');
+        document.getElementById('prog-filled').textContent = 'Filled: ' + (prog.filled !== null ? prog.filled + '/' + prog.total : '0');
+        document.getElementById('prog-orders').textContent = 'Orders: ' + prog.orders;
+        document.getElementById('prog-status').textContent = prog.status;
+
+        // Status detail
         let statusMsg = 'Scanning for targets...';
-        for (let i = logs.length - 1; i >= Math.max(0, logs.length - 5); i--) {
-          const line = logs[i];
-          const fillMatch = line.match(/(\d+)\/(\d+) (?:positions? )?filled/);
-          const roundMatch = line.match(/Round (\d+)/);
-          const retryMatch = line.match(/Retrying in (\d+)s/);
-          if (retryMatch) {
-            statusMsg = 'No targets — waiting to retry...';
-            break;
-          } else if (fillMatch) {
-            statusMsg = 'Position ' + fillMatch[1] + '/' + fillMatch[2] + ' filled, scanning for next...';
-            break;
-          } else if (roundMatch) {
-            statusMsg = 'Scanning round ' + roundMatch[1] + '...';
-            break;
-          }
-        }
+        if (prog.status === 'Waiting to retry...') statusMsg = 'No targets — waiting to retry...';
+        else if (prog.filled !== null) statusMsg = prog.filled + '/' + prog.total + ' filled, scanning for next...';
+        else if (prog.round) statusMsg = 'Scanning round ' + prog.round + '...';
         detail.textContent = statusMsg;
       } else {
         dot.className = 'w-3 h-3 rounded-full bg-slate-600';
@@ -113,32 +166,34 @@ function pollLogs() {
         text.textContent = 'Stopped';
         startBtn.disabled = false;
         stopBtn.disabled = true;
-        // Show completion message if logs indicate it
+        progBar.classList.add('hidden');
+
         const last = data.logs.length > 0 ? data.logs[data.logs.length - 1] : '';
-        if (last.includes('Done') || last.includes('complete') || last.includes('Stopping')) {
-          detail.textContent = last.replace(/\[SNIPER\]\s*/, '');
+        if (last.includes('Done') || last.includes('complete') || last.includes('Stopping') || last.includes('filled')) {
+          detail.textContent = last.replace(/\[\w+\]\s*/, '');
         } else {
-          const maxPos = document.querySelector('input[name="max_positions"]');
           detail.textContent = 'Ready to scan and trade';
         }
       }
 
-      // Update logs
+      // Render color-coded logs
       if (data.logs.length > 0) {
-        box.textContent = data.logs.join('\n');
+        const html = data.logs.map(colorLine).join('\n');
+        box.innerHTML = html;
         if (data.logs.length !== lastLogCount) {
           box.scrollTop = box.scrollHeight;
           lastLogCount = data.logs.length;
         }
       } else {
-        box.textContent = 'Waiting for logs...';
+        box.innerHTML = '<span class="text-slate-400">Waiting for logs...</span>';
       }
     })
     .catch(() => {});
 }
 
 function clearLogs() {
-  document.getElementById('log-box').textContent = 'Waiting for logs...';
+  document.getElementById('log-box').innerHTML = '<span class="text-slate-400">Waiting for logs...</span>';
+  lastLogCount = 0;
 }
 
 // Poll every 2 seconds
