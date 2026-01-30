@@ -282,6 +282,9 @@ def positions():
     total_unrealized_bid = sum(p["unrealized_bid_cents"] for p in enriched)
     total_unrealized_ask = sum(p["unrealized_ask_cents"] for p in enriched)
 
+    # Aggregated portfolio P&L history
+    portfolio_snapshots = db.get_portfolio_snapshots(hours=48)
+
     return render_template(
         "positions.html",
         positions=enriched,
@@ -290,6 +293,7 @@ def positions():
         total_cost_cents=total_cost,
         total_unrealized_bid_cents=total_unrealized_bid,
         total_unrealized_ask_cents=total_unrealized_ask,
+        portfolio_snapshots=portfolio_snapshots,
     )
 
 

@@ -1023,6 +1023,95 @@ def get_price_history(ticker, side, hours=24, db_path=DEFAULT_DB_PATH):
     return rows
 
 
+def get_portfolio_snapshots(hours=24, db_path=DEFAULT_DB_PATH):
+    """Return aggregated portfolio P&L snapshots for open positions.
+
+    Fetches price snapshots for all open positions, computes per-snapshot
+    unrealized P&L (bid and ask), and aggregates by timestamp.
+    Returns list of dicts: {ts, unrealized_bid, unrealized_ask}.
+    """
+    conn = _connect(db_path)
+
+    # Get open positions
+    positions = _fetchall(conn,
+        "SELECT ticker, side, quantity, avg_entry_price_cents FROM positions WHERE is_closed = 0 AND quantity > 0"
+    )
+    if not positions:
+        conn.close()
+        return []
+
+    # Build lookup: (ticker, side) -> {qty, entry}
+    pos_map = {}
+    for p in positions:
+        pos_map[(p["ticker"], p["side"])] = {
+            "qty": p["quantity"],
+            "entry": p["avg_entry_price_cents"],
+        }
+
+    # Fetch all snapshots for open tickers
+    tickers = list(set(p["ticker"] for p in positions))
+    if _use_pg:
+        placeholders = ",".join(["%s"] * len(tickers))
+        sql = f"""SELECT ticker, side, bid_cents, ask_cents, recorded_at
+                  FROM price_snapshots
+                  WHERE ticker IN ({placeholders})
+                    AND recorded_at >= NOW() - INTERVAL '{hours} hours'
+                  ORDER BY recorded_at ASC"""
+        import psycopg2.extras
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, tickers)
+        rows = [dict(r) for r in cur.fetchall()]
+    else:
+        placeholders = ",".join(["?"] * len(tickers))
+        sql = f"""SELECT ticker, side, bid_cents, ask_cents, recorded_at
+                  FROM price_snapshots
+                  WHERE ticker IN ({placeholders})
+                    AND recorded_at >= datetime('now', ?)
+                  ORDER BY recorded_at ASC"""
+        rows = _fetchall(conn, sql, tickers + [f"-{hours} hours"])
+    conn.close()
+
+    if not rows:
+        return []
+
+    # Group snapshots by rounded timestamp (5-min buckets)
+    from collections import defaultdict
+    buckets = defaultdict(dict)  # ts_key -> {(ticker, side): {bid, ask}}
+    for r in rows:
+        ts = r["recorded_at"]
+        if hasattr(ts, "strftime"):
+            # Round to 5-min bucket
+            ts = ts.replace(second=0, microsecond=0)
+            minute = ts.minute - (ts.minute % 5)
+            ts = ts.replace(minute=minute)
+            ts_key = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            ts_key = str(ts)[:16]  # truncate to minute
+        buckets[ts_key][(r["ticker"], r["side"])] = {
+            "bid": r["bid_cents"],
+            "ask": r["ask_cents"],
+        }
+
+    # For each bucket, compute aggregated unrealized P&L
+    result = []
+    for ts_key in sorted(buckets.keys()):
+        snap = buckets[ts_key]
+        total_bid = 0
+        total_ask = 0
+        for (ticker, side), info in pos_map.items():
+            if (ticker, side) in snap:
+                s = snap[(ticker, side)]
+                total_bid += int(info["qty"] * (s["bid"] - info["entry"]))
+                total_ask += int(info["qty"] * (s["ask"] - info["entry"])) if s["ask"] else int(info["qty"] * (s["bid"] - info["entry"]))
+        result.append({
+            "ts": ts_key,
+            "unrealized_bid": total_bid,
+            "unrealized_ask": total_ask,
+        })
+
+    return result
+
+
 def cleanup_old_snapshots(hours=48, db_path=DEFAULT_DB_PATH):
     """Delete price snapshots older than N hours."""
     conn = _connect(db_path)

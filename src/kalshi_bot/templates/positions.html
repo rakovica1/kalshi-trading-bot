@@ -3,6 +3,16 @@
 {% block content %}
 <h1 class="text-2xl font-bold text-white mb-6">Open Positions</h1>
 
+{% if portfolio_snapshots and portfolio_snapshots|length > 1 %}
+<!-- Aggregated Portfolio Chart -->
+<div class="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-4">Portfolio Unrealized P&amp;L</h2>
+  <div style="height: 400px;">
+    <canvas id="portfolio-chart"></canvas>
+  </div>
+</div>
+{% endif %}
+
 {% if positions %}
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
@@ -262,4 +272,92 @@ function updateAll() {
 updateAll();
 setInterval(updateAll, 30000);
 </script>
+
+{% if portfolio_snapshots and portfolio_snapshots|length > 1 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const snapData = {{ portfolio_snapshots|tojson }};
+const labels = snapData.map(d => {
+  const dt = new Date(d.ts);
+  return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+});
+const bidValues = snapData.map(d => d.unrealized_bid / 100);
+const askValues = snapData.map(d => d.unrealized_ask / 100);
+
+const ctx = document.getElementById('portfolio-chart');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [
+      {
+        label: 'Bid P&L',
+        data: bidValues,
+        borderColor: 'rgba(16, 185, 129, 0.8)',
+        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#10b981',
+        tension: 0.3,
+        fill: true,
+      },
+      {
+        label: 'Ask P&L',
+        data: askValues,
+        borderColor: 'rgba(96, 165, 250, 0.8)',
+        backgroundColor: 'rgba(96, 165, 250, 0.05)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#60a5fa',
+        tension: 0.3,
+        fill: true,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: {
+        grid: { color: 'rgba(51, 65, 85, 0.25)' },
+        ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 12, maxRotation: 0 },
+        border: { color: 'rgba(51, 65, 85, 0.4)' },
+      },
+      y: {
+        grid: { color: 'rgba(51, 65, 85, 0.25)' },
+        ticks: {
+          color: '#64748b',
+          font: { size: 10 },
+          callback: v => '$' + (v >= 0 ? '+' : '') + v.toFixed(2),
+        },
+        border: { color: 'rgba(51, 65, 85, 0.4)' },
+      },
+    },
+    plugins: {
+      legend: {
+        display: true, position: 'top', align: 'end',
+        labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 14, padding: 12 },
+      },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        titleColor: '#e2e8f0',
+        bodyColor: '#cbd5e1',
+        borderColor: '#334155',
+        borderWidth: 1,
+        padding: 12,
+        callbacks: {
+          label: function(ctx) {
+            const v = ctx.parsed.y;
+            return ctx.dataset.label + ': $' + (v >= 0 ? '+' : '') + v.toFixed(2);
+          },
+        },
+      },
+    },
+  },
+});
+</script>
+{% endif %}
 {% endblock %}
