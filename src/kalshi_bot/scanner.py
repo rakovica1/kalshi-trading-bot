@@ -326,6 +326,12 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         no_bid = m["no_bid"]
         no_ask = m["no_ask"]
 
+        # Infer missing ask from opposite bid: on Kalshi, yes_ask = 100 - no_bid
+        if not yes_ask and no_bid:
+            yes_ask = 100 - no_bid
+        if not no_ask and yes_bid:
+            no_ask = 100 - yes_bid
+
         close_time_raw = m.get("close_time", "")
 
         hrs_left = hours_until_close(close_time_raw)
