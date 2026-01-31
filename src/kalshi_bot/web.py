@@ -439,6 +439,13 @@ def trades():
         if t.get("created_at"):
             t["created_at"] = _utc_to_est(t["created_at"])
 
+        # Position opened_at
+        pos_for_opened = pos_map.get((t["ticker"], t["side"]))
+        if pos_for_opened and pos_for_opened.get("opened_at"):
+            t["position_opened_at"] = _utc_to_est(pos_for_opened["opened_at"])
+        else:
+            t["position_opened_at"] = ""
+
         # Determine settlement status
         fill_count = t.get("fill_count", 0) or 0
         if fill_count <= 0 or t.get("status") == "failed":
