@@ -225,21 +225,22 @@ def dashboard():
 
 def _dashboard_inner():
     db.init_db()
-    balance_cents = 0
-    balance_timestamp = None
-    try:
-        client = _get_client()
-        bal_data = client.get_balance()
-        # balance = available cash; portfolio_value = market value of open positions
-        balance_cents = bal_data.get("balance", 0)
-        portfolio_value_cents = bal_data.get("portfolio_value", 0)
-        db.log_balance(balance_cents)
-        balance_timestamp = datetime.now(timezone.utc).astimezone(_EST).strftime("%I:%M:%S %p EST")
-    except Exception as e:
-        balance_cents = 0
-        portfolio_value_cents = 0
 
-    open_positions = db.get_open_positions()
+    # Run all independent data fetches in parallel
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        f_balance = pool.submit(_dash_fetch_balance)
+        f_positions = pool.submit(db.get_open_positions)
+        f_stats = pool.submit(db.get_stats)
+        f_deposits = pool.submit(db.get_total_deposits)
+        f_withdrawals = pool.submit(db.get_total_withdrawals)
+        f_daily = pool.submit(db.get_daily_pnl, 90)
+
+    balance_cents, portfolio_value_cents, balance_timestamp = f_balance.result()
+    open_positions = f_positions.result()
+    stats = f_stats.result()
+    total_deposits, deposit_count = f_deposits.result()
+    total_withdrawals, withdrawal_count = f_withdrawals.result()
+    daily_pnl = f_daily.result()
 
     # Unrealized P&L from open positions (and auto-close settled ones)
     total_unrealized_bid = 0
@@ -262,9 +263,7 @@ def _dashboard_inner():
             else:
                 qty = p["quantity"]
                 entry = p["avg_entry_price_cents"]
-                # Bid-based (what you'd get selling now)
                 total_unrealized_bid += int(qty * (current - entry))
-                # Ask-based
                 if p["side"] == "yes":
                     ask = m.get("yes_ask", 0) or 0
                 else:
@@ -272,27 +271,15 @@ def _dashboard_inner():
                 ask_val = ask if ask else current
                 total_unrealized_ask += int(qty * (ask_val - entry))
                 portfolio_ask_value += int(qty * ask_val)
-                # Max (all settle at 100c)
                 total_unrealized_max += int(qty * (100 - entry))
     except Exception:
         pass
 
-    # Re-fetch stats after auto-closing any settled positions
-    stats = db.get_stats()
-
-    # Deposits/withdrawals for display
-    total_deposits, deposit_count = db.get_total_deposits()
-    total_withdrawals, withdrawal_count = db.get_total_withdrawals()
-
-    # Net P&L from trade history: realized P&L - fees
     total_fees = stats["total_fees_cents"]
     total_invested = stats["total_invested_cents"]
     realized_pnl = stats["realized_pnl_cents"]
     net_pnl = realized_pnl - total_fees
     roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
-
-    # Daily P&L history for chart
-    daily_pnl = db.get_daily_pnl(days=90)
 
     return render_template(
         "dashboard.html",
@@ -311,7 +298,7 @@ def _dashboard_inner():
         portfolio_value_cents=portfolio_value_cents,
         roi_pct=roi_pct,
         total_invested_cents=total_invested,
-        open_count=db.count_open_positions(),
+        open_count=len(open_positions),
         total_trades=stats["total_orders"],
         winning_trades=stats["wins"],
         losing_trades=stats["losses"],
@@ -319,6 +306,20 @@ def _dashboard_inner():
         profit_factor=stats["profit_factor"],
         daily_pnl=daily_pnl,
     )
+
+
+def _dash_fetch_balance():
+    """Fetch balance from Kalshi API. Returns (balance_cents, portfolio_value_cents, timestamp)."""
+    try:
+        client = _get_client()
+        bal_data = client.get_balance()
+        balance_cents = bal_data.get("balance", 0)
+        portfolio_value_cents = bal_data.get("portfolio_value", 0)
+        db.log_balance(balance_cents)
+        ts = datetime.now(timezone.utc).astimezone(_EST).strftime("%I:%M:%S %p EST")
+        return balance_cents, portfolio_value_cents, ts
+    except Exception:
+        return 0, 0, None
 
 
 # ---------------------------------------------------------------------------
