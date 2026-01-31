@@ -1,96 +1,149 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <radialGradient id="iris" cx="50%" cy="45%">
-      <stop offset="0%" stop-color="#fef08a"/>
-      <stop offset="50%" stop-color="#facc15"/>
-      <stop offset="100%" stop-color="#b45309"/>
+    <radialGradient id="iris" cx="45%" cy="42%">
+      <stop offset="0%" stop-color="#fef9c3"/>
+      <stop offset="30%" stop-color="#fde047"/>
+      <stop offset="65%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#78350f"/>
     </radialGradient>
-    <radialGradient id="head" cx="50%" cy="35%" r="55%">
+    <radialGradient id="head" cx="50%" cy="30%" r="60%">
       <stop offset="0%" stop-color="#64748b"/>
-      <stop offset="40%" stop-color="#475569"/>
+      <stop offset="35%" stop-color="#475569"/>
+      <stop offset="70%" stop-color="#334155"/>
       <stop offset="100%" stop-color="#1e293b"/>
     </radialGradient>
-    <radialGradient id="face" cx="50%" cy="50%">
-      <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.15"/>
+    <radialGradient id="chest" cx="50%" cy="20%">
+      <stop offset="0%" stop-color="#cbd5e1" stop-opacity="0.12"/>
       <stop offset="100%" stop-color="#1e293b" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="beak" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#b45309"/>
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#92400e"/>
     </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="1.5" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <linearGradient id="wing-l" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="wing-r" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="eyeglow">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="0.8"/>
     </filter>
   </defs>
 
+  <!-- Ambient eye glow behind head -->
+  <circle cx="22" cy="24" r="12" fill="#facc15" opacity="0.06" filter="url(#softglow)"/>
+  <circle cx="42" cy="24" r="12" fill="#facc15" opacity="0.06" filter="url(#softglow)"/>
+
   <!-- Body -->
-  <ellipse cx="32" cy="48" rx="18" ry="13" fill="#1e293b"/>
-  <!-- Body feather texture -->
-  <path d="M20,44 Q24,48 28,44 Q30,48 32,44 Q34,48 36,44 Q38,48 44,44" fill="none" stroke="#334155" stroke-width="1" opacity="0.6"/>
-  <path d="M22,48 Q25,51 28,48 Q31,51 34,48 Q37,51 42,48" fill="none" stroke="#334155" stroke-width="0.8" opacity="0.5"/>
-  <path d="M24,52 Q28,54 32,52 Q36,54 40,52" fill="none" stroke="#334155" stroke-width="0.7" opacity="0.4"/>
+  <path d="M14,42 Q14,58 32,60 Q50,58 50,42 Q42,46 32,46 Q22,46 14,42 Z" fill="#1e293b"/>
+  <!-- Chest overlay -->
+  <path d="M18,44 Q18,56 32,58 Q46,56 46,44 Q40,47 32,47 Q24,47 18,44 Z" fill="url(#chest)"/>
+  <!-- Chest speckles -->
+  <circle cx="28" cy="50" r="0.8" fill="#475569" opacity="0.4"/>
+  <circle cx="32" cy="49" r="0.7" fill="#475569" opacity="0.35"/>
+  <circle cx="36" cy="50" r="0.8" fill="#475569" opacity="0.4"/>
+  <circle cx="25" cy="53" r="0.6" fill="#475569" opacity="0.3"/>
+  <circle cx="30" cy="53" r="0.7" fill="#475569" opacity="0.35"/>
+  <circle cx="34" cy="53" r="0.7" fill="#475569" opacity="0.35"/>
+  <circle cx="39" cy="53" r="0.6" fill="#475569" opacity="0.3"/>
+  <circle cx="27" cy="56" r="0.5" fill="#475569" opacity="0.25"/>
+  <circle cx="32" cy="56" r="0.6" fill="#475569" opacity="0.3"/>
+  <circle cx="37" cy="56" r="0.5" fill="#475569" opacity="0.25"/>
 
   <!-- Wings -->
-  <path d="M10,30 Q6,38 8,46 Q10,50 16,52 Q13,44 14,36 Z" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
-  <path d="M54,30 Q58,38 56,46 Q54,50 48,52 Q51,44 50,36 Z" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
-  <!-- Wing feather lines -->
-  <path d="M9,38 L14,38" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
-  <path d="M8,42 L15,41" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
-  <path d="M9,46 L15,44" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
-  <path d="M55,38 L50,38" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
-  <path d="M56,42 L49,41" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
-  <path d="M55,46 L49,44" stroke="#334155" stroke-width="0.6" opacity="0.5"/>
+  <path d="M14,30 Q8,32 5,40 Q4,46 6,50 Q8,54 14,56 Q12,48 12,40 Q12,34 14,30 Z" fill="url(#wing-l)"/>
+  <path d="M50,30 Q56,32 59,40 Q60,46 58,50 Q56,54 50,56 Q52,48 52,40 Q52,34 50,30 Z" fill="url(#wing-r)"/>
+  <!-- Wing feather detail -->
+  <path d="M6,42 Q9,41 12,42" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.4"/>
+  <path d="M5,46 Q9,44 13,45" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.35"/>
+  <path d="M7,50 Q10,48 14,49" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.3"/>
+  <path d="M58,42 Q55,41 52,42" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.4"/>
+  <path d="M59,46 Q55,44 51,45" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.35"/>
+  <path d="M57,50 Q54,48 50,49" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.3"/>
 
   <!-- Head -->
-  <ellipse cx="32" cy="25" rx="21" ry="19" fill="url(#head)"/>
+  <ellipse cx="32" cy="24" rx="20" ry="19" fill="url(#head)"/>
+  <!-- Head top highlight -->
+  <ellipse cx="32" cy="16" rx="10" ry="5" fill="#64748b" opacity="0.15"/>
 
   <!-- Ear tufts -->
-  <path d="M11,14 Q13,3 16,2 Q17,8 22,14" fill="#334155"/>
-  <path d="M42,14 Q47,3 48,2 Q51,8 53,14" fill="#334155"/>
-  <!-- Tuft inner highlight -->
-  <path d="M13,12 Q14,5 16,4 Q16,9 20,13" fill="#475569" opacity="0.4"/>
-  <path d="M44,13 Q48,5 48,4 Q50,9 51,12" fill="#475569" opacity="0.4"/>
+  <path d="M12,14 Q12,4 16,1 L17,2 Q18,9 22,14 Z" fill="#334155"/>
+  <path d="M52,14 Q52,4 48,1 L47,2 Q46,9 42,14 Z" fill="#334155"/>
+  <!-- Tuft highlights -->
+  <path d="M14,12 Q13,5 16,3 Q17,8 19,12" fill="#475569" opacity="0.35"/>
+  <path d="M50,12 Q51,5 48,3 Q47,8 45,12" fill="#475569" opacity="0.35"/>
+  <!-- Tuft tips -->
+  <path d="M15,3 L16,1 L17,3" fill="#64748b" opacity="0.3"/>
+  <path d="M47,3 L48,1 L49,3" fill="#64748b" opacity="0.3"/>
 
-  <!-- Facial disc (heart shape) -->
-  <path d="M32,38 Q18,34 14,22 Q12,16 18,14 Q24,12 32,18 Q40,12 46,14 Q52,16 50,22 Q46,34 32,38 Z" fill="url(#face)" stroke="#475569" stroke-width="0.5" opacity="0.7"/>
+  <!-- Facial disc -->
+  <path d="M32,37 Q19,33 15,23 Q13,17 17,13 Q22,10 32,17 Q42,10 47,13 Q51,17 49,23 Q45,33 32,37 Z" fill="none" stroke="#64748b" stroke-width="0.8" opacity="0.35"/>
+  <!-- Inner facial disc lines -->
+  <path d="M32,35 Q21,31 17,23 Q16,19 19,16" fill="none" stroke="#475569" stroke-width="0.4" opacity="0.25"/>
+  <path d="M32,35 Q43,31 47,23 Q48,19 45,16" fill="none" stroke="#475569" stroke-width="0.4" opacity="0.25"/>
 
   <!-- Eye sockets -->
-  <circle cx="22" cy="24" r="10" fill="#0f172a"/>
-  <circle cx="42" cy="24" r="10" fill="#0f172a"/>
-  <!-- Eye ring glow -->
-  <circle cx="22" cy="24" r="10" fill="none" stroke="#a16207" stroke-width="1.2" opacity="0.6"/>
-  <circle cx="42" cy="24" r="10" fill="none" stroke="#a16207" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="22" cy="24" r="9.5" fill="#0f172a"/>
+  <circle cx="42" cy="24" r="9.5" fill="#0f172a"/>
+  <!-- Socket rim -->
+  <circle cx="22" cy="24" r="9.5" fill="none" stroke="#92400e" stroke-width="0.8" opacity="0.35"/>
+  <circle cx="42" cy="24" r="9.5" fill="none" stroke="#92400e" stroke-width="0.8" opacity="0.35"/>
 
   <!-- Irises -->
-  <circle cx="22" cy="24" r="6.5" fill="url(#iris)" filter="url(#glow)"/>
-  <circle cx="42" cy="24" r="6.5" fill="url(#iris)" filter="url(#glow)"/>
-  <!-- Iris detail ring -->
-  <circle cx="22" cy="24" r="5" fill="none" stroke="#92400e" stroke-width="0.4" opacity="0.5"/>
-  <circle cx="42" cy="24" r="5" fill="none" stroke="#92400e" stroke-width="0.4" opacity="0.5"/>
+  <circle cx="22" cy="24" r="6.5" fill="url(#iris)" filter="url(#eyeglow)"/>
+  <circle cx="42" cy="24" r="6.5" fill="url(#iris)" filter="url(#eyeglow)"/>
+  <!-- Iris texture rings -->
+  <circle cx="22" cy="24" r="5.5" fill="none" stroke="#b45309" stroke-width="0.3" opacity="0.4"/>
+  <circle cx="42" cy="24" r="5.5" fill="none" stroke="#b45309" stroke-width="0.3" opacity="0.4"/>
+  <circle cx="22" cy="24" r="4" fill="none" stroke="#d97706" stroke-width="0.2" opacity="0.3"/>
+  <circle cx="42" cy="24" r="4" fill="none" stroke="#d97706" stroke-width="0.2" opacity="0.3"/>
 
   <!-- Pupils -->
-  <ellipse cx="22" cy="24" rx="2.5" ry="4" fill="#0f172a"/>
-  <ellipse cx="42" cy="24" rx="2.5" ry="4" fill="#0f172a"/>
+  <ellipse cx="22" cy="24" rx="2.2" ry="4.2" fill="#0f172a"/>
+  <ellipse cx="42" cy="24" rx="2.2" ry="4.2" fill="#0f172a"/>
+  <!-- Pupil edge softness -->
+  <ellipse cx="22" cy="24" rx="2.6" ry="4.5" fill="none" stroke="#1e293b" stroke-width="0.5" opacity="0.5"/>
+  <ellipse cx="42" cy="24" rx="2.6" ry="4.5" fill="none" stroke="#1e293b" stroke-width="0.5" opacity="0.5"/>
 
   <!-- Eye glints -->
-  <circle cx="25" cy="22" r="1.8" fill="white" opacity="0.9"/>
-  <circle cx="45" cy="22" r="1.8" fill="white" opacity="0.9"/>
-  <circle cx="20" cy="26.5" r="0.8" fill="white" opacity="0.35"/>
-  <circle cx="40" cy="26.5" r="0.8" fill="white" opacity="0.35"/>
+  <circle cx="25" cy="21.5" r="2" fill="white" opacity="0.92"/>
+  <circle cx="45" cy="21.5" r="2" fill="white" opacity="0.92"/>
+  <circle cx="19.5" cy="27" r="0.9" fill="white" opacity="0.3"/>
+  <circle cx="39.5" cy="27" r="0.9" fill="white" opacity="0.3"/>
 
-  <!-- Brow -->
-  <path d="M11,18 Q16,13 24,17" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M53,18 Q48,13 40,17" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Brows -->
+  <path d="M11,17 Q15,12 24,16" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
+  <path d="M53,17 Q49,12 40,16" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Bridge between eyes -->
+  <path d="M28,28 Q32,31 36,28" fill="none" stroke="#475569" stroke-width="0.6" opacity="0.3"/>
 
   <!-- Beak -->
-  <path d="M29,32 L32,38 L35,32 Z" fill="url(#beak)"/>
-  <path d="M30.5,32.5 L32,36 L33.5,32.5" fill="none" stroke="#92400e" stroke-width="0.5" opacity="0.5"/>
-  <!-- Nostrils -->
-  <circle cx="30.5" cy="33.5" r="0.5" fill="#92400e" opacity="0.4"/>
-  <circle cx="33.5" cy="33.5" r="0.5" fill="#92400e" opacity="0.4"/>
+  <path d="M29,32 Q32,39 35,32 Z" fill="url(#beak)"/>
+  <path d="M30,33 Q32,37 34,33" fill="none" stroke="#78350f" stroke-width="0.4" opacity="0.4"/>
+  <!-- Beak highlight -->
+  <path d="M31,32.5 L32,33.5 L33,32.5" fill="none" stroke="#fef08a" stroke-width="0.3" opacity="0.3"/>
 
-  <!-- Feet -->
-  <path d="M26,58 L24,61 M26,58 L26,61 M26,58 L28,61" stroke="#b45309" stroke-width="1" stroke-linecap="round" fill="none"/>
-  <path d="M38,58 L36,61 M38,58 L38,61 M38,58 L40,61" stroke="#b45309" stroke-width="1" stroke-linecap="round" fill="none"/>
+  <!-- Feet / talons -->
+  <g stroke="#b45309" stroke-width="1.2" stroke-linecap="round" fill="none">
+    <path d="M26,59 L23,62 M26,59 L26,62.5 M26,59 L29,62"/>
+    <path d="M38,59 L35,62 M38,59 L38,62.5 M38,59 L41,62"/>
+  </g>
+  <!-- Talon tips -->
+  <g fill="#92400e">
+    <circle cx="23" cy="62.3" r="0.4"/>
+    <circle cx="26" cy="62.8" r="0.4"/>
+    <circle cx="29" cy="62.3" r="0.4"/>
+    <circle cx="35" cy="62.3" r="0.4"/>
+    <circle cx="38" cy="62.8" r="0.4"/>
+    <circle cx="41" cy="62.3" r="0.4"/>
+  </g>
 </svg>
