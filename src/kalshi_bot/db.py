@@ -759,58 +759,59 @@ def count_open_positions(db_path=DEFAULT_DB_PATH):
 # ---------------------------------------------------------------------------
 
 def get_stats(db_path=DEFAULT_DB_PATH):
-    """Return aggregate trading statistics."""
+    """Return aggregate trading statistics (2 queries instead of 10+)."""
     conn = _connect(db_path)
 
-    total = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM trades WHERE status != 'failed' AND fill_count > 0"
-    )["n"]
+    # Single query for all trade stats
+    trade_row = _fetchone(conn, """
+        SELECT
+            COUNT(*) FILTER (WHERE status != 'failed' AND fill_count > 0) as total,
+            COUNT(*) FILTER (WHERE status IN ('filled', 'partial') AND fill_count > 0) as filled,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COALESCE(SUM(fee_cents) FILTER (WHERE status != 'failed' AND fill_count > 0), 0) as total_fees
+        FROM trades
+    """) if _use_pg else None
 
-    filled = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM trades WHERE status IN ('filled', 'partial') AND fill_count > 0"
-    )["n"]
+    if trade_row is None:
+        # SQLite fallback (no FILTER clause)
+        trade_row = _fetchone(conn, """
+            SELECT
+                SUM(CASE WHEN status != 'failed' AND fill_count > 0 THEN 1 ELSE 0 END) as total,
+                SUM(CASE WHEN status IN ('filled', 'partial') AND fill_count > 0 THEN 1 ELSE 0 END) as filled,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                COALESCE(SUM(CASE WHEN status != 'failed' AND fill_count > 0 THEN fee_cents ELSE 0 END), 0) as total_fees
+            FROM trades
+        """)
 
-    failed = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM trades WHERE status = 'failed'"
-    )["n"]
-
-    realized_pnl = _fetchone(conn,
-        "SELECT COALESCE(SUM(realized_pnl_cents), 0) as total FROM positions WHERE is_closed = 1"
-    )["total"]
-
-    open_realized = _fetchone(conn,
-        "SELECT COALESCE(SUM(realized_pnl_cents), 0) as total FROM positions WHERE is_closed = 0"
-    )["total"]
-
-    wins = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents > 0"
-    )["n"]
-    losses = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents < 0"
-    )["n"]
-    breakeven = _fetchone(conn,
-        "SELECT COUNT(*) as n FROM positions WHERE is_closed = 1 AND realized_pnl_cents = 0"
-    )["n"]
-
-    gross_profit = _fetchone(conn,
-        "SELECT COALESCE(SUM(realized_pnl_cents), 0) as s FROM positions WHERE is_closed = 1 AND realized_pnl_cents > 0"
-    )["s"]
-    gross_loss = abs(_fetchone(conn,
-        "SELECT COALESCE(SUM(realized_pnl_cents), 0) as s FROM positions WHERE is_closed = 1 AND realized_pnl_cents < 0"
-    )["s"])
-
-    total_fees = _fetchone(conn,
-        "SELECT COALESCE(SUM(fee_cents), 0) as total FROM trades WHERE status != 'failed' AND fill_count > 0"
-    )["total"]
-
-    # Total invested = sum of total_cost for closed positions only
-    total_invested = _fetchone(conn,
-        """SELECT COALESCE(SUM(total_cost_cents), 0) as total
-           FROM positions
-           WHERE is_closed = 1"""
-    )["total"]
+    # Single query for all position stats
+    pos_row = _fetchone(conn, """
+        SELECT
+            COALESCE(SUM(CASE WHEN is_closed = 1 THEN realized_pnl_cents ELSE 0 END), 0) as realized_pnl,
+            COALESCE(SUM(CASE WHEN is_closed = 0 THEN realized_pnl_cents ELSE 0 END), 0) as open_realized,
+            COALESCE(SUM(CASE WHEN is_closed = 1 AND realized_pnl_cents > 0 THEN 1 ELSE 0 END), 0) as wins,
+            COALESCE(SUM(CASE WHEN is_closed = 1 AND realized_pnl_cents < 0 THEN 1 ELSE 0 END), 0) as losses,
+            COALESCE(SUM(CASE WHEN is_closed = 1 AND realized_pnl_cents = 0 THEN 1 ELSE 0 END), 0) as breakeven,
+            COALESCE(SUM(CASE WHEN is_closed = 1 AND realized_pnl_cents > 0 THEN realized_pnl_cents ELSE 0 END), 0) as gross_profit,
+            ABS(COALESCE(SUM(CASE WHEN is_closed = 1 AND realized_pnl_cents < 0 THEN realized_pnl_cents ELSE 0 END), 0)) as gross_loss,
+            COALESCE(SUM(CASE WHEN is_closed = 1 THEN total_cost_cents ELSE 0 END), 0) as total_invested
+        FROM positions
+    """)
 
     conn.close()
+
+    total = trade_row["total"] or 0
+    filled = trade_row["filled"] or 0
+    failed = trade_row["failed"] or 0
+    total_fees = trade_row["total_fees"] or 0
+
+    realized_pnl = pos_row["realized_pnl"] or 0
+    open_realized = pos_row["open_realized"] or 0
+    wins = pos_row["wins"] or 0
+    losses = pos_row["losses"] or 0
+    breakeven = pos_row["breakeven"] or 0
+    gross_profit = pos_row["gross_profit"] or 0
+    gross_loss = pos_row["gross_loss"] or 0
+    total_invested = pos_row["total_invested"] or 0
 
     closed = wins + losses + breakeven
     win_rate = (wins / closed * 100) if closed > 0 else 0.0

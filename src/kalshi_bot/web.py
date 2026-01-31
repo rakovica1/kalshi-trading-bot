@@ -201,11 +201,29 @@ def _batch_fetch_markets(client, tickers):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# Dashboard (cached for 8 seconds — page auto-refreshes every 10s)
 # ---------------------------------------------------------------------------
+
+_dashboard_cache = {"html": None, "ts": 0}
+_dashboard_cache_lock = threading.Lock()
 
 @app.route("/")
 def dashboard():
+    import time as _time
+    now = _time.time()
+    with _dashboard_cache_lock:
+        if _dashboard_cache["html"] and now - _dashboard_cache["ts"] < 8:
+            return _dashboard_cache["html"]
+
+    html = _dashboard_inner()
+
+    with _dashboard_cache_lock:
+        _dashboard_cache["html"] = html
+        _dashboard_cache["ts"] = now
+    return html
+
+
+def _dashboard_inner():
     db.init_db()
     balance_cents = 0
     balance_timestamp = None
