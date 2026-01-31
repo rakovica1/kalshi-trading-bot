@@ -70,9 +70,19 @@
       const m = Math.floor(totalSec / 60);
       const s = totalSec % 60;
       if (totalSec <= 0) {
-        el.textContent = 'EXPIRED';
-        el.classList.remove('text-amber-300');
-        el.classList.add('text-red-400');
+        // Auto-dismiss expired alerts (settlement toast will appear on next refresh)
+        const alert = el.closest('.expiry-alert');
+        if (alert) {
+          const ticker = alert.dataset.ticker;
+          const d = getDismissed();
+          d[ticker] = Date.now();
+          saveDismissed(d);
+          alert.style.transition = 'opacity 0.3s, transform 0.3s';
+          alert.style.opacity = '0';
+          alert.style.transform = 'translateX(100%)';
+          setTimeout(() => { alert.style.display = 'none'; }, 300);
+        }
+        return;
       } else if (m < 5) {
         el.textContent = m + ':' + String(s).padStart(2, '0');
         el.classList.remove('text-amber-300');
