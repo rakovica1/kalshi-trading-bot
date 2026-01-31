@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="iris" cx="42%" cy="40%" r="50%">
-      <stop offset="0%" stop-color="#fefce8"/>
-      <stop offset="20%" stop-color="#fef08a"/>
-      <stop offset="45%" stop-color="#facc15"/>
-      <stop offset="70%" stop-color="#eab308"/>
-      <stop offset="90%" stop-color="#ca8a04"/>
-      <stop offset="100%" stop-color="#a16207"/>
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#f8fafc"/>
+      <stop offset="45%" stop-color="#f1f5f9"/>
+      <stop offset="70%" stop-color="#e2e8f0"/>
+      <stop offset="90%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
     </radialGradient>
     <radialGradient id="head" cx="50%" cy="28%" r="55%">
       <stop offset="0%" stop-color="#94a3b8"/>
@@ -53,8 +53,8 @@
   </defs>
 
   <!-- Subtle ambient glow from eyes -->
-  <ellipse cx="23" cy="25" rx="14" ry="12" fill="#fbbf24" opacity="0.06" filter="url(#sg)"/>
-  <ellipse cx="41" cy="25" rx="14" ry="12" fill="#fbbf24" opacity="0.06" filter="url(#sg)"/>
+  <ellipse cx="23" cy="25" rx="14" ry="12" fill="#cbd5e1" opacity="0.06" filter="url(#sg)"/>
+  <ellipse cx="41" cy="25" rx="14" ry="12" fill="#cbd5e1" opacity="0.06" filter="url(#sg)"/>
 
   <!-- Body with volume -->
   <path d="M14,39 Q13,52 20,58 Q26,62 32,62 Q38,62 44,58 Q51,52 50,39 Q42,44 32,44 Q22,44 14,39 Z" fill="#1e293b"/>
@@ -107,14 +107,14 @@
   <ellipse cx="23" cy="25" rx="9" ry="9" fill="#020617"/>
   <ellipse cx="41" cy="25" rx="9" ry="9" fill="#020617"/>
   <!-- Socket rim glow -->
-  <ellipse cx="23" cy="25" rx="9" ry="9" fill="none" stroke="#ca8a04" stroke-width="0.5" opacity="0.2"/>
-  <ellipse cx="41" cy="25" rx="9" ry="9" fill="none" stroke="#ca8a04" stroke-width="0.5" opacity="0.2"/>
+  <ellipse cx="23" cy="25" rx="9" ry="9" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.2"/>
+  <ellipse cx="41" cy="25" rx="9" ry="9" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.2"/>
 
   <!-- Iris rings for depth -->
   <circle cx="23" cy="25" r="7.2" fill="url(#iris)" filter="url(#eg)"/>
   <circle cx="41" cy="25" r="7.2" fill="url(#iris)" filter="url(#eg)"/>
   <!-- Iris fiber detail -->
-  <g stroke="#a16207" stroke-width="0.2" opacity="0.2">
+  <g stroke="#94a3b8" stroke-width="0.2" opacity="0.2">
     <line x1="23" y1="18.5" x2="23" y2="31.5"/>
     <line x1="16.5" y1="25" x2="29.5" y2="25"/>
     <line x1="18.5" y1="20.5" x2="27.5" y2="29.5"/>
