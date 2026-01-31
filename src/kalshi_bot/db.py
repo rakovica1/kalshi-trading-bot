@@ -713,7 +713,7 @@ def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     """Return the earliest balance snapshot for today, or None."""
     conn = _connect(db_path)
     if _use_pg:
-        sql = "SELECT balance_cents FROM balance_history WHERE recorded_at::date = CURRENT_DATE ORDER BY id ASC LIMIT 1"
+        sql = "SELECT balance_cents FROM balance_history WHERE (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date = (NOW() AT TIME ZONE 'America/New_York')::date ORDER BY id ASC LIMIT 1"
     else:
         sql = "SELECT balance_cents FROM balance_history WHERE date(recorded_at, '-5 hours') = date('now', '-5 hours') ORDER BY id ASC LIMIT 1"
     row = _fetchone(conn, sql)
@@ -732,7 +732,7 @@ def get_today_trading_loss(db_path=DEFAULT_DB_PATH):
         sql = """SELECT COALESCE(SUM(realized_pnl_cents), 0) as total
                  FROM positions
                  WHERE is_closed = 1 AND realized_pnl_cents < 0
-                   AND closed_at::date = CURRENT_DATE"""
+                   AND (closed_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date = (NOW() AT TIME ZONE 'America/New_York')::date"""
     else:
         sql = """SELECT COALESCE(SUM(realized_pnl_cents), 0) as total
                  FROM positions
@@ -844,8 +844,8 @@ def get_daily_pnl(days=30, db_path=DEFAULT_DB_PATH):
     conn = _connect(db_path)
 
     if _use_pg:
-        date_fn = "closed_at::date"
-        trade_date_fn = "created_at::date"
+        date_fn = "(closed_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date"
+        trade_date_fn = "(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date"
         day_filter = f"closed_at >= NOW() - INTERVAL '{days} days'"
         trade_day_filter = f"created_at >= NOW() - INTERVAL '{days} days'"
     else:
