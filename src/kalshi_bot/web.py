@@ -170,12 +170,23 @@ def _market_position_value(market_data, side):
         return (market_data.get("no_bid", 0) or 0, False)
 
 
+_market_cache = {"data": {}, "ts": 0, "ttl": 10}
+_market_cache_lock = threading.Lock()
+
+
 def _batch_fetch_markets(client, tickers):
-    """Fetch multiple markets in parallel. Returns dict: ticker -> market data."""
+    """Fetch multiple markets in parallel with 10s cache. Returns dict: ticker -> market data."""
     if not tickers:
         return {}
+    import time
+    now = time.time()
+    with _market_cache_lock:
+        if now - _market_cache["ts"] < _market_cache["ttl"]:
+            cached = _market_cache["data"]
+            if all(t in cached for t in tickers):
+                return {t: cached[t] for t in tickers}
     results = {}
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    with ThreadPoolExecutor(max_workers=20) as pool:
         futures = {pool.submit(client.get_market, ticker=t): t for t in tickers}
         for future in as_completed(futures):
             ticker = futures[future]
@@ -183,6 +194,9 @@ def _batch_fetch_markets(client, tickers):
                 results[ticker] = future.result()
             except Exception:
                 results[ticker] = None
+    with _market_cache_lock:
+        _market_cache["data"].update(results)
+        _market_cache["ts"] = now
     return results
 
 
@@ -208,7 +222,6 @@ def dashboard():
         portfolio_value_cents = 0
 
     open_positions = db.get_open_positions()
-    stats = db.get_stats()
 
     # Unrealized P&L from open positions (and auto-close settled ones)
     total_unrealized_bid = 0
@@ -537,14 +550,26 @@ def trades_import():
 # Charts
 # ---------------------------------------------------------------------------
 
+_candle_cache = {"data": {}, "ts": 0, "ttl": 60}
+_candle_cache_lock = threading.Lock()
+
+
 def _fetch_candlestick_history(client, tickers, hours=24):
     """Fetch candlestick history for a list of tickers via the Kalshi API.
 
     Uses 1-minute candles for <6h, 1-hour candles otherwise.
+    Results are cached for 60 seconds.
     Returns dict mapping ticker -> list of {ts, yes_bid, yes_ask, no_bid, no_ask}.
     """
     import time as _time
     now = int(_time.time())
+
+    with _candle_cache_lock:
+        if now - _candle_cache["ts"] < _candle_cache["ttl"]:
+            cached = _candle_cache["data"]
+            if all(t in cached for t in tickers):
+                return {t: cached[t] for t in tickers}
+
     start = now - int(hours * 3600)
     interval = 1 if hours <= 6 else 60
 
@@ -554,7 +579,6 @@ def _fetch_candlestick_history(client, tickers, hours=24):
             tickers=tickers, start_ts=start, end_ts=now,
             period_interval=interval,
         )
-        # raw is dict: ticker -> list of candlestick dicts
         for ticker, candles in raw.items():
             points = []
             for c in candles:
@@ -573,6 +597,10 @@ def _fetch_candlestick_history(client, tickers, hours=24):
             result[ticker] = points
     except Exception:
         pass
+
+    with _candle_cache_lock:
+        _candle_cache["data"].update(result)
+        _candle_cache["ts"] = now
     return result
 
 
