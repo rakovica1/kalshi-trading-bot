@@ -1,7 +1,74 @@
+import time
+
 from kalshi_bot import db
 from kalshi_bot.ai import detect_category
 from kalshi_bot.scanner import scan, format_close_time, hours_until_close, StopRequested
 from kalshi_bot.sizing import calculate_position
+
+
+def _check_price_velocity(client, ticker, event_ticker, side, current_ask,
+                          window_sec=19, max_move_pct=10.0, log=print):
+    """Return True if the price spiked too fast, indicating possible manipulation.
+
+    Fetches the last 3 minutes of 1-minute candles and compares the price
+    from ~window_sec ago to the current live ask.  If the ask-side price
+    rose more than max_move_pct in that window, the trade should be skipped.
+
+    Uses the *open* of the most recent candle (≈ price at the start of the
+    current minute) as a proxy for the price ~19-60 seconds ago.  If a
+    prior candle's close is available and more recent, that is preferred.
+    """
+    try:
+        now = int(time.time())
+        start = now - 180  # 3 minutes back
+        candles = client.get_market_candlesticks(
+            ticker=ticker,
+            series_ticker=event_ticker,
+            start_ts=start,
+            end_ts=now,
+            period_interval=1,  # 1-minute candles (finest available)
+        )
+        if not candles:
+            return False  # no data — allow trade
+
+        # Sort by timestamp ascending
+        candles.sort(key=lambda c: c.get("end_period_ts", 0))
+
+        # Determine which price field to use based on our side
+        ask_key = f"{side}_ask"
+
+        # Get the reference price: the open of the most recent candle or
+        # close of the prior candle — whichever is farther back in time
+        ref_price = None
+
+        if len(candles) >= 2:
+            # Prior candle's close is ~1-2 minutes old — good reference
+            prior = candles[-2]
+            ask_d = prior.get(ask_key) or {}
+            ref_price = ask_d.get("close") or ask_d.get("open")
+
+        if ref_price is None and candles:
+            # Fall back to the current candle's open
+            latest = candles[-1]
+            ask_d = latest.get(ask_key) or {}
+            ref_price = ask_d.get("open")
+
+        if not ref_price or ref_price <= 0:
+            return False  # no usable reference price
+
+        # Calculate percentage move
+        move_pct = ((current_ask - ref_price) / ref_price) * 100
+
+        if move_pct > max_move_pct:
+            log(f"[VELOCITY] {ticker} — price spiked {ref_price}c → {current_ask}c "
+                f"({move_pct:+.1f}%) in last ~{window_sec}s, skipping (limit {max_move_pct}%)")
+            return True
+
+        return False
+
+    except Exception as e:
+        log(f"[WARN] Price velocity check failed for {ticker}: {e}")
+        return False  # fail open — don't block trades on API errors
 
 
 def run_whale_strategy(
@@ -171,6 +238,11 @@ def run_whale_strategy(
                 continue
         except Exception as e:
             log(f"[WARN] #{idx+1}/{len(available)} {ticker} — failed to re-check price: {e}")
+
+        # Price velocity filter — reject markets with suspicious rapid spikes
+        if _check_price_velocity(client, ticker, selected.get("event_ticker", ""),
+                                 side, ask_price, log=log):
+            continue
 
         spread_warn = f" (spread {spread:.1f}%)" if spread >= 3.0 else ""
         prefix = f"#{idx+1}/{len(available)}"
