@@ -36,6 +36,12 @@ def _signed_dollar(cents):
 
 app.jinja_env.filters["signed_dollar"] = _signed_dollar
 
+
+@app.before_request
+def _redirect_www():
+    if request.host.startswith("www."):
+        return redirect(request.url.replace("://www.", "://", 1), code=301)
+
 # ---------------------------------------------------------------------------
 # Shared state for background whale-trade
 # ---------------------------------------------------------------------------
