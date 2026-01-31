@@ -247,6 +247,7 @@ def _dashboard_inner():
     total_unrealized_ask = 0
     total_unrealized_max = 0
     portfolio_ask_value = 0
+    market_map = {}
     try:
         client = _get_client()
         market_map = _batch_fetch_markets(client, [p["ticker"] for p in open_positions])
@@ -272,6 +273,31 @@ def _dashboard_inner():
                 total_unrealized_ask += int(qty * (ask_val - entry))
                 portfolio_ask_value += int(qty * ask_val)
                 total_unrealized_max += int(qty * (100 - entry))
+    except Exception:
+        pass
+
+    # Build list of positions expiring within 15 minutes
+    expiring_soon = []
+    now_utc = datetime.now(timezone.utc)
+    try:
+        for p in open_positions:
+            m = market_map.get(p["ticker"])
+            if m is None:
+                continue
+            close_str = m.get("close_time") or m.get("expected_expiration_time") or ""
+            if not close_str:
+                continue
+            try:
+                close_dt = datetime.fromisoformat(close_str.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            mins_left = (close_dt - now_utc).total_seconds() / 60
+            if 0 < mins_left <= 15:
+                expiring_soon.append({
+                    "ticker": p["ticker"],
+                    "side": p["side"],
+                    "mins_left": round(mins_left, 1),
+                })
     except Exception:
         pass
 
@@ -305,6 +331,7 @@ def _dashboard_inner():
         win_rate=stats["win_rate"],
         profit_factor=stats["profit_factor"],
         daily_pnl=daily_pnl,
+        expiring_soon=expiring_soon,
     )
 
 

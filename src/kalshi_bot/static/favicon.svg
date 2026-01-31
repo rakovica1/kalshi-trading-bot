@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="iris" cx="45%" cy="42%">
-      <stop offset="0%" stop-color="#fffbeb"/>
-      <stop offset="20%" stop-color="#fef08a"/>
-      <stop offset="50%" stop-color="#fbbf24"/>
-      <stop offset="80%" stop-color="#d97706"/>
-      <stop offset="100%" stop-color="#451a03"/>
+      <stop offset="0%" stop-color="#fefce8"/>
+      <stop offset="25%" stop-color="#fef08a"/>
+      <stop offset="55%" stop-color="#facc15"/>
+      <stop offset="85%" stop-color="#ca8a04"/>
+      <stop offset="100%" stop-color="#854d0e"/>
     </radialGradient>
     <radialGradient id="head" cx="50%" cy="30%" r="58%">
       <stop offset="0%" stop-color="#94a3b8"/>
@@ -21,7 +21,7 @@
     <linearGradient id="bk" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#fcd34d"/>
       <stop offset="40%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#78350f"/>
+      <stop offset="100%" stop-color="#854d0e"/>
     </linearGradient>
     <linearGradient id="wl" x1="1" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#475569"/>
@@ -76,8 +76,8 @@
   <!-- Eye sockets -->
   <circle cx="22" cy="24" r="9.5" fill="#020617"/>
   <circle cx="42" cy="24" r="9.5" fill="#020617"/>
-  <circle cx="22" cy="24" r="9.5" fill="none" stroke="#78350f" stroke-width="0.6" opacity="0.25"/>
-  <circle cx="42" cy="24" r="9.5" fill="none" stroke="#78350f" stroke-width="0.6" opacity="0.25"/>
+  <circle cx="22" cy="24" r="9.5" fill="none" stroke="#a16207" stroke-width="0.6" opacity="0.25"/>
+  <circle cx="42" cy="24" r="9.5" fill="none" stroke="#a16207" stroke-width="0.6" opacity="0.25"/>
 
   <!-- Irises (larger for friendlier look) -->
   <circle cx="22" cy="24" r="7.5" fill="url(#iris)" filter="url(#eg)"/>
