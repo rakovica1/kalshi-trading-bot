@@ -1097,9 +1097,9 @@ def control_start():
                     if reason == "max_positions":
                         _log(f"[FILL] All {max_positions} positions filled. Stopping.")
                         break
-                    # No trade — wait 60s then rescan
-                    _log(f"[WARN] No targets right now. Retrying in 60s...")
-                    for _ in range(60):
+                    # No trade — wait 20s then rescan
+                    _log(f"[WARN] No targets right now. Retrying in 20s...")
+                    for _ in range(20):
                         if _is_stop_requested():
                             _log(f"[WARN] Stop requested. Finishing.")
                             break
