@@ -2,178 +2,215 @@
   <defs>
     <radialGradient id="iris" cx="42%" cy="40%" r="50%">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="20%" stop-color="#f8fafc"/>
-      <stop offset="45%" stop-color="#f1f5f9"/>
-      <stop offset="70%" stop-color="#e2e8f0"/>
-      <stop offset="90%" stop-color="#cbd5e1"/>
+      <stop offset="25%" stop-color="#f1f5f9"/>
+      <stop offset="55%" stop-color="#e2e8f0"/>
+      <stop offset="80%" stop-color="#cbd5e1"/>
       <stop offset="100%" stop-color="#94a3b8"/>
     </radialGradient>
-    <radialGradient id="head" cx="50%" cy="28%" r="55%">
-      <stop offset="0%" stop-color="#94a3b8"/>
-      <stop offset="20%" stop-color="#78899c"/>
-      <stop offset="45%" stop-color="#5a6d82"/>
-      <stop offset="70%" stop-color="#3d506a"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+    <radialGradient id="head" cx="48%" cy="25%" r="58%">
+      <stop offset="0%" stop-color="#8899ad"/>
+      <stop offset="15%" stop-color="#6d809a"/>
+      <stop offset="35%" stop-color="#526a84"/>
+      <stop offset="55%" stop-color="#3b5470"/>
+      <stop offset="80%" stop-color="#263c56"/>
+      <stop offset="100%" stop-color="#162336"/>
     </radialGradient>
-    <radialGradient id="belly" cx="50%" cy="25%" r="60%">
-      <stop offset="0%" stop-color="#cbd5e1" stop-opacity="0.18"/>
-      <stop offset="50%" stop-color="#94a3b8" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#1e293b" stop-opacity="0"/>
+    <radialGradient id="belly" cx="50%" cy="20%" r="65%">
+      <stop offset="0%" stop-color="#d0d8e4" stop-opacity="0.2"/>
+      <stop offset="40%" stop-color="#8899ad" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#162336" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="disc" cx="50%" cy="45%" r="50%">
-      <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.12"/>
-      <stop offset="100%" stop-color="#334155" stop-opacity="0"/>
+    <radialGradient id="disc" cx="50%" cy="42%" r="48%">
+      <stop offset="0%" stop-color="#8899ad" stop-opacity="0.15"/>
+      <stop offset="60%" stop-color="#526a84" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#263c56" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="bk" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#fde68a"/>
-      <stop offset="35%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#92400e"/>
+      <stop offset="30%" stop-color="#fbbf24"/>
+      <stop offset="70%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#78350f"/>
     </linearGradient>
     <linearGradient id="wl" x1="1" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5a6d82"/>
-      <stop offset="50%" stop-color="#3d506a"/>
-      <stop offset="100%" stop-color="#0f172a"/>
+      <stop offset="0%" stop-color="#526a84"/>
+      <stop offset="40%" stop-color="#3b5470"/>
+      <stop offset="100%" stop-color="#0c1929"/>
     </linearGradient>
     <linearGradient id="wr" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#5a6d82"/>
-      <stop offset="50%" stop-color="#3d506a"/>
-      <stop offset="100%" stop-color="#0f172a"/>
+      <stop offset="0%" stop-color="#526a84"/>
+      <stop offset="40%" stop-color="#3b5470"/>
+      <stop offset="100%" stop-color="#0c1929"/>
     </linearGradient>
-    <linearGradient id="tuftL" x1="0.5" y1="1" x2="0.3" y2="0">
-      <stop offset="0%" stop-color="#475569"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+    <linearGradient id="tuftL" x1="0.6" y1="1" x2="0.2" y2="0">
+      <stop offset="0%" stop-color="#3b5470"/>
+      <stop offset="100%" stop-color="#162336"/>
     </linearGradient>
-    <linearGradient id="tuftR" x1="0.5" y1="1" x2="0.7" y2="0">
-      <stop offset="0%" stop-color="#475569"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+    <linearGradient id="tuftR" x1="0.4" y1="1" x2="0.8" y2="0">
+      <stop offset="0%" stop-color="#3b5470"/>
+      <stop offset="100%" stop-color="#162336"/>
     </linearGradient>
-    <filter id="eg"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="sg"><feGaussianBlur stdDeviation="3.5"/></filter>
-    <filter id="sh"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.3"/></filter>
+    <filter id="eg"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="sg"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="sh"><feDropShadow dx="0" dy="0.8" stdDeviation="1.2" flood-color="#000" flood-opacity="0.35"/></filter>
+    <filter id="inner"><feGaussianBlur stdDeviation="0.8"/></filter>
   </defs>
 
-  <!-- Subtle ambient glow from eyes -->
-  <ellipse cx="23" cy="25" rx="14" ry="12" fill="#cbd5e1" opacity="0.06" filter="url(#sg)"/>
-  <ellipse cx="41" cy="25" rx="14" ry="12" fill="#cbd5e1" opacity="0.06" filter="url(#sg)"/>
+  <!-- Ambient eye glow -->
+  <ellipse cx="23" cy="25" rx="13" ry="11" fill="#e2e8f0" opacity="0.05" filter="url(#sg)"/>
+  <ellipse cx="41" cy="25" rx="13" ry="11" fill="#e2e8f0" opacity="0.05" filter="url(#sg)"/>
 
-  <!-- Body with volume -->
-  <path d="M14,39 Q13,52 20,58 Q26,62 32,62 Q38,62 44,58 Q51,52 50,39 Q42,44 32,44 Q22,44 14,39 Z" fill="#1e293b"/>
-  <path d="M14,39 Q13,52 20,58 Q26,62 32,62 Q38,62 44,58 Q51,52 50,39 Q42,44 32,44 Q22,44 14,39 Z" fill="url(#belly)"/>
+  <!-- Body -->
+  <path d="M15,38 Q14,51 20,57 Q25,61 32,62 Q39,61 44,57 Q50,51 49,38 Q41,43 32,43 Q23,43 15,38 Z" fill="#162336"/>
+  <path d="M15,38 Q14,51 20,57 Q25,61 32,62 Q39,61 44,57 Q50,51 49,38 Q41,43 32,43 Q23,43 15,38 Z" fill="url(#belly)"/>
+  <!-- Belly center line -->
+  <path d="M32,44 L32,58" stroke="#526a84" stroke-width="0.3" opacity="0.15"/>
 
-  <!-- Chest feather pattern (layered V shapes) -->
-  <g stroke="#64748b" fill="none" opacity="0.35">
-    <path d="M27,47 L29.5,45 L32,47" stroke-width="0.7"/>
-    <path d="M32,47 L34.5,45 L37,47" stroke-width="0.7"/>
-    <path d="M25,50 L27.5,48 L30,50" stroke-width="0.6"/>
-    <path d="M30,50 L32,48 L34,50" stroke-width="0.6"/>
-    <path d="M34,50 L36.5,48 L39,50" stroke-width="0.6"/>
-    <path d="M27,53 L29,51 L31,53" stroke-width="0.5"/>
-    <path d="M31,53 L33,51 L35,53" stroke-width="0.5"/>
-    <path d="M35,53 L37,51 L39,53" stroke-width="0.5"/>
-    <path d="M25,53 L27,51 L29,53" stroke-width="0.5"/>
-    <path d="M29,56 L31,54 L33,56" stroke-width="0.4"/>
-    <path d="M33,56 L35,54 L37,56" stroke-width="0.4"/>
+  <!-- Chest feathers (denser, more organic) -->
+  <g stroke="#6d809a" fill="none" opacity="0.3">
+    <path d="M27,46 Q29.5,44 32,46" stroke-width="0.7"/>
+    <path d="M32,46 Q34.5,44 37,46" stroke-width="0.7"/>
+    <path d="M24,49 Q26.5,47 29,49" stroke-width="0.65"/>
+    <path d="M29,49 Q31.5,47 34,49" stroke-width="0.65"/>
+    <path d="M34,49 Q36.5,47 39,49" stroke-width="0.65"/>
+    <path d="M25,52 Q27,50 29,52" stroke-width="0.55"/>
+    <path d="M29,52 Q31,50 33,52" stroke-width="0.55"/>
+    <path d="M33,52 Q35,50 37,52" stroke-width="0.55"/>
+    <path d="M39,52 Q37,50 35,52" stroke-width="0.55"/>
+    <path d="M27,55 Q29,53 31,55" stroke-width="0.45"/>
+    <path d="M31,55 Q33,53 35,55" stroke-width="0.45"/>
+    <path d="M35,55 Q37,53 39,55" stroke-width="0.45"/>
+    <path d="M23,55 Q25,53 27,55" stroke-width="0.45"/>
+    <path d="M29,58 Q31,56 33,58" stroke-width="0.35"/>
+    <path d="M33,58 Q35,56 37,58" stroke-width="0.35"/>
   </g>
 
-  <!-- Wings with feather detail -->
-  <path d="M14,29 Q8,33 5,40 Q4,47 6,52 Q8,56 13,57 Q11,47 11,40 Q11,33 14,29 Z" fill="url(#wl)" filter="url(#sh)"/>
-  <path d="M50,29 Q56,33 59,40 Q60,47 58,52 Q56,56 51,57 Q53,47 53,40 Q53,33 50,29 Z" fill="url(#wr)" filter="url(#sh)"/>
+  <!-- Wings with shadow -->
+  <path d="M15,28 Q8,32 4,40 Q3,47 5,53 Q7,57 12,58 Q10,48 10,40 Q10,32 15,28 Z" fill="url(#wl)" filter="url(#sh)"/>
+  <path d="M49,28 Q56,32 60,40 Q61,47 59,53 Q57,57 52,58 Q54,48 54,40 Q54,32 49,28 Z" fill="url(#wr)" filter="url(#sh)"/>
   <!-- Wing feather lines -->
-  <g stroke="#64748b" fill="none" opacity="0.25" stroke-width="0.5">
-    <path d="M6,41 Q8.5,40 11,41"/>
-    <path d="M5.5,45 Q8,43.5 11,44.5"/>
-    <path d="M6,49 Q8.5,47.5 11,48.5"/>
-    <path d="M58,41 Q55.5,40 53,41"/>
-    <path d="M58.5,45 Q56,43.5 53,44.5"/>
-    <path d="M58,49 Q55.5,47.5 53,48.5"/>
+  <g stroke="#6d809a" fill="none" opacity="0.2" stroke-width="0.45">
+    <path d="M5,40 Q7.5,39 10,40.5"/>
+    <path d="M4.5,44 Q7,42.5 10,43.5"/>
+    <path d="M5,48 Q7.5,46.5 10,47.5"/>
+    <path d="M5.5,52 Q7.5,50.5 10,51.5"/>
+    <path d="M59,40 Q56.5,39 54,40.5"/>
+    <path d="M59.5,44 Q57,42.5 54,43.5"/>
+    <path d="M59,48 Q56.5,46.5 54,47.5"/>
+    <path d="M58.5,52 Q56.5,50.5 54,51.5"/>
   </g>
 
   <!-- Head -->
-  <ellipse cx="32" cy="24" rx="20" ry="20" fill="url(#head)"/>
-  <!-- Subtle top highlight -->
-  <ellipse cx="32" cy="14" rx="10" ry="5" fill="#94a3b8" opacity="0.06"/>
+  <ellipse cx="32" cy="24" rx="19.5" ry="20" fill="url(#head)"/>
+  <!-- Crown highlight -->
+  <ellipse cx="30" cy="12" rx="8" ry="4" fill="#8899ad" opacity="0.07"/>
 
-  <!-- Facial disc (heart-shaped owl face) -->
-  <path d="M32,38 Q18,34 14,24 Q12,17 17,12 Q23,9 32,16 Q41,9 47,12 Q52,17 50,24 Q46,34 32,38 Z" fill="url(#disc)" stroke="#94a3b8" stroke-width="0.4" opacity="0.3"/>
+  <!-- Facial disc -->
+  <path d="M32,37 Q19,34 15,25 Q13,18 17,13 Q22,9 32,16 Q42,9 47,13 Q51,18 49,25 Q45,34 32,37 Z" fill="url(#disc)"/>
+  <path d="M32,37 Q19,34 15,25 Q13,18 17,13 Q22,9 32,16 Q42,9 47,13 Q51,18 49,25 Q45,34 32,37 Z" fill="none" stroke="#8899ad" stroke-width="0.35" opacity="0.25"/>
+  <!-- Inner facial disc rings -->
+  <path d="M32,35 Q21,32 17,25 Q15.5,20 18.5,15 Q23,12 32,17.5 Q41,12 45.5,15 Q48.5,20 47,25 Q43,32 32,35 Z" fill="none" stroke="#6d809a" stroke-width="0.25" opacity="0.15"/>
 
-  <!-- Ear tufts with gradient -->
-  <path d="M14,14 Q12,4 16,1 Q18,5 23,14 Z" fill="url(#tuftL)"/>
-  <path d="M50,14 Q52,4 48,1 Q46,5 41,14 Z" fill="url(#tuftR)"/>
-  <!-- Tuft inner highlights -->
-  <path d="M16,11 Q14.5,5 16,3" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.15"/>
-  <path d="M48,11 Q49.5,5 48,3" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.15"/>
+  <!-- Ear tufts -->
+  <path d="M14,13 Q11,3 15.5,0.5 Q17.5,4 23,13 Z" fill="url(#tuftL)"/>
+  <path d="M50,13 Q53,3 48.5,0.5 Q46.5,4 41,13 Z" fill="url(#tuftR)"/>
+  <!-- Tuft feather detail -->
+  <path d="M15.5,10 Q13.5,4 15.5,2" fill="none" stroke="#8899ad" stroke-width="0.4" opacity="0.2"/>
+  <path d="M17,9 Q15.5,5 16.5,3" fill="none" stroke="#6d809a" stroke-width="0.3" opacity="0.12"/>
+  <path d="M48.5,10 Q50.5,4 48.5,2" fill="none" stroke="#8899ad" stroke-width="0.4" opacity="0.2"/>
+  <path d="M47,9 Q48.5,5 47.5,3" fill="none" stroke="#6d809a" stroke-width="0.3" opacity="0.12"/>
 
-  <!-- Eye sockets (deep, dark) -->
-  <ellipse cx="23" cy="25" rx="9" ry="9" fill="#020617"/>
-  <ellipse cx="41" cy="25" rx="9" ry="9" fill="#020617"/>
-  <!-- Socket rim glow -->
-  <ellipse cx="23" cy="25" rx="9" ry="9" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.2"/>
-  <ellipse cx="41" cy="25" rx="9" ry="9" fill="none" stroke="#94a3b8" stroke-width="0.5" opacity="0.2"/>
+  <!-- Eye sockets -->
+  <ellipse cx="23" cy="25" rx="9.2" ry="9" fill="#030b16"/>
+  <ellipse cx="41" cy="25" rx="9.2" ry="9" fill="#030b16"/>
+  <!-- Socket inner shadow -->
+  <ellipse cx="23" cy="26" rx="8.5" ry="8" fill="#000" opacity="0.15" filter="url(#inner)"/>
+  <ellipse cx="41" cy="26" rx="8.5" ry="8" fill="#000" opacity="0.15" filter="url(#inner)"/>
+  <!-- Socket rim -->
+  <ellipse cx="23" cy="25" rx="9.2" ry="9" fill="none" stroke="#8899ad" stroke-width="0.4" opacity="0.18"/>
+  <ellipse cx="41" cy="25" rx="9.2" ry="9" fill="none" stroke="#8899ad" stroke-width="0.4" opacity="0.18"/>
 
-  <!-- Iris rings for depth -->
-  <circle cx="23" cy="25" r="7.2" fill="url(#iris)" filter="url(#eg)"/>
-  <circle cx="41" cy="25" r="7.2" fill="url(#iris)" filter="url(#eg)"/>
+  <!-- Irises -->
+  <circle cx="23" cy="25" r="7" fill="url(#iris)" filter="url(#eg)"/>
+  <circle cx="41" cy="25" r="7" fill="url(#iris)" filter="url(#eg)"/>
+  <!-- Iris outer ring -->
+  <circle cx="23" cy="25" r="7" fill="none" stroke="#94a3b8" stroke-width="0.6" opacity="0.3"/>
+  <circle cx="41" cy="25" r="7" fill="none" stroke="#94a3b8" stroke-width="0.6" opacity="0.3"/>
   <!-- Iris fiber detail -->
-  <g stroke="#94a3b8" stroke-width="0.2" opacity="0.2">
+  <g stroke="#94a3b8" stroke-width="0.15" opacity="0.18">
     <line x1="23" y1="18.5" x2="23" y2="31.5"/>
     <line x1="16.5" y1="25" x2="29.5" y2="25"/>
-    <line x1="18.5" y1="20.5" x2="27.5" y2="29.5"/>
-    <line x1="27.5" y1="20.5" x2="18.5" y2="29.5"/>
+    <line x1="18.2" y1="20.2" x2="27.8" y2="29.8"/>
+    <line x1="27.8" y1="20.2" x2="18.2" y2="29.8"/>
+    <line x1="20" y1="18.8" x2="26" y2="31.2"/>
+    <line x1="26" y1="18.8" x2="20" y2="31.2"/>
     <line x1="41" y1="18.5" x2="41" y2="31.5"/>
     <line x1="34.5" y1="25" x2="47.5" y2="25"/>
-    <line x1="36.5" y1="20.5" x2="45.5" y2="29.5"/>
-    <line x1="45.5" y1="20.5" x2="36.5" y2="29.5"/>
+    <line x1="36.2" y1="20.2" x2="45.8" y2="29.8"/>
+    <line x1="45.8" y1="20.2" x2="36.2" y2="29.8"/>
+    <line x1="38" y1="18.8" x2="44" y2="31.2"/>
+    <line x1="44" y1="18.8" x2="38" y2="31.2"/>
   </g>
 
   <!-- Pupils -->
-  <circle cx="23" cy="25" r="3" fill="#020617"/>
-  <circle cx="41" cy="25" r="3" fill="#020617"/>
+  <circle cx="23" cy="25" r="2.8" fill="#020617"/>
+  <circle cx="41" cy="25" r="2.8" fill="#020617"/>
+  <!-- Pupil edge softness -->
+  <circle cx="23" cy="25" r="3.2" fill="#020617" opacity="0.3" filter="url(#inner)"/>
+  <circle cx="41" cy="25" r="3.2" fill="#020617" opacity="0.3" filter="url(#inner)"/>
 
-  <!-- Eye highlights (multi-point for realism) -->
-  <circle cx="26" cy="22.5" r="2.2" fill="white" opacity="0.92"/>
-  <circle cx="44" cy="22.5" r="2.2" fill="white" opacity="0.92"/>
-  <circle cx="20.5" cy="27.5" r="1" fill="white" opacity="0.25"/>
-  <circle cx="38.5" cy="27.5" r="1" fill="white" opacity="0.25"/>
-  <circle cx="24" cy="22" r="0.6" fill="white" opacity="0.4"/>
-  <circle cx="42" cy="22" r="0.6" fill="white" opacity="0.4"/>
+  <!-- Eye highlights -->
+  <circle cx="26" cy="22.5" r="2" fill="white" opacity="0.93"/>
+  <circle cx="44" cy="22.5" r="2" fill="white" opacity="0.93"/>
+  <circle cx="20.8" cy="27.8" r="0.9" fill="white" opacity="0.22"/>
+  <circle cx="38.8" cy="27.8" r="0.9" fill="white" opacity="0.22"/>
+  <circle cx="24.2" cy="21.8" r="0.5" fill="white" opacity="0.5"/>
+  <circle cx="42.2" cy="21.8" r="0.5" fill="white" opacity="0.5"/>
 
-  <!-- Relaxed eyelids (wise, not sleepy) -->
-  <path d="M14,22.5 Q18,18.5 23,20 Q28,18.5 32,22.5" fill="#334155" opacity="0.5"/>
-  <path d="M32,22.5 Q36,18.5 41,20 Q46,18.5 50,22.5" fill="#334155" opacity="0.5"/>
-  <!-- Eyelid edge -->
-  <path d="M14.5,22.5 Q18.5,19 23,20.5 Q27.5,19 31.5,22.5" fill="none" stroke="#78899c" stroke-width="0.4" opacity="0.35"/>
-  <path d="M32.5,22.5 Q36.5,19 41,20.5 Q45.5,19 49.5,22.5" fill="none" stroke="#78899c" stroke-width="0.4" opacity="0.35"/>
+  <!-- Eyelids (relaxed, wise) -->
+  <path d="M13.8,22 Q18,18 23,19.5 Q28,18 32.2,22" fill="#263c56" opacity="0.5"/>
+  <path d="M31.8,22 Q36,18 41,19.5 Q46,18 50.2,22" fill="#263c56" opacity="0.5"/>
+  <!-- Eyelid highlights -->
+  <path d="M14.2,22 Q18.2,18.5 23,20 Q27.8,18.5 31.8,22" fill="none" stroke="#6d809a" stroke-width="0.35" opacity="0.3"/>
+  <path d="M32.2,22 Q36.2,18.5 41,20 Q45.8,18.5 49.8,22" fill="none" stroke="#6d809a" stroke-width="0.35" opacity="0.3"/>
+  <!-- Lower eyelid hint -->
+  <path d="M15,29 Q19,30.5 23,30 Q27,30.5 31,29" fill="none" stroke="#3b5470" stroke-width="0.3" opacity="0.2"/>
+  <path d="M33,29 Q37,30.5 41,30 Q45,30.5 49,29" fill="none" stroke="#3b5470" stroke-width="0.3" opacity="0.2"/>
 
   <!-- Brows -->
-  <path d="M13,17 Q18,13.5 26,16" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M51,17 Q46,13.5 38,16" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M13,17 Q18,13 26,15.5" fill="none" stroke="#8899ad" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M51,17 Q46,13 38,15.5" fill="none" stroke="#8899ad" stroke-width="1.5" stroke-linecap="round"/>
 
-  <!-- Beak with nostril detail -->
-  <path d="M29.5,32.5 Q32,39.5 34.5,32.5 Z" fill="url(#bk)"/>
-  <path d="M31.2,33.5 Q32,35 32.8,33.5" fill="none" stroke="#fef9c3" stroke-width="0.3" opacity="0.35"/>
+  <!-- Beak -->
+  <path d="M29.5,32 Q32,40 34.5,32 Z" fill="url(#bk)"/>
+  <!-- Beak highlight -->
+  <path d="M31,33 Q32,35.5 33,33" fill="none" stroke="#fef9c3" stroke-width="0.3" opacity="0.3"/>
+  <!-- Beak ridge -->
+  <path d="M32,32.5 L32,37" stroke="#d97706" stroke-width="0.25" opacity="0.3"/>
   <!-- Nostrils -->
-  <circle cx="30.8" cy="34" r="0.35" fill="#92400e" opacity="0.4"/>
-  <circle cx="33.2" cy="34" r="0.35" fill="#92400e" opacity="0.4"/>
+  <ellipse cx="30.8" cy="34.2" rx="0.4" ry="0.3" fill="#78350f" opacity="0.45"/>
+  <ellipse cx="33.2" cy="34.2" rx="0.4" ry="0.3" fill="#78350f" opacity="0.45"/>
 
-  <!-- Subtle smile -->
-  <path d="M28.5,39.5 Q32,42 35.5,39.5" fill="none" stroke="#475569" stroke-width="0.5" stroke-linecap="round" opacity="0.3"/>
+  <!-- Smile -->
+  <path d="M29,39.5 Q32,42 35,39.5" fill="none" stroke="#3b5470" stroke-width="0.5" stroke-linecap="round" opacity="0.3"/>
 
-  <!-- Feet / Talons -->
+  <!-- Feet and talons -->
   <g fill="none" stroke-linecap="round">
-    <path d="M24,59 Q25,60 26,59.5" stroke="#64748b" stroke-width="0.8" opacity="0.3"/>
-    <path d="M38,59 Q39,60 40,59.5" stroke="#64748b" stroke-width="0.8" opacity="0.3"/>
-    <g stroke="#b45309" stroke-width="1.2">
-      <path d="M25,60 L22.5,63 M25,60 L25,63.5 M25,60 L27.5,63"/>
-      <path d="M39,60 L36.5,63 M39,60 L39,63.5 M39,60 L41.5,63"/>
+    <!-- Legs -->
+    <path d="M26,59 Q26.5,60.5 25.5,61" stroke="#3b5470" stroke-width="1.2" opacity="0.4"/>
+    <path d="M38,59 Q37.5,60.5 38.5,61" stroke="#3b5470" stroke-width="1.2" opacity="0.4"/>
+    <!-- Talons -->
+    <g stroke="#b45309" stroke-width="1.1">
+      <path d="M25.5,61 L23,63.5 M25.5,61 L25.5,64 M25.5,61 L28,63.5"/>
+      <path d="M38.5,61 L36,63.5 M38.5,61 L38.5,64 M38.5,61 L41,63.5"/>
     </g>
-    <!-- Talon tips -->
-    <g stroke="#78350f" stroke-width="0.8">
-      <circle cx="22.3" cy="63.3" r="0.3" fill="#78350f"/>
-      <circle cx="25" cy="63.8" r="0.3" fill="#78350f"/>
-      <circle cx="27.7" cy="63.3" r="0.3" fill="#78350f"/>
-      <circle cx="36.3" cy="63.3" r="0.3" fill="#78350f"/>
-      <circle cx="39" cy="63.8" r="0.3" fill="#78350f"/>
-      <circle cx="41.7" cy="63.3" r="0.3" fill="#78350f"/>
+    <!-- Talon tips (sharp points) -->
+    <g fill="#5c2d0e">
+      <circle cx="22.8" cy="63.7" r="0.35"/>
+      <circle cx="25.5" cy="64.2" r="0.35"/>
+      <circle cx="28.2" cy="63.7" r="0.35"/>
+      <circle cx="35.8" cy="63.7" r="0.35"/>
+      <circle cx="38.5" cy="64.2" r="0.35"/>
+      <circle cx="41.2" cy="63.7" r="0.35"/>
     </g>
   </g>
 </svg>
