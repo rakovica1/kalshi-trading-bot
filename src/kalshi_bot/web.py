@@ -78,6 +78,54 @@ _bt_state = {
 _bt_lock = threading.Lock()
 
 
+# ---------------------------------------------------------------------------
+# Background settlement sync
+# ---------------------------------------------------------------------------
+
+_SETTLE_INTERVAL = 120  # seconds between sync checks
+
+def _sync_settlements():
+    """Check open positions against Kalshi and close any that have settled."""
+    try:
+        open_positions = db.get_open_positions()
+        if not open_positions:
+            return 0
+        client = _get_client()
+        market_map = _batch_fetch_markets(client, [p["ticker"] for p in open_positions])
+        closed = 0
+        for p in open_positions:
+            m = market_map.get(p["ticker"])
+            if m is None:
+                continue
+            _, is_settled = _market_position_value(m, p["side"])
+            if is_settled:
+                result = m.get("result", "")
+                value = 100 if result == p["side"] else 0
+                db.close_position_settled(p["ticker"], p["side"], settlement_value_cents=value)
+                closed += 1
+        return closed
+    except Exception:
+        return 0
+
+
+def _settlement_sync_loop():
+    """Background loop that periodically syncs settlements."""
+    import time
+    while True:
+        time.sleep(_SETTLE_INTERVAL)
+        _sync_settlements()
+
+
+_settle_thread = None
+
+
+def _start_settlement_sync():
+    global _settle_thread
+    if _settle_thread is None or not _settle_thread.is_alive():
+        _settle_thread = threading.Thread(target=_settlement_sync_loop, daemon=True)
+        _settle_thread.start()
+
+
 def _require_control_password(f):
     """Decorator: require CONTROL_PASSWORD session auth for protected routes."""
     @functools.wraps(f)
@@ -1206,6 +1254,7 @@ def api_balance():
 
 def main():
     db.init_db()
+    _start_settlement_sync()
     port = int(os.environ.get("PORT", 5001))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(host="0.0.0.0", port=port, debug=debug)
