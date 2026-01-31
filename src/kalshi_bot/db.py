@@ -812,7 +812,8 @@ def get_stats(db_path=DEFAULT_DB_PATH):
     # Current streak (consecutive wins or losses from most recent)
     streak_rows = _fetchall(conn, """
         SELECT realized_pnl_cents FROM positions
-        WHERE is_closed = 1 ORDER BY closed_at DESC
+        WHERE is_closed = 1 AND closed_at IS NOT NULL
+        ORDER BY closed_at DESC
     """)
 
     conn.close()
