@@ -323,13 +323,40 @@ def _dash_fetch_balance():
 
 
 # ---------------------------------------------------------------------------
-# Positions
+# Positions (cached for 8 seconds — page auto-refreshes every 10s)
 # ---------------------------------------------------------------------------
+
+_positions_cache = {"html": None, "ts": 0}
+_positions_cache_lock = threading.Lock()
 
 @app.route("/positions")
 def positions():
+    import time as _time
+    now = _time.time()
+    with _positions_cache_lock:
+        if _positions_cache["html"] and now - _positions_cache["ts"] < 8:
+            return _positions_cache["html"]
+
+    html = _positions_inner()
+
+    with _positions_cache_lock:
+        _positions_cache["html"] = html
+        _positions_cache["ts"] = now
+    return html
+
+
+def _positions_inner():
     db.init_db()
-    open_positions = db.get_open_positions()
+
+    # Fetch open positions, closed positions, and portfolio snapshots in parallel
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_open = pool.submit(db.get_open_positions)
+        f_closed = pool.submit(db.get_closed_positions)
+        f_snapshots = pool.submit(db.get_portfolio_snapshots, 48)
+
+    open_positions = f_open.result()
+    closed_positions = f_closed.result()
+    portfolio_snapshots = f_snapshots.result()
 
     enriched = []
     try:
@@ -359,13 +386,7 @@ def positions():
             else:
                 ask = m.get("no_ask", 0) or 0
             unrealized_ask = int(qty * ((ask if ask else current) - entry))
-            opened_at = p.get("opened_at", "")
-            if opened_at and isinstance(opened_at, str):
-                opened_at_display = _utc_to_est(opened_at)
-            elif hasattr(opened_at, "strftime"):
-                opened_at_display = _utc_to_est(opened_at)
-            else:
-                opened_at_display = str(opened_at)
+            opened_at_display = _format_opened_at(p.get("opened_at", ""))
             enriched.append({
                 **p,
                 "current_price": current,
@@ -382,43 +403,23 @@ def positions():
             **p,
             "current_price": 0,
             "unrealized_cents": 0,
-            "opened_at_display": _utc_to_est(p.get("opened_at", "")),
+            "opened_at_display": _format_opened_at(p.get("opened_at", "")),
             "close_time": "",
             "is_settled": False,
         } for p in open_positions]
 
-    # Fetch closed positions
-    closed_positions = db.get_closed_positions()
     closed_enriched = []
     for p in closed_positions:
-        opened_at = p.get("opened_at", "")
-        if opened_at and isinstance(opened_at, str):
-            opened_at_display = _utc_to_est(opened_at)
-        elif hasattr(opened_at, "strftime"):
-            opened_at_display = _utc_to_est(opened_at)
-        else:
-            opened_at_display = str(opened_at)
-        closed_at = p.get("closed_at", "")
-        if closed_at and isinstance(closed_at, str):
-            closed_at_display = _utc_to_est(closed_at)
-        elif hasattr(closed_at, "strftime"):
-            closed_at_display = _utc_to_est(closed_at)
-        else:
-            closed_at_display = str(closed_at) if closed_at else ""
         closed_enriched.append({
             **p,
-            "opened_at_display": opened_at_display,
-            "closed_at_display": closed_at_display,
+            "opened_at_display": _format_opened_at(p.get("opened_at", "")),
+            "closed_at_display": _format_opened_at(p.get("closed_at", "")),
         })
 
-    # Compute position totals
     total_value = sum(p["current_price"] * p["quantity"] for p in enriched)
     total_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in enriched)
     total_unrealized_bid = sum(p["unrealized_bid_cents"] for p in enriched)
     total_unrealized_ask = sum(p["unrealized_ask_cents"] for p in enriched)
-
-    # Aggregated portfolio P&L history
-    portfolio_snapshots = db.get_portfolio_snapshots(hours=48)
 
     return render_template(
         "positions.html",
@@ -430,6 +431,17 @@ def positions():
         total_unrealized_ask_cents=total_unrealized_ask,
         portfolio_snapshots=portfolio_snapshots,
     )
+
+
+def _format_opened_at(val):
+    """Convert a timestamp value to EST display string."""
+    if not val:
+        return ""
+    if isinstance(val, str):
+        return _utc_to_est(val)
+    if hasattr(val, "strftime"):
+        return _utc_to_est(val)
+    return str(val)
 
 
 # ---------------------------------------------------------------------------
