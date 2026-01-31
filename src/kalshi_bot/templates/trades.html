@@ -3,15 +3,29 @@
 {% block head %}
 <script>
 (function(){
-  var key = '_nr_scroll_' + location.pathname;
-  var saved = sessionStorage.getItem(key);
-  if (saved) {
-    requestAnimationFrame(function(){ window.scrollTo(0, parseInt(saved)); });
+  function liveRefresh() {
+    fetch(location.pathname, {headers:{'X-Requested-With':'live-refresh'}})
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var newMain = doc.querySelector('main');
+        if (newMain) {
+          var main = document.querySelector('main');
+          var scrollEl = main;
+          var sy = scrollEl.scrollTop || window.scrollY;
+          main.innerHTML = newMain.innerHTML;
+          main.querySelectorAll('script').forEach(function(old){
+            var s = document.createElement('script');
+            if (old.src) { s.src = old.src; } else { s.textContent = old.textContent; }
+            old.replaceWith(s);
+          });
+          scrollEl.scrollTop = sy;
+          window.scrollTo(window.scrollX, sy);
+        }
+      })
+      .catch(function(){});
   }
-  setTimeout(function(){
-    sessionStorage.setItem(key, window.scrollY);
-    location.reload();
-  }, 10000);
+  setInterval(liveRefresh, 10000);
 })();
 </script>
 {% endblock %}
