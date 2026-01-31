@@ -1,8 +1,28 @@
 {% extends "base.html" %}
 {% block title %}Positions - Nightrader{% endblock %}
-{% block head %}<meta http-equiv="refresh" content="3">{% endblock %}
+{% block head %}
+<script>
+setTimeout(function() {
+  var y = window.scrollY;
+  var url = location.href;
+  if (url.indexOf('_sy=') === -1) {
+    url += (url.indexOf('?') === -1 ? '?' : '&') + '_sy=' + y;
+  } else {
+    url = url.replace(/_sy=\d+/, '_sy=' + y);
+  }
+  location.replace(url);
+}, 3000);
+(function() {
+  var m = location.search.match(/_sy=(\d+)/);
+  if (m) window.addEventListener('load', function() { window.scrollTo(0, parseInt(m[1])); });
+})();
+</script>
+{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-bold text-white mb-6">Open Positions <span class="text-lg font-normal text-slate-500">({{ positions|length }})</span></h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-white">Open Positions <span class="text-lg font-normal text-slate-500">({{ positions|length }})</span></h1>
+  <span class="flex items-center gap-1.5 text-xs text-slate-500"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>Live &mdash; 3s refresh</span>
+</div>
 
 {% if portfolio_snapshots and portfolio_snapshots|length > 1 %}
 <!-- Aggregated Portfolio Chart -->
