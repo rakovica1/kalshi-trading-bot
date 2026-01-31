@@ -8,7 +8,7 @@
 <div id="expiry-alerts" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-xs md:top-6 md:right-8">
   {% for pos in expiring_soon %}
   <div class="expiry-alert flex items-start gap-2 bg-amber-950/90 border border-amber-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm cursor-pointer transition-all hover:border-amber-600/80"
-       data-ticker="{{ pos.ticker }}" onclick="dismissAlert(this)">
+       data-ticker="{{ pos.ticker }}" data-expires="{{ pos.expires_at_iso }}" onclick="dismissAlert(this)">
     <div class="shrink-0 mt-0.5">
       <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -17,7 +17,11 @@
     <div class="flex-1 min-w-0">
       <div class="text-xs font-semibold text-amber-300">Expiring Soon</div>
       <div class="text-[11px] text-amber-200/80 mt-0.5 truncate">{{ pos.ticker|decode_ticker }}</div>
-      <div class="text-[10px] text-amber-400/70 font-mono mt-0.5">{{ pos.side|upper }} &middot; {{ pos.mins_left }}m left</div>
+      <div class="text-[10px] font-mono mt-0.5">
+        <span class="text-amber-400/70">{{ pos.side|upper }}</span>
+        <span class="text-amber-400/50">&middot;</span>
+        <span class="countdown text-amber-300" data-expires="{{ pos.expires_at_iso }}"></span>
+      </div>
     </div>
     <button class="shrink-0 text-amber-500/50 hover:text-amber-300 transition-colors" onclick="event.stopPropagation(); dismissAlert(this.parentElement)">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,6 +60,82 @@
     el.style.transform = 'translateX(100%)';
     setTimeout(() => { el.style.display = 'none'; }, 300);
   };
+
+  // Live countdown
+  function updateCountdowns() {
+    document.querySelectorAll('.countdown').forEach(el => {
+      const expires = new Date(el.dataset.expires).getTime();
+      const diff = Math.max(0, expires - Date.now());
+      const totalSec = Math.floor(diff / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      if (totalSec <= 0) {
+        el.textContent = 'EXPIRED';
+        el.classList.remove('text-amber-300');
+        el.classList.add('text-red-400');
+      } else if (m < 5) {
+        el.textContent = m + ':' + String(s).padStart(2, '0');
+        el.classList.remove('text-amber-300');
+        el.classList.add('text-red-400');
+      } else {
+        el.textContent = m + ':' + String(s).padStart(2, '0');
+      }
+    });
+  }
+  updateCountdowns();
+  setInterval(updateCountdowns, 1000);
+})();
+</script>
+{% endif %}
+
+<!-- Settlement toast notifications (auto-dismiss after 3s) -->
+{% if just_settled %}
+<div id="settle-toasts" class="fixed bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm md:right-8">
+  {% for s in just_settled %}
+  <div class="settle-toast {{ 'bg-emerald-950/90 border-emerald-700/60' if s.won else 'bg-red-950/90 border-red-700/60' }} border rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm transition-all"
+       style="opacity: 0; transform: translateX(100%);">
+    <div class="flex items-center gap-2">
+      {% if s.won %}
+      <span class="text-lg">&#127881;</span>
+      <div>
+        <div class="text-xs font-bold text-emerald-300">Congratulations!</div>
+        <div class="text-[11px] text-emerald-200/80 mt-0.5">{{ s.ticker|decode_ticker }}</div>
+        <div class="text-[10px] text-emerald-400 font-mono mt-0.5">{{ s.side|upper }} won &middot; {{ s.pnl_cents|signed_dollar }}</div>
+      </div>
+      {% else %}
+      <span class="text-lg">&#128128;</span>
+      <div>
+        <div class="text-xs font-bold text-red-300">Got Fucked</div>
+        <div class="text-[11px] text-red-200/80 mt-0.5">{{ s.ticker|decode_ticker }}</div>
+        <div class="text-[10px] text-red-400 font-mono mt-0.5">{{ s.side|upper }} lost &middot; {{ s.pnl_cents|signed_dollar }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<script>
+(function() {
+  const toasts = document.querySelectorAll('.settle-toast');
+  // Animate in
+  toasts.forEach((t, i) => {
+    setTimeout(() => {
+      t.style.transition = 'opacity 0.4s, transform 0.4s';
+      t.style.opacity = '1';
+      t.style.transform = 'translateX(0)';
+    }, i * 150);
+  });
+  // Auto-dismiss after 3 seconds
+  setTimeout(() => {
+    toasts.forEach((t, i) => {
+      setTimeout(() => {
+        t.style.transition = 'opacity 0.4s, transform 0.4s';
+        t.style.opacity = '0';
+        t.style.transform = 'translateX(100%)';
+        setTimeout(() => { t.remove(); }, 400);
+      }, i * 100);
+    });
+  }, 3000);
 })();
 </script>
 {% endif %}

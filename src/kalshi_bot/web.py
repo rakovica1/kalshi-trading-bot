@@ -248,6 +248,7 @@ def _dashboard_inner():
     total_unrealized_max = 0
     portfolio_ask_value = 0
     market_map = {}
+    just_settled = []
     try:
         client = _get_client()
         market_map = _batch_fetch_markets(client, [p["ticker"] for p in open_positions])
@@ -257,10 +258,19 @@ def _dashboard_inner():
                 continue
             current, is_settled = _market_position_value(m, p["side"])
             if is_settled:
+                entry = p["avg_entry_price_cents"]
+                qty = p["quantity"]
+                pnl = int(qty * (current - entry))
                 db.close_position_settled(
                     p["ticker"], p["side"],
                     settlement_value_cents=current,
                 )
+                just_settled.append({
+                    "ticker": p["ticker"],
+                    "side": p["side"],
+                    "pnl_cents": pnl,
+                    "won": current == 100,
+                })
             else:
                 qty = p["quantity"]
                 entry = p["avg_entry_price_cents"]
@@ -297,6 +307,7 @@ def _dashboard_inner():
                     "ticker": p["ticker"],
                     "side": p["side"],
                     "mins_left": round(mins_left, 1),
+                    "expires_at_iso": close_dt.isoformat(),
                 })
     except Exception:
         pass
@@ -332,6 +343,7 @@ def _dashboard_inner():
         profit_factor=stats["profit_factor"],
         daily_pnl=daily_pnl,
         expiring_soon=expiring_soon,
+        just_settled=just_settled,
     )
 
 
