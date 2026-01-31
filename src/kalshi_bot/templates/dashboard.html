@@ -90,7 +90,7 @@
 
 <!-- Settlement toast notifications (auto-dismiss after 3s) -->
 {% if just_settled %}
-<div id="settle-toasts" class="fixed bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm md:right-8">
+<div id="settle-toasts" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm md:top-6 md:right-8">
   {% for s in just_settled %}
   <div class="settle-toast {{ 'bg-emerald-950/90 border-emerald-700/60' if s.won else 'bg-red-950/90 border-red-700/60' }} border rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm transition-all"
        style="opacity: 0; transform: translateX(100%);">
@@ -125,7 +125,7 @@
       t.style.transform = 'translateX(0)';
     }, i * 150);
   });
-  // Auto-dismiss after 3 seconds
+  // Auto-dismiss after 5 seconds
   setTimeout(() => {
     toasts.forEach((t, i) => {
       setTimeout(() => {
@@ -135,7 +135,7 @@
         setTimeout(() => { t.remove(); }, 400);
       }, i * 100);
     });
-  }, 3000);
+  }, 5000);
 })();
 </script>
 {% endif %}
@@ -259,7 +259,7 @@ function testToasts() {
 
   const container = document.createElement('div');
   container.id = 'test-toasts';
-  container.className = 'fixed bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm md:right-8';
+  container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm md:top-6 md:right-8';
   container.innerHTML =
     '<div class="settle-toast bg-emerald-950/90 border border-emerald-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
       '<div class="flex items-center gap-2">' +
@@ -301,7 +301,7 @@ function testToasts() {
       }, i * 100);
     });
     setTimeout(() => container.remove(), 1000);
-  }, 3000);
+  }, 5000);
 }
 </script>
 
