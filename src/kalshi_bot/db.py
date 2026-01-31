@@ -715,7 +715,7 @@ def get_today_starting_balance(db_path=DEFAULT_DB_PATH):
     if _use_pg:
         sql = "SELECT balance_cents FROM balance_history WHERE recorded_at::date = CURRENT_DATE ORDER BY id ASC LIMIT 1"
     else:
-        sql = "SELECT balance_cents FROM balance_history WHERE date(recorded_at) = date('now') ORDER BY id ASC LIMIT 1"
+        sql = "SELECT balance_cents FROM balance_history WHERE date(recorded_at, '-5 hours') = date('now', '-5 hours') ORDER BY id ASC LIMIT 1"
     row = _fetchone(conn, sql)
     conn.close()
     return row["balance_cents"] if row else None
@@ -737,7 +737,7 @@ def get_today_trading_loss(db_path=DEFAULT_DB_PATH):
         sql = """SELECT COALESCE(SUM(realized_pnl_cents), 0) as total
                  FROM positions
                  WHERE is_closed = 1 AND realized_pnl_cents < 0
-                   AND date(closed_at) = date('now')"""
+                   AND date(closed_at, '-5 hours') = date('now', '-5 hours')"""
     row = _fetchone(conn, sql)
     conn.close()
     # Return as positive number (amount lost)
@@ -849,8 +849,8 @@ def get_daily_pnl(days=30, db_path=DEFAULT_DB_PATH):
         day_filter = f"closed_at >= NOW() - INTERVAL '{days} days'"
         trade_day_filter = f"created_at >= NOW() - INTERVAL '{days} days'"
     else:
-        date_fn = "date(closed_at)"
-        trade_date_fn = "date(created_at)"
+        date_fn = "date(closed_at, '-5 hours')"
+        trade_date_fn = "date(created_at, '-5 hours')"
         day_filter = f"closed_at >= datetime('now', '-{days} days')"
         trade_day_filter = f"created_at >= datetime('now', '-{days} days')"
 

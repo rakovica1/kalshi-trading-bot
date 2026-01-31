@@ -825,7 +825,7 @@ def arbitrage_scan():
                 _arb_state["results"] = opps
                 _arb_state["scanned_at"] = __import__("datetime").datetime.now(
                     __import__("datetime").timezone.utc
-                ).strftime("%Y-%m-%d %H:%M:%S UTC")
+                ).astimezone(_EST).strftime("%Y-%m-%d %I:%M:%S %p EST")
         except Exception as e:
             import traceback
             _log(f"[FAIL] Error: {e}")
@@ -1046,8 +1046,8 @@ def control_logs():
 # ---------------------------------------------------------------------------
 
 _BT_DEFAULTS = {
-    "start_date": (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d"),
-    "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    "start_date": (datetime.now(_EST) - timedelta(days=7)).strftime("%Y-%m-%d"),
+    "end_date": datetime.now(_EST).strftime("%Y-%m-%d"),
     "simulated_ask": 97,
     "min_confidence_bid": 85,
     "min_volume_24h": 10000,
@@ -1093,8 +1093,8 @@ def backtest_run():
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     except ValueError:
-        start_date = (datetime.now(timezone.utc) - timedelta(days=7)).date()
-        end_date = datetime.now(timezone.utc).date()
+        start_date = (datetime.now(_EST) - timedelta(days=7)).date()
+        end_date = datetime.now(_EST).date()
 
     try:
         simulated_ask = int(request.form.get("simulated_ask", _BT_DEFAULTS["simulated_ask"]))
