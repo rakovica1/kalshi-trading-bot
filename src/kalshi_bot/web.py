@@ -317,6 +317,7 @@ def positions():
                         p["ticker"], p["side"],
                         settlement_value_cents=current,
                     )
+                    continue
             else:
                 current = 0
                 m = {}
