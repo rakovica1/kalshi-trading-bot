@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Positions - Nightrader{% endblock %}
 {% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 (function(){
   function liveRefresh() {
@@ -375,17 +376,17 @@ setInterval(updateAll, 30000);
 </script>
 
 {% if portfolio_snapshots and portfolio_snapshots|length > 1 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-const snapData = {{ portfolio_snapshots|tojson }};
-const labels = snapData.map(d => {
-  const dt = new Date(d.ts);
+(function(){
+var snapData = {{ portfolio_snapshots|tojson }};
+var labels = snapData.map(function(d) {
+  var dt = new Date(d.ts);
   return dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
 });
-const bidValues = snapData.map(d => d.unrealized_bid / 100);
-const askValues = snapData.map(d => d.unrealized_ask / 100);
+var bidValues = snapData.map(function(d) { return d.unrealized_bid / 100; });
+var askValues = snapData.map(function(d) { return d.unrealized_ask / 100; });
 
-const ctx = document.getElementById('portfolio-chart');
+var ctx = document.getElementById('portfolio-chart');
 new Chart(ctx, {
   type: 'line',
   data: {
@@ -451,7 +452,7 @@ new Chart(ctx, {
         padding: 12,
         callbacks: {
           label: function(ctx) {
-            const v = ctx.parsed.y;
+            var v = ctx.parsed.y;
             return ctx.dataset.label + ': ' + (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toFixed(2);
           },
         },
@@ -459,6 +460,7 @@ new Chart(ctx, {
     },
   },
 });
+})();
 </script>
 {% endif %}
 {% endblock %}

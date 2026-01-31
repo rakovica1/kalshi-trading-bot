@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Nightrader{% endblock %}
 {% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 (function(){
   function liveRefresh() {
@@ -325,11 +326,11 @@
 </div>
 
 {% if daily_pnl %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-const allData = {{ daily_pnl|tojson }};
-let dailyChart = null;
-let currentDays = 30;
+(function(){
+var allData = {{ daily_pnl|tojson }};
+var dailyChart = null;
+var currentDays = 30;
 
 function filterData(days) {
   if (days === 0 || days >= allData.length) return allData;
@@ -494,6 +495,7 @@ document.querySelectorAll('#period-selector button').forEach(btn => {
 
 // Initial render
 buildChart(30);
+})();
 </script>
 {% endif %}
 {% endblock %}
