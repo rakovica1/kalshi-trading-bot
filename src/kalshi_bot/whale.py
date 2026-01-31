@@ -107,27 +107,29 @@ def run_whale_strategy(
     ai_tag = " + AI" if with_ai else ""
     log(f"[HEAD] Sniper [{mode}{ai_tag}] — limit 98c, exp {max_hours_to_expiration or '∞'}h")
 
-    # 1. Fetch balance
+    # ── Filter 1: Balance ──
     bal_data = client.get_balance()
     balance_cents = bal_data.get("balance", 0)
     db.log_balance(balance_cents)
+    risk_amount = balance_cents * risk_pct / 100
+    log(f"[PASS] Balance — ${balance_cents / 100:.2f} | Risk {risk_pct*100:.0f}% = ${risk_amount:.2f}")
 
-    # 2. Daily loss check
+    # ── Filter 2: Daily loss limit ──
     daily_loss = db.get_today_trading_loss()
     max_daily_loss = int(balance_cents * daily_loss_pct)
-    log(f"[INFO] Balance ${balance_cents / 100:.2f} | Risk {risk_pct*100:.0f}% = ${balance_cents * risk_pct / 100:.2f} | Loss ${daily_loss / 100:.2f}/${max_daily_loss / 100:.2f}")
-
     if daily_loss >= max_daily_loss:
-        log(f"[FAIL] Daily loss limit reached ({daily_loss_pct*100:.0f}%)")
+        log(f"[REJECT] Daily loss limit — ${daily_loss / 100:.2f}/${max_daily_loss / 100:.2f} ({daily_loss_pct*100:.0f}%) EXCEEDED")
         return {"scanned": 0, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": "daily_loss"}
+    log(f"[PASS] Daily loss — ${daily_loss / 100:.2f}/${max_daily_loss / 100:.2f} ({daily_loss_pct*100:.0f}%)")
 
-    # 3. Position count check
+    # ── Filter 3: Position count ──
     open_count = db.count_open_positions()
     if open_count >= max_positions:
-        log(f"[WARN] Max positions reached ({open_count}/{max_positions})")
+        log(f"[REJECT] Position limit — {open_count}/{max_positions} FULL")
         return {"scanned": 0, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": "max_positions"}
+    log(f"[PASS] Position count — {open_count}/{max_positions} slots used")
 
-    # 4. Scan markets
+    # ── Filter 4: Market scan ──
     prefix_list = list(prefixes) if prefixes else None
     log(f"[INFO] Scanning markets...")
     results, scan_stats = scan(
@@ -141,16 +143,15 @@ def run_whale_strategy(
 
     total_found = len(results)
     qualified_count = scan_stats.get("qualified", 0)
-    log(f"[INFO] Found {total_found} markets, {qualified_count} qualified")
 
-    # 5. Filter to qualified markets only
+    # ── Filter 5: Qualification ──
     candidates = [r for r in results if r.get("qualified")]
-
     if not candidates:
-        log(f"[WARN] No qualified markets found")
+        log(f"[REJECT] Qualification — 0/{total_found} markets qualified (need top200 vol + $10k+ + ≤5% spread)")
         return {"scanned": total_found, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
+    log(f"[PASS] Qualification — {qualified_count}/{total_found} markets qualified")
 
-    # 5b. Exclude categories (e.g. crypto)
+    # ── Filter 6: Category exclusion ──
     if exclude_categories:
         before = len(candidates)
         candidates = [
@@ -159,39 +160,48 @@ def run_whale_strategy(
         ]
         excluded = before - len(candidates)
         if excluded:
-            log(f"[INFO] Excluded {excluded} {', '.join(exclude_categories)} market{'s' if excluded != 1 else ''}")
+            log(f"[INFO] Category filter — excluded {excluded} {', '.join(exclude_categories)} market{'s' if excluded != 1 else ''}")
 
-    # 6. Remove already-held, 99c, and out-of-window markets
+    # ── Filter 7: Already-held positions ──
     existing_tickers = db.get_position_tickers()
     available = [c for c in candidates if c["ticker"] not in existing_tickers]
     held = len(candidates) - len(available)
     if held:
-        log(f"[INFO] Skipping {held} already-held position{'s' if held != 1 else ''}")
+        log(f"[INFO] Already-held filter — {held} position{'s' if held != 1 else ''} skipped")
 
+    # ── Filter 8: 99c ceiling ──
+    before_99 = len(available)
     available = [c for c in available if c.get("signal_ask", 100) <= 98]
+    removed_99 = before_99 - len(available)
+    if removed_99:
+        log(f"[INFO] Price ceiling — {removed_99} market{'s' if removed_99 != 1 else ''} at 99c+ removed")
 
+    # ── Filter 9: Expiry window ──
     if max_hours_to_expiration is not None:
+        before_exp = len(available)
         def _within_expiry(c):
             hrs = c.get("hours_left")
             if hrs is None or hrs <= 0:
                 return False
-            # Tighter spread allows longer expiration window
             limit = 10.0 if c.get("spread_pct", 99) <= 2.5 else max_hours_to_expiration
             return hrs <= limit
         available = [c for c in available if _within_expiry(c)]
+        removed_exp = before_exp - len(available)
+        if removed_exp:
+            log(f"[INFO] Expiry window — {removed_exp} market{'s' if removed_exp != 1 else ''} outside {max_hours_to_expiration}h window")
 
     if not available:
-        log(f"[WARN] No tradeable markets after filters (held={held})")
+        log(f"[REJECT] No tradeable markets — {len(candidates)} qualified, {held} held, {len(candidates) - held} remaining all filtered out")
         return {"scanned": total_found, "skipped": held, "traded": 0, "orders": 0, "stopped_reason": None}
 
-    # 7. Rank: safest tier first, soonest expiration
+    # ── Ranking ──
     available.sort(key=lambda m: (
         m.get("tier", 3),
         m.get("hours_left") if m.get("hours_left") is not None else 9999,
         -m["signal_price"],
         -m["dollar_24h"],
     ))
-    log(f"[INFO] {len(available)} targets ranked (T1→T2→T3)")
+    log(f"[PASS] {len(available)} target{'s' if len(available) != 1 else ''} ranked (T1→T2→T3)")
 
     summary = {
         "scanned": total_found,
@@ -216,40 +226,45 @@ def run_whale_strategy(
         est_price = ask_price if ask_price > 0 else bid_price
         total_contracts = calculate_position(balance_cents, est_price, risk_pct)
 
-        if total_contracts <= 0:
-            log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} {bid_price}c/{ask_price}c — insufficient balance")
-            continue
+        prefix = f"#{idx+1}/{len(available)}"
+        summary["selected_ticker"] = ticker
 
-        # Re-check current ask before ordering
+        log(f"[HEAD] ── Candidate {prefix}: {ticker} {side.upper()} {bid_price}c/{ask_price}c ──")
+
+        # ── Per-candidate filter: Balance check ──
+        if total_contracts <= 0:
+            log(f"[REJECT] Balance — insufficient for {est_price}c entry")
+            continue
+        log(f"[PASS] Balance — {total_contracts}x contracts @ {est_price}c")
+
+        # ── Per-candidate filter: Live price re-check ──
         try:
             live = client.get_market(ticker=ticker)
             live_ask = live.get(f"{side}_ask", 0) or 0
             live_bid = live.get(f"{side}_bid", 0) or 0
             if live_ask < min_price or live_ask > 98:
-                log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} — live ask {live_ask}c outside {min_price}-98c range")
+                log(f"[REJECT] Live price — ask {live_ask}c outside {min_price}-98c range")
                 continue
-            # Update prices to live values
             ask_price = live_ask
             bid_price = live_bid
             est_price = ask_price
             total_contracts = calculate_position(balance_cents, est_price, risk_pct)
             if total_contracts <= 0:
-                log(f"[SKIP] #{idx+1}/{len(available)} {ticker} {side.upper()} — insufficient balance at live ask {ask_price}c")
+                log(f"[REJECT] Live price — insufficient balance at live ask {ask_price}c")
                 continue
+            log(f"[PASS] Live price — bid {bid_price}c / ask {ask_price}c ({total_contracts}x)")
         except Exception as e:
-            log(f"[WARN] #{idx+1}/{len(available)} {ticker} — failed to re-check price: {e}")
+            log(f"[WARN] Live price check failed: {e}")
 
-        # Price velocity filter — reject markets with suspicious rapid spikes
+        # ── Per-candidate filter: Price velocity ──
         if _check_price_velocity(client, ticker, selected.get("event_ticker", ""),
                                  side, ask_price, log=log):
             continue
+        log(f"[PASS] Velocity — no abnormal price spike detected")
 
         spread_warn = f" (spread {spread:.1f}%)" if spread >= 3.0 else ""
-        prefix = f"#{idx+1}/{len(available)}"
 
-        summary["selected_ticker"] = ticker
-
-        # Directional filter for crypto price markets
+        # ── Per-candidate filter: Crypto directional ──
         event_prefix = selected.get("event_ticker", "").upper()
         if any(event_prefix.startswith(p) for p in ("KXBTC", "KXETH")):
             from kalshi_bot.ticker import extract_strike_price
@@ -263,13 +278,20 @@ def run_whale_strategy(
                 if spot is not None:
                     buffer = 0.005  # 0.5%
                     if side == "no" and spot > strike * (1 + buffer):
-                        log(f"[SKIP] {prefix} {ticker} — contrarian NO: {asset_name} ${spot:,.0f} above strike ${strike:,.0f}")
+                        log(f"[REJECT] Directional — contrarian NO: {asset_name} ${spot:,.0f} above strike ${strike:,.0f}")
                         continue
                     if side == "yes" and spot < strike * (1 - buffer):
-                        log(f"[SKIP] {prefix} {ticker} — contrarian YES: {asset_name} ${spot:,.0f} below strike ${strike:,.0f}")
+                        log(f"[REJECT] Directional — contrarian YES: {asset_name} ${spot:,.0f} below strike ${strike:,.0f}")
                         continue
+                    log(f"[PASS] Directional — {asset_name} ${spot:,.0f} vs strike ${strike:,.0f}, {side.upper()} aligned")
+                else:
+                    log(f"[PASS] Directional — spot price unavailable, skipping check")
+            else:
+                log(f"[PASS] Directional — no strike price in ticker, skipping check")
+        else:
+            log(f"[PASS] Directional — non-crypto market, skipping check")
 
-        # AI analysis gate
+        # ── Per-candidate filter: AI analysis ──
         if with_ai:
             from kalshi_bot.ai import analyze_market
             ai_result = analyze_market(selected, log=log)
@@ -278,33 +300,36 @@ def run_whale_strategy(
             our_side = side.upper()
             ai_confidence = ai_result.get("confidence", 0)
 
-            # Check AI agrees with our side
             if ai_side not in ("UNKNOWN", "") and ai_side != our_side:
-                log(f"[AI] SKIP {prefix} {ticker} — AI says {ai_side}, we want {our_side}")
+                log(f"[REJECT] AI — says {ai_side}, we want {our_side}")
                 continue
 
-            # Check confidence threshold
             if ai_confidence > 0 and ai_confidence < min_confidence:
-                log(f"[AI] SKIP {prefix} {ticker} — confidence {ai_confidence}% < {min_confidence}%")
+                log(f"[REJECT] AI — confidence {ai_confidence}% < {min_confidence}% threshold")
                 continue
 
-            # Check AI explicit recommendation
             if not ai_result.get("should_trade", True):
-                log(f"[AI] SKIP {prefix} {ticker} — AI recommends skip")
+                log(f"[REJECT] AI — recommends skip")
                 continue
 
             if ai_confidence > 0:
-                log(f"[AI] PASS {prefix} {ticker} — confidence {ai_confidence}%, approved")
+                log(f"[PASS] AI — confidence {ai_confidence}%, {ai_side} approved")
+            else:
+                log(f"[PASS] AI — no objection")
+        else:
+            log(f"[INFO] AI — disabled")
 
         limit_price = ask_price if ask_price > 0 else 98
 
+        # ── All filters passed — execute ──
+        log(f"[PASS] All filters passed — placing order: {total_contracts}x {side.upper()} @ {limit_price}c{spread_warn}")
+
         if dry_run:
-            log(f"[FILL] {prefix} {ticker} {side.upper()} {bid_price}c/{ask_price}c — DRY RUN {total_contracts}x @ {limit_price}c{spread_warn}")
+            log(f"[FILL] {prefix} {ticker} {side.upper()} — DRY RUN {total_contracts}x @ {limit_price}c")
             summary["traded"] = 1
             summary["orders"] += 1
             break
 
-        # Place order at the current ask price
         try:
             result = client.create_order(
                 ticker=ticker, side=side, action="buy",
@@ -346,10 +371,10 @@ def run_whale_strategy(
             if fill_count > 0:
                 db.update_position_on_buy(ticker, side, fill_count, actual_entry)
                 summary["traded"] = 1
-                log(f"[FILL] {prefix} {ticker} {side.upper()} {bid_price}c/{ask_price}c — FILLED {fill_count}x @ {actual_entry}c{spread_warn}")
+                log(f"[FILL] {prefix} {ticker} {side.upper()} — FILLED {fill_count}x @ {actual_entry}c{spread_warn}")
                 break
             else:
-                log(f"[SKIP] {prefix} {ticker} {side.upper()} {bid_price}c/{ask_price}c — no fill, cancelled{spread_warn}")
+                log(f"[REJECT] Order — no fill, cancelled (resting){spread_warn}")
                 continue
 
         except Exception as e:

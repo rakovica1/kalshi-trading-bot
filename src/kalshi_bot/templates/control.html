@@ -93,13 +93,16 @@ let pollInterval = null;
 let lastLogCount = 0;
 
 const TAG_COLORS = {
-  'FILL': 'text-emerald-400',
-  'WARN': 'text-amber-400',
-  'FAIL': 'text-red-400',
-  'SKIP': 'text-slate-600',
-  'INFO': 'text-slate-400',
-  'HEAD': 'text-white',
-  'AI':   'text-purple-400',
+  'FILL':     'text-emerald-400',
+  'PASS':     'text-emerald-400',
+  'REJECT':   'text-red-400',
+  'FAIL':     'text-red-400',
+  'VELOCITY': 'text-orange-400',
+  'WARN':     'text-amber-400',
+  'SKIP':     'text-slate-500',
+  'INFO':     'text-slate-400',
+  'HEAD':     'text-white',
+  'AI':       'text-purple-400',
 };
 
 function escapeHtml(s) {
@@ -107,11 +110,33 @@ function escapeHtml(s) {
 }
 
 function colorLine(line) {
-  const m = line.match(/^\[([A-Z]+)\]/);
-  if (m && TAG_COLORS[m[1]]) {
-    return '<span class="' + TAG_COLORS[m[1]] + '">' + escapeHtml(line) + '</span>';
+  var m = line.match(/^\[([A-Z]+)\]/);
+  if (!m) return '<span class="text-slate-400">' + escapeHtml(line) + '</span>';
+  var tag = m[1];
+  var cls = TAG_COLORS[tag] || 'text-slate-400';
+  var escaped = escapeHtml(line);
+  // Highlight the tag bracket in matching color, rest slightly dimmer for PASS/REJECT
+  var tagPart = escapeHtml(m[0]);
+  var rest = escaped.slice(tagPart.length);
+  if (tag === 'PASS') {
+    return '<span class="text-emerald-500 font-semibold">' + tagPart + '</span><span class="text-emerald-400/80">' + rest + '</span>';
   }
-  return '<span class="text-slate-400">' + escapeHtml(line) + '</span>';
+  if (tag === 'REJECT') {
+    return '<span class="text-red-500 font-semibold">' + tagPart + '</span><span class="text-red-400/80">' + rest + '</span>';
+  }
+  if (tag === 'VELOCITY') {
+    return '<span class="text-orange-500 font-semibold">' + tagPart + '</span><span class="text-orange-400/80">' + rest + '</span>';
+  }
+  if (tag === 'FILL') {
+    return '<span class="text-emerald-400 font-semibold">' + tagPart + '</span><span class="text-emerald-300">' + rest + '</span>';
+  }
+  if (tag === 'FAIL') {
+    return '<span class="text-red-500 font-semibold">' + tagPart + '</span><span class="text-red-400">' + rest + '</span>';
+  }
+  if (tag === 'HEAD') {
+    return '<span class="text-white font-semibold">' + escaped + '</span>';
+  }
+  return '<span class="' + cls + '">' + escaped + '</span>';
 }
 
 function parseProgress(logs) {
