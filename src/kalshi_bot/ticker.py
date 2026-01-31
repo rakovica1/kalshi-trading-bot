@@ -203,6 +203,25 @@ def _parse_threshold(seg, prefix=None):
         return None
 
 
+def extract_strike_price(ticker):
+    """Extract numeric strike price from a market ticker.
+
+    Examples:
+        KXBTCD-26JAN3014-T83249.99 → 83249.99
+        KXBTC-26JAN3021-B84125 → 84125.0
+
+    Returns None if no strike price segment found.
+    """
+    parts = ticker.split("-")
+    for part in reversed(parts):
+        if part and part[0] in ("T", "B"):
+            try:
+                return float(part[1:])
+            except ValueError:
+                continue
+    return None
+
+
 def _find_prefix(ticker):
     """Find the longest matching prefix for a ticker.
 

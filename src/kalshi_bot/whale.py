@@ -172,6 +172,26 @@ def run_whale_strategy(
 
         summary["selected_ticker"] = ticker
 
+        # Directional filter for crypto price markets
+        event_prefix = selected.get("event_ticker", "").upper()
+        if any(event_prefix.startswith(p) for p in ("KXBTC", "KXETH")):
+            from kalshi_bot.ticker import extract_strike_price
+            from kalshi_bot.ai import fetch_crypto_context
+            strike = extract_strike_price(ticker)
+            if strike is not None:
+                crypto = fetch_crypto_context()
+                asset_key = "btc_usd" if "BTC" in event_prefix else "eth_usd"
+                asset_name = "BTC" if "BTC" in event_prefix else "ETH"
+                spot = crypto.get(asset_key)
+                if spot is not None:
+                    buffer = 0.005  # 0.5%
+                    if side == "no" and spot > strike * (1 + buffer):
+                        log(f"[SKIP] {prefix} {ticker} — contrarian NO: {asset_name} ${spot:,.0f} above strike ${strike:,.0f}")
+                        continue
+                    if side == "yes" and spot < strike * (1 - buffer):
+                        log(f"[SKIP] {prefix} {ticker} — contrarian YES: {asset_name} ${spot:,.0f} below strike ${strike:,.0f}")
+                        continue
+
         # AI analysis gate
         if with_ai:
             from kalshi_bot.ai import analyze_market
