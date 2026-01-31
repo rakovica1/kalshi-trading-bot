@@ -401,7 +401,6 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     count_top20 = 0
     count_dollar_vol = 0
     count_spread = 0
-    count_expires = 0
     for r in results:
         rank = dollar_ranks[r["ticker"]]
         r["dollar_rank"] = rank
@@ -413,16 +412,17 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             r["fail_reasons"] = ["tier0"]
             continue
 
-        is_spread = r["spread_pct"] <= QUALIFIED_MAX_SPREAD_PCT
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         hrs = r.get("hours_left")
-        # Tighter spread allows longer expiration window
-        if r["spread_pct"] <= 2.5:
-            max_hours = 10.0
+        # Spread + expiration combined: tighter spread allows longer window
+        spread = r["spread_pct"]
+        if spread <= 2.5:
+            is_spread_expiry = hrs is not None and 0 < hrs <= 10.0
+        elif spread <= QUALIFIED_MAX_SPREAD_PCT:
+            is_spread_expiry = hrs is not None and 0 < hrs <= QUALIFIED_MAX_HOURS
         else:
-            max_hours = QUALIFIED_MAX_HOURS  # 2h for spreads up to 5%
-        is_expiring = hrs is not None and 0 < hrs <= max_hours
+            is_spread_expiry = False
 
         if r["tier"] == 1:
             count_tier1 += 1
@@ -430,20 +430,16 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             count_top20 += 1
         if is_dollar:
             count_dollar_vol += 1
-        if is_spread:
+        if is_spread_expiry:
             count_spread += 1
-        if is_expiring:
-            count_expires += 1
 
         fail_reasons = []
         if not is_top_n:
             fail_reasons.append("rank")
         if not is_dollar:
             fail_reasons.append("volume")
-        if not is_spread:
-            fail_reasons.append("spread")
-        if not is_expiring:
-            fail_reasons.append("expiry")
+        if not is_spread_expiry:
+            fail_reasons.append("spread_expiry")
         r["fail_reasons"] = fail_reasons
         r["qualified"] = len(fail_reasons) == 0
         if r["qualified"]:
@@ -468,8 +464,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         "count_tier1": count_tier1,
         "count_top20": count_top20,
         "count_dollar_vol": count_dollar_vol,
-        "count_spread": count_spread,
-        "count_expires": count_expires,
+        "count_spread_expiry": count_spread,
         "qualified": qualified_count,
         "min_price": min_price,
         "min_volume": min_volume,
