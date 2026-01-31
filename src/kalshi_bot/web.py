@@ -733,17 +733,50 @@ def _build_position_data(market_map, open_positions, candle_history):
     return enriched
 
 
+_charts_cache = {"html": None, "ts": 0}
+_charts_cache_lock = threading.Lock()
+
 @app.route("/charts")
 def charts():
+    import time as _time
+    now = _time.time()
+    with _charts_cache_lock:
+        if _charts_cache["html"] and now - _charts_cache["ts"] < 8:
+            return _charts_cache["html"]
+
+    html = _charts_inner()
+
+    with _charts_cache_lock:
+        _charts_cache["html"] = html
+        _charts_cache["ts"] = now
+    return html
+
+
+def _charts_inner():
     db.init_db()
-    open_positions = db.get_open_positions()
+
+    # Fetch open + closed positions in parallel
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_open = pool.submit(db.get_open_positions)
+        f_closed = pool.submit(db.get_closed_positions)
+
+    open_positions = f_open.result()
+    closed_positions = f_closed.result()
 
     enriched = []
     try:
         client = _get_client()
         tickers = [p["ticker"] for p in open_positions]
-        candle_history = _fetch_candlestick_history(client, tickers, hours=24) if tickers else {}
-        market_map = _batch_fetch_markets(client, tickers)
+        if tickers:
+            # Fetch candles and market data in parallel
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                f_candles = pool.submit(_fetch_candlestick_history, client, tickers, 24)
+                f_markets = pool.submit(_batch_fetch_markets, client, tickers)
+            candle_history = f_candles.result()
+            market_map = f_markets.result()
+        else:
+            candle_history = {}
+            market_map = {}
         enriched = _build_position_data(market_map, open_positions, candle_history)
     except Exception:
         enriched = [{
@@ -756,12 +789,9 @@ def charts():
             "is_settled": False,
         } for p in open_positions]
 
-    # Separate open vs just-settled positions
     active_positions = [p for p in enriched if not p.get("is_settled")]
     just_settled = [p for p in enriched if p.get("is_settled")]
 
-    # Fetch previously closed positions from DB
-    closed_positions = db.get_closed_positions()
     closed_enriched = []
     for p in closed_positions:
         closed_enriched.append({
@@ -776,16 +806,13 @@ def charts():
             "is_settled": True,
         })
 
-    # Merge just-settled with closed
     all_closed = just_settled + closed_enriched
 
-    # Cleanup old snapshots periodically
     try:
         db.cleanup_old_snapshots(hours=48)
     except Exception:
         pass
 
-    # Compute portfolio totals for active positions
     portfolio_value = sum(p["current_bid"] * p["quantity"] for p in active_positions)
     portfolio_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in active_positions)
     portfolio_unrealized = sum(p["unrealized_cents"] for p in active_positions)

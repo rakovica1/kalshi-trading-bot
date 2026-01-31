@@ -2,8 +2,9 @@
 {% block title %}Dashboard - Nightrader{% endblock %}
 {% block head %}<meta http-equiv="refresh" content="10">{% endblock %}
 {% block content %}
-<!-- Expiring position notifications (top right) -->
+<!-- Expiring position notifications (top right) — hidden by default, shown by JS -->
 {% if expiring_soon %}
+<style>.expiry-alert { display: none; }</style>
 <div id="expiry-alerts" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-xs md:top-6 md:right-8">
   {% for pos in expiring_soon %}
   <div class="expiry-alert flex items-start gap-2 bg-amber-950/90 border border-amber-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm cursor-pointer transition-all hover:border-amber-600/80"
@@ -28,7 +29,6 @@
 </div>
 <script>
 (function() {
-  // Dismissed alerts persist in localStorage until the position expires
   const STORAGE_KEY = 'nightrader_dismissed_alerts';
   function getDismissed() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
@@ -36,20 +36,15 @@
   function saveDismissed(d) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
   }
-  // Hide already-dismissed alerts on load
+  // Clean up old dismissals (older than 1 hour)
   const dismissed = getDismissed();
   const now = Date.now();
-  // Clean up old dismissals (older than 1 hour)
   Object.keys(dismissed).forEach(k => { if (now - dismissed[k] > 3600000) delete dismissed[k]; });
   saveDismissed(dismissed);
+  // Only show non-dismissed alerts
   document.querySelectorAll('.expiry-alert').forEach(el => {
-    if (dismissed[el.dataset.ticker]) el.style.display = 'none';
+    if (!dismissed[el.dataset.ticker]) el.style.display = 'flex';
   });
-  // Check if all hidden — remove container
-  const container = document.getElementById('expiry-alerts');
-  if (container && !container.querySelector('.expiry-alert:not([style*="display: none"])')) {
-    container.style.display = 'none';
-  }
   // Global dismiss function
   window.dismissAlert = function(el) {
     const ticker = el.dataset.ticker;
