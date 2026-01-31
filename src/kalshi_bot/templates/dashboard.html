@@ -96,16 +96,16 @@
        style="opacity: 0; transform: translateX(100%);">
     <div class="flex items-center gap-2">
       {% if s.won %}
-      <span class="text-lg">&#127881;</span>
+      <span class="text-lg">&#128640;</span>
       <div>
-        <div class="text-xs font-bold text-emerald-300">Congratulations!</div>
+        <div class="text-xs font-bold text-emerald-300">Moonbound!</div>
         <div class="text-[11px] text-emerald-200/80 mt-0.5">{{ s.ticker|decode_ticker }}</div>
         <div class="text-[10px] text-emerald-400 font-mono mt-0.5">{{ s.side|upper }} won &middot; {{ s.pnl_cents|signed_dollar }}</div>
       </div>
       {% else %}
       <span class="text-lg">&#128128;</span>
       <div>
-        <div class="text-xs font-bold text-red-300">Got Fucked</div>
+        <div class="text-xs font-bold text-red-300">Cooked!</div>
         <div class="text-[11px] text-red-200/80 mt-0.5">{{ s.ticker|decode_ticker }}</div>
         <div class="text-[10px] text-red-400 font-mono mt-0.5">{{ s.side|upper }} lost &middot; {{ s.pnl_cents|signed_dollar }}</div>
       </div>
@@ -263,9 +263,9 @@ function testToasts() {
   container.innerHTML =
     '<div class="settle-toast bg-emerald-950/90 border border-emerald-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
       '<div class="flex items-center gap-2">' +
-        '<span class="text-lg">&#127881;</span>' +
+        '<span class="text-lg">&#128640;</span>' +
         '<div>' +
-          '<div class="text-xs font-bold text-emerald-300">Congratulations!</div>' +
+          '<div class="text-xs font-bold text-emerald-300">Moonbound!</div>' +
           '<div class="text-[11px] text-emerald-200/80 mt-0.5">Will BTC be above $100,000?</div>' +
           '<div class="text-[10px] text-emerald-400 font-mono mt-0.5">YES won &middot; +$12.50</div>' +
         '</div>' +
@@ -275,7 +275,7 @@ function testToasts() {
       '<div class="flex items-center gap-2">' +
         '<span class="text-lg">&#128128;</span>' +
         '<div>' +
-          '<div class="text-xs font-bold text-red-300">Got Fucked</div>' +
+          '<div class="text-xs font-bold text-red-300">Cooked!</div>' +
           '<div class="text-[11px] text-red-200/80 mt-0.5">Will ETH be above $3,500?</div>' +
           '<div class="text-[10px] text-red-400 font-mono mt-0.5">NO lost &middot; -$8.00</div>' +
         '</div>' +
