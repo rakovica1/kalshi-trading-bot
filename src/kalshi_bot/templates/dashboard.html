@@ -11,16 +11,20 @@
         var newMain = doc.querySelector('main');
         if (newMain) {
           var main = document.querySelector('main');
-          var scrollEl = main;
-          var sy = scrollEl.scrollTop || window.scrollY;
+          var sy = main.scrollTop || window.scrollY;
+          // Destroy existing Chart.js instances before swapping
+          if (typeof Chart !== 'undefined') {
+            Object.values(Chart.instances || {}).forEach(function(c){ c.destroy(); });
+          }
           main.innerHTML = newMain.innerHTML;
-          // Re-run any inline scripts in new content
+          // Re-run inline scripts only (CDN scripts already loaded)
           main.querySelectorAll('script').forEach(function(old){
+            if (old.src) { old.remove(); return; }
             var s = document.createElement('script');
-            if (old.src) { s.src = old.src; } else { s.textContent = old.textContent; }
+            s.textContent = old.textContent;
             old.replaceWith(s);
           });
-          scrollEl.scrollTop = sy;
+          main.scrollTop = sy;
           window.scrollTo(window.scrollX, sy);
         }
       })
