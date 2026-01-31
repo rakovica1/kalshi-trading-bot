@@ -2,19 +2,16 @@
 {% block title %}Positions - Nightrader{% endblock %}
 {% block head %}
 <script>
-setTimeout(function() {
-  var y = window.scrollY;
-  var url = location.href;
-  if (url.indexOf('_sy=') === -1) {
-    url += (url.indexOf('?') === -1 ? '?' : '&') + '_sy=' + y;
-  } else {
-    url = url.replace(/_sy=\d+/, '_sy=' + y);
+(function(){
+  var key = '_nr_scroll_' + location.pathname;
+  var saved = sessionStorage.getItem(key);
+  if (saved) {
+    requestAnimationFrame(function(){ window.scrollTo(0, parseInt(saved)); });
   }
-  location.replace(url);
-}, 3000);
-(function() {
-  var m = location.search.match(/_sy=(\d+)/);
-  if (m) window.addEventListener('load', function() { window.scrollTo(0, parseInt(m[1])); });
+  setTimeout(function(){
+    sessionStorage.setItem(key, window.scrollY);
+    location.reload();
+  }, 3000);
 })();
 </script>
 {% endblock %}
