@@ -274,7 +274,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
       - Top 200 by 24h dollar volume
       - >= $10,000 in 24h dollar volume
       - Bid/ask spread <= 5%
-      - Expires within 24 hours
+      - Expires within 2h (or 10h if spread <= 2.5%)
 
     min_volume applies to volume_24h (24-hour trading volume).
 
@@ -417,7 +417,12 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
         is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         hrs = r.get("hours_left")
-        is_expiring = hrs is not None and 0 < hrs <= QUALIFIED_MAX_HOURS
+        # Tighter spread allows longer expiration window
+        if r["spread_pct"] <= 2.5:
+            max_hours = 10.0
+        else:
+            max_hours = QUALIFIED_MAX_HOURS  # 2h for spreads up to 5%
+        is_expiring = hrs is not None and 0 < hrs <= max_hours
 
         if r["tier"] == 1:
             count_tier1 += 1

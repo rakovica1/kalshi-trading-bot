@@ -104,9 +104,14 @@ def run_whale_strategy(
     available = [c for c in available if c.get("signal_ask", 100) <= 98]
 
     if max_hours_to_expiration is not None:
-        available = [c for c in available
-                     if c.get("hours_left") is not None
-                     and 0 < c["hours_left"] <= max_hours_to_expiration]
+        def _within_expiry(c):
+            hrs = c.get("hours_left")
+            if hrs is None or hrs <= 0:
+                return False
+            # Tighter spread allows longer expiration window
+            limit = 10.0 if c.get("spread_pct", 99) <= 2.5 else max_hours_to_expiration
+            return hrs <= limit
+        available = [c for c in available if _within_expiry(c)]
 
     if not available:
         log(f"[WARN] No tradeable markets after filters (held={held})")
