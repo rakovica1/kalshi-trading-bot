@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Nightrader{% endblock %}
-{% block head %}<meta http-equiv="refresh" content="10">{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="3">{% endblock %}
 {% block content %}
 <!-- Expiring position notifications (top right) — hidden by default, shown by JS -->
 {% if expiring_soon %}
@@ -188,7 +188,7 @@
   </div>
 </div>
 
-<!-- Fees -->
+<!-- Fees & Performance -->
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
   <div class="bg-slate-900 border border-amber-900/50 rounded-lg p-5">
     <div class="text-xs text-amber-500/70 uppercase tracking-wide mb-1">Total Fees</div>
@@ -196,6 +196,33 @@
       -${{ "%.2f"|format(total_fees_cents / 100) }}
     </div>
     <div class="text-[11px] text-slate-500 mt-1">Included in Net P&amp;L (already deducted from balance)</div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+    <div class="text-xs text-slate-500 uppercase tracking-wide mb-3">Performance</div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Avg P&amp;L / Trade</div>
+        <div class="text-lg font-semibold {{ 'text-emerald-400' if avg_pnl_per_trade_cents >= 0 else 'text-red-400' }}">
+          {{ avg_pnl_per_trade_cents|signed_dollar }}
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Streak</div>
+        <div class="text-lg font-semibold {{ 'text-emerald-400' if current_streak > 0 else 'text-red-400' if current_streak < 0 else 'text-slate-400' }}">
+          {% if current_streak > 0 %}{{ current_streak }}W{% elif current_streak < 0 %}{{ current_streak|abs }}L{% else %}&mdash;{% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Best Trade</div>
+        <div class="text-sm font-semibold text-emerald-400">{{ best_trade_pnl_cents|signed_dollar }}</div>
+        {% if best_trade_ticker %}<div class="text-[10px] text-slate-600 truncate">{{ best_trade_ticker|decode_ticker }}</div>{% endif %}
+      </div>
+      <div>
+        <div class="text-[10px] text-slate-600 mb-0.5">Worst Trade</div>
+        <div class="text-sm font-semibold text-red-400">{{ worst_trade_pnl_cents|signed_dollar }}</div>
+        {% if worst_trade_ticker %}<div class="text-[10px] text-slate-600 truncate">{{ worst_trade_ticker|decode_ticker }}</div>{% endif %}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -259,61 +286,7 @@
   <a href="/trades" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Trade History &rarr;</a>
   <a href="/scanner" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Run Scanner &rarr;</a>
   <a href="/control" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-md text-sm text-white">Execute Trade &rarr;</a>
-  <button onclick="testToasts()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-500 border border-slate-700/50">Test Notifications</button>
 </div>
-<script>
-function testToasts() {
-  // Remove existing test toasts
-  const old = document.getElementById('test-toasts');
-  if (old) old.remove();
-
-  const container = document.createElement('div');
-  container.id = 'test-toasts';
-  container.className = 'fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm md:top-6 md:right-8';
-  container.innerHTML =
-    '<div class="settle-toast bg-emerald-950/90 border border-emerald-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
-      '<div class="flex items-center gap-2">' +
-        '<span class="text-lg">&#128640;</span>' +
-        '<div>' +
-          '<div class="text-xs font-bold text-emerald-300">Moonbound!</div>' +
-          '<div class="text-[11px] text-emerald-200/80 mt-0.5">Will BTC be above $100,000?</div>' +
-          '<div class="text-[10px] text-emerald-400 font-mono mt-0.5">YES won &middot; +$12.50</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="settle-toast bg-red-950/90 border border-red-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
-      '<div class="flex items-center gap-2">' +
-        '<span class="text-lg">&#128128;</span>' +
-        '<div>' +
-          '<div class="text-xs font-bold text-red-300">Cooked!</div>' +
-          '<div class="text-[11px] text-red-200/80 mt-0.5">Will ETH be above $3,500?</div>' +
-          '<div class="text-[10px] text-red-400 font-mono mt-0.5">NO lost &middot; -$8.00</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(container);
-
-  const toasts = container.querySelectorAll('.settle-toast');
-  toasts.forEach((t, i) => {
-    setTimeout(() => {
-      t.style.transition = 'opacity 0.4s, transform 0.4s';
-      t.style.opacity = '1';
-      t.style.transform = 'translateX(0)';
-    }, i * 150);
-  });
-  setTimeout(() => {
-    toasts.forEach((t, i) => {
-      setTimeout(() => {
-        t.style.transition = 'opacity 0.4s, transform 0.4s';
-        t.style.opacity = '0';
-        t.style.transform = 'translateX(100%)';
-        setTimeout(() => { t.remove(); }, 400);
-      }, i * 100);
-    });
-    setTimeout(() => container.remove(), 1000);
-  }, 5000);
-}
-</script>
 
 {% if daily_pnl %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>

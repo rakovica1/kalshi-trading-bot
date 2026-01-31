@@ -797,7 +797,39 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         FROM positions
     """)
 
+    # Best and worst trades
+    best_trade = _fetchone(conn, """
+        SELECT ticker, realized_pnl_cents
+        FROM positions WHERE is_closed = 1
+        ORDER BY realized_pnl_cents DESC LIMIT 1
+    """)
+    worst_trade = _fetchone(conn, """
+        SELECT ticker, realized_pnl_cents
+        FROM positions WHERE is_closed = 1
+        ORDER BY realized_pnl_cents ASC LIMIT 1
+    """)
+
+    # Current streak (consecutive wins or losses from most recent)
+    streak_rows = _fetchall(conn, """
+        SELECT realized_pnl_cents FROM positions
+        WHERE is_closed = 1 ORDER BY closed_at DESC
+    """)
+
     conn.close()
+
+    current_streak = 0
+    if streak_rows:
+        first_won = streak_rows[0]["realized_pnl_cents"] > 0
+        for row in streak_rows:
+            pnl = row["realized_pnl_cents"]
+            if pnl == 0:
+                break
+            if first_won and pnl > 0:
+                current_streak += 1
+            elif not first_won and pnl < 0:
+                current_streak -= 1
+            else:
+                break
 
     total = trade_row["total"] or 0
     filled = trade_row["filled"] or 0
@@ -832,6 +864,12 @@ def get_stats(db_path=DEFAULT_DB_PATH):
         "profit_factor": profit_factor,
         "total_fees_cents": total_fees,
         "total_invested_cents": total_invested,
+        "avg_pnl_per_trade_cents": round(realized_pnl / closed) if closed > 0 else 0,
+        "best_trade_ticker": best_trade["ticker"] if best_trade else None,
+        "best_trade_pnl_cents": best_trade["realized_pnl_cents"] if best_trade else 0,
+        "worst_trade_ticker": worst_trade["ticker"] if worst_trade else None,
+        "worst_trade_pnl_cents": worst_trade["realized_pnl_cents"] if worst_trade else 0,
+        "current_streak": current_streak,
     }
 
 
