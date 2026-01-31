@@ -249,7 +249,61 @@
   <a href="/trades" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Trade History &rarr;</a>
   <a href="/scanner" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Run Scanner &rarr;</a>
   <a href="/control" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-md text-sm text-white">Execute Trade &rarr;</a>
+  <button onclick="testToasts()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-500 border border-slate-700/50">Test Notifications</button>
 </div>
+<script>
+function testToasts() {
+  // Remove existing test toasts
+  const old = document.getElementById('test-toasts');
+  if (old) old.remove();
+
+  const container = document.createElement('div');
+  container.id = 'test-toasts';
+  container.className = 'fixed bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm md:right-8';
+  container.innerHTML =
+    '<div class="settle-toast bg-emerald-950/90 border border-emerald-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
+      '<div class="flex items-center gap-2">' +
+        '<span class="text-lg">&#127881;</span>' +
+        '<div>' +
+          '<div class="text-xs font-bold text-emerald-300">Congratulations!</div>' +
+          '<div class="text-[11px] text-emerald-200/80 mt-0.5">Will BTC be above $100,000?</div>' +
+          '<div class="text-[10px] text-emerald-400 font-mono mt-0.5">YES won &middot; +$12.50</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="settle-toast bg-red-950/90 border border-red-700/60 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm" style="opacity:0;transform:translateX(100%)">' +
+      '<div class="flex items-center gap-2">' +
+        '<span class="text-lg">&#128128;</span>' +
+        '<div>' +
+          '<div class="text-xs font-bold text-red-300">Got Fucked</div>' +
+          '<div class="text-[11px] text-red-200/80 mt-0.5">Will ETH be above $3,500?</div>' +
+          '<div class="text-[10px] text-red-400 font-mono mt-0.5">NO lost &middot; -$8.00</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(container);
+
+  const toasts = container.querySelectorAll('.settle-toast');
+  toasts.forEach((t, i) => {
+    setTimeout(() => {
+      t.style.transition = 'opacity 0.4s, transform 0.4s';
+      t.style.opacity = '1';
+      t.style.transform = 'translateX(0)';
+    }, i * 150);
+  });
+  setTimeout(() => {
+    toasts.forEach((t, i) => {
+      setTimeout(() => {
+        t.style.transition = 'opacity 0.4s, transform 0.4s';
+        t.style.opacity = '0';
+        t.style.transform = 'translateX(100%)';
+        setTimeout(() => { t.remove(); }, 400);
+      }, i * 100);
+    });
+    setTimeout(() => container.remove(), 1000);
+  }, 3000);
+}
+</script>
 
 {% if daily_pnl %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>

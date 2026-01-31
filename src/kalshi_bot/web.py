@@ -876,21 +876,43 @@ def api_charts_prices():
 # Scanner
 # ---------------------------------------------------------------------------
 
+_scanner_cache = {"html": None, "ts": 0}
+_scanner_cache_lock = threading.Lock()
+
 @app.route("/scanner")
 def scanner():
+    import time as _time
+    now = _time.time()
+    with _scanner_cache_lock:
+        if _scanner_cache["html"] and now - _scanner_cache["ts"] < 8:
+            return _scanner_cache["html"]
+
+    html = _scanner_inner()
+
+    with _scanner_cache_lock:
+        _scanner_cache["html"] = html
+        _scanner_cache["ts"] = now
+    return html
+
+
+def _scanner_inner():
     db.init_db()
     with _scan_lock:
         scanning = _scan_state["running"]
         scan_error = _scan_state["error"]
-    results, scan_stats, scanned_at = db.get_scan_results()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_results = pool.submit(db.get_scan_results)
+        f_positions = pool.submit(db.get_open_positions)
+
+    results, scan_stats, scanned_at = f_results.result()
     if scanned_at:
         scanned_at = _utc_to_est(scanned_at)
     from kalshi_bot.scanner import format_close_time, hours_until_close
     for r in results:
         r["close_time_fmt"] = format_close_time(r.get("close_time", ""))
         r["hours_left"] = hours_until_close(r.get("close_time", ""))
-    # Build set of tickers with open positions
-    open_tickers = {p["ticker"] for p in db.get_open_positions()}
+    open_tickers = {p["ticker"] for p in f_positions.result()}
     return render_template(
         "scanner.html",
         results=results,
