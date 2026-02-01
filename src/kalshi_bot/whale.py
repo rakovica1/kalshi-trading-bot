@@ -99,7 +99,7 @@ def run_whale_strategy(
 
     Pipeline:
       1. Scan all markets
-      2. Filter to QUALIFIED (Top 500 $vol + $10k+ + ≤5% spread)
+      2. Filter to QUALIFIED ($10k+ dollar vol + ≤5% spread)
       3. Filter by spread-dependent expiration window
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
@@ -138,7 +138,7 @@ def run_whale_strategy(
     log(f"[INFO] Scanning markets...")
     results, scan_stats = scan(
         client, min_price=min_price, ticker_prefixes=prefix_list,
-        min_volume=min_volume, top_n=500, use_cache=True,
+        min_volume=min_volume, top_n=1000, use_cache=True,
         stop_check=stop_check, exclude_categories=exclude_categories,
     )
     if scan_stats.get("cached"):
@@ -151,7 +151,7 @@ def run_whale_strategy(
     # ── Filter 5: Qualification ──
     candidates = [r for r in results if r.get("qualified")]
     if not candidates:
-        log(f"[REJECT] Qualification — 0/{total_found} markets qualified (need top500 vol + $10k+ + ≤5% spread)")
+        log(f"[REJECT] Qualification — 0/{total_found} markets qualified (need $10k+ vol + ≤5% spread)")
         return {"scanned": total_found, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
     log(f"[PASS] Qualification — {qualified_count}/{total_found} markets qualified")
 

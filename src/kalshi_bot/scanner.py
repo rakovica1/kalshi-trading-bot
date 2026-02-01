@@ -258,7 +258,6 @@ def hours_until_close(raw):
 # Qualification thresholds for premium trade execution
 QUALIFIED_MIN_DOLLAR_24H = 10_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
-QUALIFIED_TOP_N_DOLLAR = 500
 QUALIFIED_MAX_HOURS = 2.0
 
 
@@ -271,10 +270,8 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     markets by prefix, volume, and price. Each result is assigned a tier.
 
     Each result also gets a `qualified` flag: True when ALL of these hold:
-      - Top 500 by 24h dollar volume
       - >= $10,000 in 24h dollar volume
-      - Bid/ask spread <= 5%
-      - Expires within 2h (or 10h if spread <= 2.5%)
+      - Bid/ask spread <= 5% and expires within 2h (or <= 2.5% and <= 10h)
 
     min_volume applies to volume_24h (24-hour trading volume).
 
@@ -398,7 +395,6 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
 
     qualified_count = 0
     count_tier1 = 0
-    count_top20 = 0
     count_dollar_vol = 0
     count_spread = 0
     for r in results:
@@ -413,7 +409,6 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
             continue
 
         is_dollar = r["dollar_24h"] >= QUALIFIED_MIN_DOLLAR_24H
-        is_top_n = rank <= QUALIFIED_TOP_N_DOLLAR
         hrs = r.get("hours_left")
         # Spread + expiration combined: tighter spread allows longer window
         spread = r["spread_pct"]
@@ -426,16 +421,12 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
 
         if r["tier"] == 1:
             count_tier1 += 1
-        if is_top_n:
-            count_top20 += 1
         if is_dollar:
             count_dollar_vol += 1
         if is_spread_expiry:
             count_spread += 1
 
         fail_reasons = []
-        if not is_top_n:
-            fail_reasons.append("rank")
         if not is_dollar:
             fail_reasons.append("volume")
         if not is_spread_expiry:
@@ -462,7 +453,6 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
         "passed_volume": passed_volume,
         "passed_price": passed_price,
         "count_tier1": count_tier1,
-        "count_top20": count_top20,
         "count_dollar_vol": count_dollar_vol,
         "count_spread_expiry": count_spread,
         "qualified": qualified_count,

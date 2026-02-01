@@ -82,11 +82,7 @@
       </div>
       {% endif %}
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">Top 500 by $ volume</span>
-        <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_top20|default(0) }}</span>
-      </div>
-      <div class="flex items-center justify-between">
-        <span class="text-slate-500">$10k+ 24h volume</span>
+        <span class="text-slate-500">$10k+ 24h dollar volume</span>
         <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_dollar_vol|default(0) }}</span>
       </div>
       <div class="flex items-center justify-between">
@@ -100,7 +96,7 @@
   <div class="bg-brand-950/40 border border-brand-800/50 rounded-lg p-4 flex flex-col items-center justify-center text-center min-w-[160px]">
     <div class="text-xs font-semibold text-brand-500/70 uppercase tracking-wider mb-2">Qualified for Trading</div>
     <div class="text-4xl font-bold text-brand-400">{{ scan_stats.qualified|default(0) }}</div>
-    <div class="text-[11px] text-slate-500 mt-1.5">All {{ 4 if scan_stats.exclude_categories|default([]) else 3 }} filters passed</div>
+    <div class="text-[11px] text-slate-500 mt-1.5">All {{ 3 if scan_stats.exclude_categories|default([]) else 2 }} filters passed</div>
   </div>
 </div>
 {% endif %}
@@ -125,7 +121,7 @@
   </div>
   <div class="flex items-center gap-1.5">
     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
-    <span class="text-slate-400">Top 500 $vol + $10k+ + &le;5% spread + &le;2h/10h exp</span>
+    <span class="text-slate-400">$10k+ vol + &le;5% spread + &le;2h/10h exp</span>
   </div>
 </div>
 
@@ -230,7 +226,7 @@
 <div class="mb-8">
   <div class="flex items-center gap-2 mb-3">
     <span class="text-brand-400 font-semibold text-sm uppercase tracking-wide">Qualified for Whale-Trade ({{ qualified_markets|length }})</span>
-    <span class="text-slate-600 text-xs">— Top 500 $vol + $10k+ + &le;5% spread + &le;2h/10h exp</span>
+    <span class="text-slate-600 text-xs">— $10k+ vol + &le;5% spread + &le;2h/10h exp</span>
   </div>
   {{ market_table(qualified_markets, "qualified-table") }}
 </div>

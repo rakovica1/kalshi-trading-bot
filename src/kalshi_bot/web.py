@@ -1067,7 +1067,7 @@ def scanner_start():
         try:
             db.init_db()
             client = _get_client()
-            results, stats = scan(client, min_price=95, min_volume=10000, top_n=500)
+            results, stats = scan(client, min_price=95, min_volume=10000, top_n=1000)
             db.save_scan_results(results, stats)
         except Exception as e:
             with _scan_lock:
