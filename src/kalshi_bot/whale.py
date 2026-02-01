@@ -73,7 +73,7 @@ def _check_price_velocity(client, ticker, event_ticker, side, current_ask,
 
 def run_whale_strategy(
     client,
-    prefixes=("KXNFL", "KXNBA", "KXBTC", "KXETH"),
+    prefixes=None,
     min_price=95,
     min_volume=10000,
     risk_pct=0.01,
