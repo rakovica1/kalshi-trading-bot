@@ -2,7 +2,9 @@ import csv
 import io
 import logging
 import os
+import secrets
 import threading
+import time as _time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
@@ -24,7 +26,27 @@ from kalshi_bot.ticker import decode_ticker
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "kalshi-bot-dev-key")
+app.permanent_session_lifetime = timedelta(hours=24)
 app.jinja_env.filters["decode_ticker"] = decode_ticker
+
+# ---------------------------------------------------------------------------
+# Magic link auth
+# ---------------------------------------------------------------------------
+MAGIC_LINK_TTL = 86400  # 24 hours
+_magic_token = secrets.token_urlsafe(32)
+_magic_token_created = _time.time()
+
+
+@app.before_request
+def _refresh_magic_token():
+    """Auto-rotate the magic link token every 24h."""
+    global _magic_token, _magic_token_created
+    if _time.time() - _magic_token_created > MAGIC_LINK_TTL:
+        _magic_token = secrets.token_urlsafe(32)
+        _magic_token_created = _time.time()
+        port = int(os.environ.get("PORT", 5001))
+        print(f"\n  \u2726 New magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
+              flush=True)
 
 
 def _signed_dollar(cents):
@@ -128,13 +150,42 @@ def _start_settlement_sync():
         _settle_thread.start()
 
 
-def _require_control_password(f):
-    """Decorator: require CONTROL_PASSWORD session auth for protected routes."""
+def _is_magic_authed():
+    """Check if the current session has a valid magic-link authentication."""
+    if not session.get("authenticated"):
+        return False
+    expires = session.get("auth_expires", 0)
+    if _time.time() > expires:
+        session.pop("authenticated", None)
+        session.pop("auth_expires", None)
+        return False
+    return True
+
+
+def _require_auth(f):
+    """Decorator: require magic-link session auth for all app routes."""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
+        if not _is_magic_authed():
+            if request.is_json or request.headers.get("X-Requested-With"):
+                return jsonify({"ok": False, "error": "Authentication required"}), 401
+            return redirect(url_for("auth_required"))
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _require_control_password(f):
+    """Decorator: require magic-link + CONTROL_PASSWORD for sensitive routes."""
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        # First check magic-link auth
+        if not _is_magic_authed():
+            if request.is_json or request.headers.get("X-Requested-With"):
+                return jsonify({"ok": False, "error": "Authentication required"}), 401
+            return redirect(url_for("auth_required"))
+        # Then check control password
         password = os.environ.get("CONTROL_PASSWORD", "")
         if not password:
-            # No password configured — block access entirely
             abort(403)
         if not session.get("control_authed"):
             if request.is_json or request.headers.get("X-Requested-With"):
@@ -210,6 +261,7 @@ _dashboard_cache = {"html": None, "ts": 0}
 _dashboard_cache_lock = threading.Lock()
 
 @app.route("/")
+@_require_auth
 def dashboard():
     import time as _time
     now = _time.time()
@@ -378,6 +430,7 @@ _positions_cache = {"html": None, "ts": 0}
 _positions_cache_lock = threading.Lock()
 
 @app.route("/positions")
+@_require_auth
 def positions():
     import time as _time
     now = _time.time()
@@ -805,6 +858,7 @@ _charts_cache = {"html": None, "ts": 0}
 _charts_cache_lock = threading.Lock()
 
 @app.route("/charts")
+@_require_auth
 def charts():
     import time as _time
     now = _time.time()
@@ -896,6 +950,7 @@ def _charts_inner():
 
 
 @app.route("/api/charts/prices")
+@_require_auth
 def api_charts_prices():
     """Return current prices + candlestick history for all open positions."""
     db.init_db()
@@ -936,6 +991,7 @@ _scanner_cache = {"html": None, "ts": 0}
 _scanner_cache_lock = threading.Lock()
 
 @app.route("/scanner")
+@_require_auth
 def scanner():
     import time as _time
     now = _time.time()
@@ -981,6 +1037,7 @@ def _scanner_inner():
 
 
 @app.route("/scanner/start", methods=["POST"])
+@_require_auth
 def scanner_start():
     with _scan_lock:
         if _scan_state["running"]:
@@ -1008,6 +1065,7 @@ def scanner_start():
 
 
 @app.route("/scanner/status")
+@_require_auth
 def scanner_status():
     with _scan_lock:
         running = _scan_state["running"]
@@ -1016,11 +1074,52 @@ def scanner_status():
 
 
 # ---------------------------------------------------------------------------
-# Execute — auth
+# Magic link auth routes
+# ---------------------------------------------------------------------------
+
+@app.route("/auth/<token>")
+def auth_magic(token):
+    """Validate a magic link token and grant a 24h session."""
+    global _magic_token, _magic_token_created
+    # Auto-rotate expired tokens
+    if _time.time() - _magic_token_created > MAGIC_LINK_TTL:
+        _magic_token = secrets.token_urlsafe(32)
+        _magic_token_created = _time.time()
+        port = int(os.environ.get("PORT", 5001))
+        print(f"\n  ✦ New magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
+              flush=True)
+
+    if not hmac.compare_digest(token, _magic_token):
+        return render_template("auth_required.html", error="Invalid or expired link. Check the terminal for a fresh link."), 403
+
+    session.permanent = True
+    session["authenticated"] = True
+    session["auth_expires"] = _time.time() + MAGIC_LINK_TTL
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/auth/required")
+def auth_required():
+    """Show the 'use magic link' page."""
+    return render_template("auth_required.html", error=None)
+
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    """Clear all session data (both magic-link and control password)."""
+    session.clear()
+    return redirect(url_for("auth_required"))
+
+
+# ---------------------------------------------------------------------------
+# Execute — password auth (tier 2)
 # ---------------------------------------------------------------------------
 
 @app.route("/control/login", methods=["GET", "POST"])
 def control_login():
+    # Must have magic-link session first
+    if not _is_magic_authed():
+        return redirect(url_for("auth_required"))
     password = os.environ.get("CONTROL_PASSWORD", "")
     if not password:
         abort(403)
@@ -1033,12 +1132,6 @@ def control_login():
     return render_template("login.html", error=None)
 
 
-@app.route("/control/logout", methods=["POST"])
-def control_logout():
-    session.pop("control_authed", None)
-    return redirect(url_for("control_login"))
-
-
 # ---------------------------------------------------------------------------
 # Arbitrage Scanner
 # ---------------------------------------------------------------------------
@@ -1048,6 +1141,7 @@ _arb_lock = threading.Lock()
 
 
 @app.route("/arbitrage")
+@_require_auth
 def arbitrage_page():
     with _arb_lock:
         running = _arb_state["running"]
@@ -1060,6 +1154,7 @@ def arbitrage_page():
 
 
 @app.route("/arbitrage/scan", methods=["POST"])
+@_require_auth
 def arbitrage_scan():
     with _arb_lock:
         if _arb_state["running"]:
@@ -1101,6 +1196,7 @@ def arbitrage_scan():
 
 
 @app.route("/arbitrage/status")
+@_require_auth
 def arbitrage_status():
     with _arb_lock:
         return jsonify({
@@ -1450,6 +1546,7 @@ def backtest_status():
 # ---------------------------------------------------------------------------
 
 @app.route("/api/balance")
+@_require_auth
 def api_balance():
     try:
         client = _get_client()
@@ -1468,6 +1565,9 @@ def main():
     _start_settlement_sync()
     port = int(os.environ.get("PORT", 5001))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    print(f"\n  \u2726 Nightrader running on http://localhost:{port}")
+    print(f"  \u2726 Magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
+          flush=True)
     app.run(host="0.0.0.0", port=port, debug=debug)
 
 
