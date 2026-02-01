@@ -94,6 +94,11 @@ _PREFIX_MAP = {
 
     # Weather — rain
     "KXRAINNYC": "NYC Rain",
+    "KXRAINDALM": "Dallas Rain",
+
+    # Executive orders & politics meetings
+    "KXEOWEEK": "Exec Orders Weekly",
+    "KXTRUMPMEET": "Trump Meeting",
 
     # Music & entertainment
     "KXSPOTIFYW": "Spotify Weekly",
@@ -153,6 +158,7 @@ def _parse_date_segment(seg):
 
     Format: YY + MMM + DD (+ optional extra digits like time/variant).
     Returns string like 'Jan 29' or None.
+    Also handles YY + MMM with no day (e.g. '26JAN' -> 'Jan').
     """
     m = re.match(r"(\d{2})([A-Z]{3})(\d{2})", seg)
     if m:
@@ -160,6 +166,12 @@ def _parse_date_segment(seg):
         day = int(m.group(3))
         if month_str and 1 <= day <= 31:
             return f"{month_str} {day}"
+    # Handle YY+MMM with no day digits (e.g. "26JAN")
+    m2 = re.match(r"(\d{2})([A-Z]{3})$", seg)
+    if m2:
+        month_str = _MONTHS.get(m2.group(2))
+        if month_str:
+            return month_str
     return None
 
 
