@@ -575,7 +575,7 @@ def stats(ctx):
 
 
 @cli.command("whale-trade")
-@click.option("--prefixes", default="KXNFL,KXNBA,KXBTC,KXETH", help="Comma-separated event ticker prefixes.", show_default=True)
+@click.option("--prefixes", default=None, help="Comma-separated event ticker prefixes (default: all).")
 @click.option("--min-price", default=95, type=click.IntRange(1, 99), help="Minimum bid price in cents for scanner.", show_default=True)
 @click.option("--min-volume", default=10000, type=int, help="Minimum 24h volume for scanner.", show_default=True)
 @click.option("--max-positions", default=10, type=int, help="Max concurrent positions.", show_default=True)
@@ -634,7 +634,7 @@ def whale_trade(ctx, prefixes, min_price, min_volume, max_positions,
             max_hours = max_hours_to_expiration
 
         client = _get_client(ctx.obj["config_path"])
-        prefix_list = tuple(p.strip() for p in prefixes.split(","))
+        prefix_list = tuple(p.strip() for p in prefixes.split(",")) if prefixes else None
 
         strategy_kwargs = dict(
             prefixes=prefix_list,
