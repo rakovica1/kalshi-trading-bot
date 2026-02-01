@@ -316,7 +316,8 @@ def _dashboard_inner():
     total_invested = stats["total_invested_cents"]
     realized_pnl = stats["realized_pnl_cents"]
     net_pnl = realized_pnl - total_fees
-    roi_pct = (net_pnl / total_invested * 100) if total_invested > 0 else 0.0
+    starting_deposit_cents = 100000  # $1,000
+    roi_pct = (net_pnl / starting_deposit_cents * 100) if starting_deposit_cents > 0 else 0.0
 
     return render_template(
         "dashboard.html",
@@ -573,7 +574,8 @@ def trades():
         for p in all_positions if p.get("is_closed")
     )
     trade_net_pnl_cents = realized_pnl_cents - total_fees_cents
-    trade_roi_pct = (trade_net_pnl_cents / total_invested_cents * 100) if total_invested_cents > 0 else 0.0
+    starting_deposit_cents = 100000  # $1,000
+    trade_roi_pct = (trade_net_pnl_cents / starting_deposit_cents * 100) if starting_deposit_cents > 0 else 0.0
 
     # Group by date for daily subtotals
     daily_groups = {}
