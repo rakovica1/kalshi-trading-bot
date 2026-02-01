@@ -37,6 +37,19 @@ _magic_token = secrets.token_urlsafe(32)
 _magic_token_created = _time.time()
 
 
+def _base_url():
+    """Return the public base URL, falling back to localhost."""
+    public = os.environ.get("PUBLIC_URL", "").rstrip("/")
+    if public:
+        return public
+    port = int(os.environ.get("PORT", 5001))
+    return f"http://localhost:{port}"
+
+
+def _print_magic_link():
+    print(f"  \u2726 Magic link (valid 24h): {_base_url()}/auth/{_magic_token}\n", flush=True)
+
+
 @app.before_request
 def _refresh_magic_token():
     """Auto-rotate the magic link token every 24h."""
@@ -44,9 +57,8 @@ def _refresh_magic_token():
     if _time.time() - _magic_token_created > MAGIC_LINK_TTL:
         _magic_token = secrets.token_urlsafe(32)
         _magic_token_created = _time.time()
-        port = int(os.environ.get("PORT", 5001))
-        print(f"\n  \u2726 New magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
-              flush=True)
+        print()
+        _print_magic_link()
 
 
 def _signed_dollar(cents):
@@ -1085,9 +1097,8 @@ def auth_magic(token):
     if _time.time() - _magic_token_created > MAGIC_LINK_TTL:
         _magic_token = secrets.token_urlsafe(32)
         _magic_token_created = _time.time()
-        port = int(os.environ.get("PORT", 5001))
-        print(f"\n  ✦ New magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
-              flush=True)
+        print()
+        _print_magic_link()
 
     if not hmac.compare_digest(token, _magic_token):
         return render_template("auth_required.html", error="Invalid or expired link. Check the terminal for a fresh link."), 403
@@ -1566,8 +1577,7 @@ def main():
     port = int(os.environ.get("PORT", 5001))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     print(f"\n  \u2726 Nightrader running on http://localhost:{port}")
-    print(f"  \u2726 Magic link (valid 24h): http://localhost:{port}/auth/{_magic_token}\n",
-          flush=True)
+    _print_magic_link()
     app.run(host="0.0.0.0", port=port, debug=debug)
 
 
