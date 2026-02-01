@@ -89,17 +89,21 @@ def run_whale_strategy(
 ):
     """Last-Minute Sniper strategy.
 
-    Ultra-short-term, instant-execution strategy targeting markets that
-    resolve within the hour. Uses MARKET orders at the current ask price
-    for immediate fills — no chunked/staggered execution.
+    Ultra-short-term, instant-execution strategy targeting markets close
+    to resolution. Uses aggressive limit orders at the current ask price
+    for immediate fills — auto-cancels if resting.
+
+    Expiration rules (spread-dependent):
+      - Tight spread (≤2.5%): trade up to 10 hours before expiry
+      - Wide spread (>2.5%):  trade up to 2 hours before expiry
 
     Pipeline:
       1. Scan all markets
-      2. Filter to QUALIFIED (Top 200 $vol + $10k+ + ≤5% spread + ≤24h exp)
-      3. Filter by expiration window (default: 24 hours)
+      2. Filter to QUALIFIED (Top 200 $vol + $10k+ + ≤5% spread)
+      3. Filter by spread-dependent expiration window
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
-      6. Place aggressive limit @ 98c (fills instantly, auto-cancels if resting)
+      6. Place aggressive limit @ ask (fills instantly, auto-cancels if resting)
 
     Returns a summary dict with counts of actions taken.
     """
@@ -176,19 +180,22 @@ def run_whale_strategy(
     if removed_99:
         log(f"[INFO] Price ceiling — {removed_99} market{'s' if removed_99 != 1 else ''} at 99c+ removed")
 
-    # ── Filter 9: Expiry window ──
+    # ── Filter 9: Expiry window (spread-dependent) ──
+    #   Tight spread (≤2.5%) → up to 10h to expiration
+    #   Wide spread (>2.5%)  → up to 2h to expiration
     if max_hours_to_expiration is not None:
         before_exp = len(available)
         def _within_expiry(c):
             hrs = c.get("hours_left")
             if hrs is None or hrs <= 0:
                 return False
-            limit = 10.0 if c.get("spread_pct", 99) <= 2.5 else max_hours_to_expiration
+            spread = c.get("spread_pct", 99)
+            limit = 10.0 if spread <= 2.5 else max_hours_to_expiration
             return hrs <= limit
         available = [c for c in available if _within_expiry(c)]
         removed_exp = before_exp - len(available)
         if removed_exp:
-            log(f"[INFO] Expiry window — {removed_exp} market{'s' if removed_exp != 1 else ''} outside {max_hours_to_expiration}h window")
+            log(f"[INFO] Expiry window — {removed_exp} market{'s' if removed_exp != 1 else ''} removed (≤2.5% spread → 10h, >2.5% → {max_hours_to_expiration}h)")
 
     if not available:
         log(f"[REJECT] No tradeable markets — {len(candidates)} qualified, {held} held, {len(candidates) - held} remaining all filtered out")
