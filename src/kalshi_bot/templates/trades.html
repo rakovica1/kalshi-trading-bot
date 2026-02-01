@@ -73,10 +73,11 @@
 <form method="get" class="flex flex-wrap gap-3 mb-6">
   <input type="text" name="ticker" value="{{ filter_ticker }}" placeholder="Filter by ticker..."
     class="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-brand-500 w-64">
-  <select name="limit" class="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-brand-500">
+  <select name="limit" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-brand-500">
     {% for n in [25, 50, 100, 200] %}
     <option value="{{ n }}" {{ 'selected' if filter_limit == n }}>{{ n }} trades</option>
     {% endfor %}
+    <option value="0" {{ 'selected' if filter_limit == 0 }}>All trades</option>
   </select>
   <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm text-slate-300">Filter</button>
 </form>

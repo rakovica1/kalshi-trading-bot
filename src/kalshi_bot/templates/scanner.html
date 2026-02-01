@@ -44,50 +44,41 @@
 <!-- Scan diagnostics -->
 {% if scan_stats %}
 <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 mb-6">
-  <!-- Filter Pipeline + Qualification -->
-  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-    <!-- Scan funnel -->
-    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Scan</div>
-    <div class="space-y-2 text-xs">
+  <!-- Filter Pipeline -->
+  <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-5">
+    <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-4">Filter Pipeline</div>
+    <div class="space-y-3 text-xs">
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">Total markets</span>
-        <span class="font-mono font-medium text-slate-300">{{ "{:,}".format(scan_stats.total_fetched) }}</span>
+        <span class="text-slate-400">Total markets</span>
+        <span class="font-mono font-semibold text-slate-200">{{ "{:,}".format(scan_stats.total_fetched) }}</span>
       </div>
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">Top by 24h volume</span>
-        <span class="font-mono font-medium text-slate-300">{{ "{:,}".format(scan_stats.scanned) }}</span>
+        <span class="text-slate-400">Top by 24h volume</span>
+        <span class="font-mono font-semibold text-slate-200">{{ "{:,}".format(scan_stats.scanned) }}</span>
       </div>
       {% if scan_stats.prefixes %}
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">Prefix match <span class="text-slate-600">({{ scan_stats.prefixes|join(', ') }})</span></span>
-        <span class="font-mono font-medium text-slate-300">{{ "{:,}".format(scan_stats.passed_prefix) }}</span>
+        <span class="text-slate-400">Prefix match <span class="text-slate-600">({{ scan_stats.prefixes|join(', ') }})</span></span>
+        <span class="font-mono font-semibold text-slate-200">{{ "{:,}".format(scan_stats.passed_prefix) }}</span>
       </div>
       {% endif %}
-      <div class="flex items-center justify-between">
-        <span class="text-slate-500">Price &ge; {{ scan_stats.min_price }}&cent;</span>
-        <span class="font-mono font-medium text-slate-300">{{ "{:,}".format(scan_stats.passed_price) }}</span>
-      </div>
-    </div>
-
-    <!-- Divider -->
-    <div class="border-t border-slate-700/50 my-4"></div>
-
-    <!-- Qualification -->
-    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Qualification</div>
-    <div class="space-y-2 text-xs">
       {% if scan_stats.exclude_categories|default([]) %}
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">Excl. {{ scan_stats.exclude_categories|join(', ') }}</span>
-        <span class="font-mono font-medium text-amber-400">-{{ scan_stats.excluded_category|default(0) }}</span>
+        <span class="text-slate-400">Excl. {{ scan_stats.exclude_categories|join(', ') }}</span>
+        <span class="font-mono font-semibold text-amber-400">-{{ scan_stats.excluded_category|default(0) }}</span>
       </div>
       {% endif %}
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">$10k+ 24h dollar volume</span>
-        <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_dollar_vol|default(0) }}</span>
+        <span class="text-slate-400">Price &ge; {{ scan_stats.min_price }}&cent;</span>
+        <span class="font-mono font-semibold text-slate-200">{{ "{:,}".format(scan_stats.passed_price) }}</span>
       </div>
       <div class="flex items-center justify-between">
-        <span class="text-slate-500">&le;5% spread &amp; &le;2h exp <span class="text-slate-600">(&le;2.5% &amp; &le;10h)</span></span>
-        <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_spread_expiry|default(0) }}</span>
+        <span class="text-slate-400">$10k+ 24h dollar volume</span>
+        <span class="font-mono font-semibold text-emerald-400">{{ scan_stats.count_dollar_vol|default(0) }}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">&le;5% spread &amp; &le;2h exp <span class="text-slate-600">(&le;2.5% &amp; &le;10h)</span></span>
+        <span class="font-mono font-semibold text-emerald-400">{{ scan_stats.count_spread_expiry|default(0) }}</span>
       </div>
     </div>
   </div>

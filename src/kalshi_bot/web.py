@@ -582,7 +582,7 @@ def trades():
     db.init_db()
     ticker = request.args.get("ticker", "").strip() or None
     limit = request.args.get("limit", 50, type=int)
-    trade_list = db.get_trade_history(limit=limit, ticker=ticker)
+    trade_list = db.get_trade_history(limit=limit or None, ticker=ticker)
 
     # Build settlement lookup from positions table
     all_positions = db.get_all_positions()
