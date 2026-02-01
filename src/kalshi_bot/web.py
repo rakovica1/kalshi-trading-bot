@@ -625,6 +625,12 @@ def trades():
                 t["settlement"] = "pending"
                 t["settlement_label"] = "Pending"
 
+    # Assign sequential trade numbers (newest = highest #)
+    # trade_list is ordered by id DESC, so first item is the most recent
+    total_trade_count = len(trade_list)
+    for i, t in enumerate(trade_list):
+        t["trade_num"] = total_trade_count - i
+
     # Compute trade totals (only filled trades)
     filled_trades = [t for t in trade_list if (t.get("fill_count") or 0) > 0]
     total_traded_cents = sum(t["fill_count"] * t["price_cents"] for t in filled_trades)
