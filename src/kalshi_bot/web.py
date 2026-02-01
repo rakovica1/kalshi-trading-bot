@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 import os
 import threading
@@ -11,7 +13,7 @@ logging.basicConfig(level=logging.WARNING, format="%(name)s %(levelname)s: %(mes
 import functools
 import hmac
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort, Response
 
 from kalshi_bot import db
 from kalshi_bot.config import load_config
@@ -622,6 +624,52 @@ def trades_import():
         return redirect(url_for("trades", import_result="success", import_count=imported))
     except Exception as e:
         return redirect(url_for("trades", import_result="error"))
+
+
+@app.route("/trades/export")
+@_require_control_password
+def trades_export():
+    """Export all trades as a CSV download."""
+    db.init_db()
+    trade_list = db.get_trade_history(limit=10000)
+
+    # Build settlement lookup
+    all_positions = db.get_all_positions()
+    pos_map = {(p["ticker"], p["side"]): p for p in all_positions}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Time", "Ticker", "Action", "Side", "Qty",
+        "Price (cents)", "Fee (cents)", "Fills", "Settlement", "Status",
+    ])
+    for t in trade_list:
+        created = _utc_to_est(t["created_at"]) if t.get("created_at") else ""
+        fill_count = t.get("fill_count", 0) or 0
+
+        # Settlement
+        if fill_count <= 0 or t.get("status") == "failed":
+            settlement = ""
+        else:
+            pos = pos_map.get((t["ticker"], t["side"]))
+            if pos and pos.get("is_closed"):
+                pnl = pos.get("realized_pnl_cents", 0)
+                settlement = "won" if pnl > 0 else "lost" if pnl < 0 else "even"
+            else:
+                settlement = "pending"
+
+        writer.writerow([
+            t["id"], created, t["ticker"],
+            t["action"], t["side"], t["count"],
+            t["price_cents"], t.get("fee_cents", 0) or 0,
+            fill_count, settlement, t["status"],
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=nightrader_trades.csv"},
+    )
 
 
 # ---------------------------------------------------------------------------
