@@ -499,6 +499,9 @@ def _positions_inner():
             else:
                 ask = m.get("no_ask", 0) or 0
             unrealized_ask = int(qty * ((ask if ask else current) - entry))
+            # Record price snapshot for portfolio chart
+            if not is_settled and current > 0:
+                db.log_price_snapshot(p["ticker"], p["side"], current, ask)
             opened_at_display = _format_opened_at(p.get("opened_at", ""))
             enriched.append({
                 **p,
