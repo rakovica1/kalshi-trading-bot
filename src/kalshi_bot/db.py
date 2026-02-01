@@ -1171,7 +1171,7 @@ def get_portfolio_snapshots(hours=24, db_path=DEFAULT_DB_PATH):
             ts = ts.replace(minute=minute)
             ts_key = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
         else:
-            ts_key = str(ts)[:16]  # truncate to minute
+            ts_key = str(ts)[:16] + "Z"  # truncate to minute, mark as UTC
         buckets[ts_key][(r["ticker"], r["side"])] = {
             "bid": r["bid_cents"],
             "ask": r["ask_cents"],

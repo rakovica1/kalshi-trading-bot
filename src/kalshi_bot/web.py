@@ -532,6 +532,15 @@ def _positions_inner():
             "closed_at_display": _format_opened_at(p.get("closed_at", "")),
         })
 
+    # Sort: active (not expired) first by soonest expiration, then expired
+    from kalshi_bot.scanner import hours_until_close
+    def _sort_key(p):
+        hrs = hours_until_close(p.get("close_time", ""))
+        expired = hrs is not None and hrs <= 0
+        # Active first (expired=False < expired=True), then by hours left
+        return (expired, hrs if hrs is not None else 9999)
+    enriched.sort(key=_sort_key)
+
     total_value = sum(p["current_price"] * p["quantity"] for p in enriched)
     total_cost = sum(int(p["avg_entry_price_cents"] * p["quantity"]) for p in enriched)
     total_unrealized_bid = sum(p["unrealized_bid_cents"] for p in enriched)
