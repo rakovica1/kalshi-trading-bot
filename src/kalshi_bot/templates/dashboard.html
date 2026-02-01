@@ -101,7 +101,8 @@
       const expires = new Date(el.dataset.expires).getTime();
       const diff = Math.max(0, expires - Date.now());
       const totalSec = Math.floor(diff / 1000);
-      const m = Math.floor(totalSec / 60);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
       const s = totalSec % 60;
       if (totalSec <= 0) {
         // Auto-dismiss expired alerts (settlement toast will appear on next refresh)
@@ -117,12 +118,17 @@
           setTimeout(() => { alert.style.display = 'none'; }, 300);
         }
         return;
-      } else if (m < 5) {
-        el.textContent = m + ':' + String(s).padStart(2, '0');
+      }
+      var label;
+      if (h > 0) {
+        label = h + 'h' + String(m).padStart(2, '0');
+      } else {
+        label = m + ':' + String(s).padStart(2, '0');
+      }
+      el.textContent = label;
+      if (h === 0 && m < 5) {
         el.classList.remove('text-amber-300');
         el.classList.add('text-red-400');
-      } else {
-        el.textContent = m + ':' + String(s).padStart(2, '0');
       }
     });
   }
