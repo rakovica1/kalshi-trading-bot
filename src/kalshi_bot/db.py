@@ -1028,7 +1028,7 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
     conn.close()
 
     # Recompute fail_reasons for each result (not stored in DB)
-    from kalshi_bot.scanner import (QUALIFIED_TOP_N_DOLLAR, QUALIFIED_MIN_DOLLAR_24H,
+    from kalshi_bot.scanner import (QUALIFIED_MIN_DOLLAR_24H,
                                     QUALIFIED_MAX_SPREAD_PCT, QUALIFIED_MAX_HOURS,
                                     hours_until_close)
     for r in results:
@@ -1036,15 +1036,18 @@ def get_scan_results(db_path=DEFAULT_DB_PATH):
             r["fail_reasons"] = ["tier0"]
             continue
         reasons = []
-        if r.get("dollar_rank", 0) > QUALIFIED_TOP_N_DOLLAR:
-            reasons.append("rank")
         if r.get("dollar_24h", 0) < QUALIFIED_MIN_DOLLAR_24H:
             reasons.append("volume")
-        if r.get("spread_pct", 0) > QUALIFIED_MAX_SPREAD_PCT:
-            reasons.append("spread")
+        spread = r.get("spread_pct", 0)
         hrs = hours_until_close(r.get("close_time", ""))
-        if hrs is None or hrs <= 0 or hrs > QUALIFIED_MAX_HOURS:
-            reasons.append("expiry")
+        if spread <= 2.5:
+            if hrs is None or hrs <= 0 or hrs > 10.0:
+                reasons.append("spread_expiry")
+        elif spread <= QUALIFIED_MAX_SPREAD_PCT:
+            if hrs is None or hrs <= 0 or hrs > QUALIFIED_MAX_HOURS:
+                reasons.append("spread_expiry")
+        else:
+            reasons.append("spread_expiry")
         r["fail_reasons"] = reasons
 
     return results, stats, scanned_at
