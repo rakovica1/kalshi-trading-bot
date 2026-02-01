@@ -7,15 +7,15 @@ from kalshi_bot.sizing import calculate_position
 
 
 def _check_price_velocity(client, ticker, event_ticker, side, current_ask,
-                          window_sec=19, max_move_pct=10.0, log=print):
+                          window_sec=60, max_move_pct=10.0, log=print):
     """Return True if the price spiked too fast, indicating possible manipulation.
 
     Fetches the last 3 minutes of 1-minute candles and compares the price
-    from ~window_sec ago to the current live ask.  If the ask-side price
+    from ~1 minute ago to the current live ask.  If the ask-side price
     rose more than max_move_pct in that window, the trade should be skipped.
 
     Uses the *open* of the most recent candle (≈ price at the start of the
-    current minute) as a proxy for the price ~19-60 seconds ago.  If a
+    current minute) as a proxy for the price ~60 seconds ago.  If a
     prior candle's close is available and more recent, that is preferred.
     """
     try:
@@ -76,7 +76,7 @@ def run_whale_strategy(
     prefixes=None,
     min_price=95,
     min_volume=10000,
-    risk_pct=0.01,
+    risk_pct=0.05,
     max_positions=10,
     daily_loss_pct=0.05,
     dry_run=True,
@@ -99,7 +99,7 @@ def run_whale_strategy(
 
     Pipeline:
       1. Scan all markets
-      2. Filter to QUALIFIED (Top 200 $vol + $10k+ + ≤5% spread)
+      2. Filter to QUALIFIED (Top 500 $vol + $10k+ + ≤5% spread)
       3. Filter by spread-dependent expiration window
       4. Rank by: soonest expiration -> highest price -> highest $volume
       5. Select #1 ranked market (closest to resolving)
@@ -151,7 +151,7 @@ def run_whale_strategy(
     # ── Filter 5: Qualification ──
     candidates = [r for r in results if r.get("qualified")]
     if not candidates:
-        log(f"[REJECT] Qualification — 0/{total_found} markets qualified (need top200 vol + $10k+ + ≤5% spread)")
+        log(f"[REJECT] Qualification — 0/{total_found} markets qualified (need top500 vol + $10k+ + ≤5% spread)")
         return {"scanned": total_found, "skipped": 0, "traded": 0, "orders": 0, "stopped_reason": None}
     log(f"[PASS] Qualification — {qualified_count}/{total_found} markets qualified")
 
@@ -273,26 +273,41 @@ def run_whale_strategy(
 
         # ── Per-candidate filter: Crypto directional ──
         event_prefix = selected.get("event_ticker", "").upper()
-        if any(event_prefix.startswith(p) for p in ("KXBTC", "KXETH")):
+        from kalshi_bot.ai import detect_category, fetch_crypto_context
+        if detect_category(selected.get("event_ticker", "")) == "crypto":
             from kalshi_bot.ticker import extract_strike_price
-            from kalshi_bot.ai import fetch_crypto_context
             strike = extract_strike_price(ticker)
             if strike is not None:
-                crypto = fetch_crypto_context()
-                asset_key = "btc_usd" if "BTC" in event_prefix else "eth_usd"
-                asset_name = "BTC" if "BTC" in event_prefix else "ETH"
-                spot = crypto.get(asset_key)
-                if spot is not None:
-                    buffer = 0.005  # 0.5%
-                    if side == "no" and spot > strike * (1 + buffer):
-                        log(f"[REJECT] Directional — contrarian NO: {asset_name} ${spot:,.0f} above strike ${strike:,.0f}")
-                        continue
-                    if side == "yes" and spot < strike * (1 - buffer):
-                        log(f"[REJECT] Directional — contrarian YES: {asset_name} ${spot:,.0f} below strike ${strike:,.0f}")
-                        continue
-                    log(f"[PASS] Directional — {asset_name} ${spot:,.0f} vs strike ${strike:,.0f}, {side.upper()} aligned")
+                # Map event prefix to price key: KXBTC* -> btc_usd, KXETH* -> eth_usd, etc.
+                _PREFIX_TO_KEY = {
+                    "KXBTC": ("btc_usd", "BTC"), "KXETH": ("eth_usd", "ETH"),
+                    "KXDOGE": ("doge_usd", "DOGE"), "KXSHIBA": ("shiba_usd", "SHIB"),
+                    "KXSOL": ("sol_usd", "SOL"), "KXXRP": ("xrp_usd", "XRP"),
+                    "KXADA": ("ada_usd", "ADA"), "KXBNB": ("bnb_usd", "BNB"),
+                    "KXDOT": ("dot_usd", "DOT"), "KXLINK": ("link_usd", "LINK"),
+                    "KXMATIC": ("matic_usd", "MATIC"), "KXAVAX": ("avax_usd", "AVAX"),
+                }
+                asset_key, asset_name = None, None
+                for pfx, (key, name) in sorted(_PREFIX_TO_KEY.items(), key=lambda x: -len(x[0])):
+                    if event_prefix.startswith(pfx):
+                        asset_key, asset_name = key, name
+                        break
+                if asset_key:
+                    crypto = fetch_crypto_context()
+                    spot = crypto.get(asset_key)
+                    if spot is not None:
+                        buffer = 0.005  # 0.5%
+                        if side == "no" and spot > strike * (1 + buffer):
+                            log(f"[REJECT] Directional — contrarian NO: {asset_name} ${spot:,.2f} above strike ${strike:,.2f}")
+                            continue
+                        if side == "yes" and spot < strike * (1 - buffer):
+                            log(f"[REJECT] Directional — contrarian YES: {asset_name} ${spot:,.2f} below strike ${strike:,.2f}")
+                            continue
+                        log(f"[PASS] Directional — {asset_name} ${spot:,.2f} vs strike ${strike:,.2f}, {side.upper()} aligned")
+                    else:
+                        log(f"[PASS] Directional — {asset_name} spot price unavailable, skipping check")
                 else:
-                    log(f"[PASS] Directional — spot price unavailable, skipping check")
+                    log(f"[PASS] Directional — unknown crypto asset, skipping check")
             else:
                 log(f"[PASS] Directional — no strike price in ticker, skipping check")
         else:

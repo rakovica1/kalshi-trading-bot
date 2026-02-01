@@ -1230,7 +1230,7 @@ def control():
         "max_positions": 10,
         "dry_run": True,
         "with_ai": True,
-        "risk_pct": 1.0,
+        "risk_pct": 5.0,
         "exclude_crypto": True,
     }
     with _whale_lock:

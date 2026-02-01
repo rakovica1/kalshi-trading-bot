@@ -258,7 +258,7 @@ def hours_until_close(raw):
 # Qualification thresholds for premium trade execution
 QUALIFIED_MIN_DOLLAR_24H = 10_000
 QUALIFIED_MAX_SPREAD_PCT = 5.0
-QUALIFIED_TOP_N_DOLLAR = 200
+QUALIFIED_TOP_N_DOLLAR = 500
 QUALIFIED_MAX_HOURS = 2.0
 
 
@@ -271,7 +271,7 @@ def scan(client, min_price=95, ticker_prefixes=None, min_volume=10000,
     markets by prefix, volume, and price. Each result is assigned a tier.
 
     Each result also gets a `qualified` flag: True when ALL of these hold:
-      - Top 200 by 24h dollar volume
+      - Top 500 by 24h dollar volume
       - >= $10,000 in 24h dollar volume
       - Bid/ask spread <= 5%
       - Expires within 2h (or 10h if spread <= 2.5%)

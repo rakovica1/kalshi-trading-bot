@@ -71,22 +71,40 @@ def detect_category(event_ticker):
 # ---------------------------------------------------------------------------
 # Context building (crypto prices via CoinGecko)
 # ---------------------------------------------------------------------------
+_COINGECKO_IDS = {
+    "btc": "bitcoin",
+    "eth": "ethereum",
+    "doge": "dogecoin",
+    "shiba": "shiba-inu",
+    "sol": "solana",
+    "xrp": "ripple",
+    "ada": "cardano",
+    "bnb": "binancecoin",
+    "dot": "polkadot",
+    "link": "chainlink",
+    "matic": "matic-network",
+    "avax": "avalanche-2",
+}
+
+
 def fetch_crypto_context():
-    """Fetch BTC and ETH prices from CoinGecko (free, no API key)."""
+    """Fetch crypto prices from CoinGecko (free, no API key)."""
     now = time.time()
     if _crypto_cache["data"] and (now - _crypto_cache["ts"]) < _CRYPTO_TTL:
         return _crypto_cache["data"]
 
     try:
-        url = ("https://api.coingecko.com/api/v3/simple/price"
-               "?ids=bitcoin,ethereum&vs_currencies=usd")
+        ids = ",".join(_COINGECKO_IDS.values())
+        url = (f"https://api.coingecko.com/api/v3/simple/price"
+               f"?ids={ids}&vs_currencies=usd")
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
-        result = {
-            "btc_usd": data.get("bitcoin", {}).get("usd"),
-            "eth_usd": data.get("ethereum", {}).get("usd"),
-        }
+        result = {}
+        for key, cg_id in _COINGECKO_IDS.items():
+            price = data.get(cg_id, {}).get("usd")
+            if price is not None:
+                result[f"{key}_usd"] = price
         _crypto_cache["data"] = result
         _crypto_cache["ts"] = now
         return result

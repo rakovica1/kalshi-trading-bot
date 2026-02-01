@@ -87,7 +87,7 @@
         {% endif %}
         <div class="flex items-center gap-2">
           <span class="text-slate-600 text-[11px] w-16 text-right">&darr;</span>
-          <span class="text-slate-500">Top 200 by $ volume</span>
+          <span class="text-slate-500">Top 500 by $ volume</span>
           <span class="text-slate-600">&rarr;</span>
           <span class="font-mono font-medium text-emerald-400">{{ scan_stats.count_top20|default(0) }}</span>
         </div>
@@ -136,7 +136,7 @@
   </div>
   <div class="flex items-center gap-1.5">
     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">QUALIFIED</span>
-    <span class="text-slate-400">Top 200 $vol + $10k+ + &le;5% spread + &le;2h exp</span>
+    <span class="text-slate-400">Top 500 $vol + $10k+ + &le;5% spread + &le;2h/10h exp</span>
   </div>
 </div>
 
@@ -241,7 +241,7 @@
 <div class="mb-8">
   <div class="flex items-center gap-2 mb-3">
     <span class="text-brand-400 font-semibold text-sm uppercase tracking-wide">Qualified for Whale-Trade ({{ qualified_markets|length }})</span>
-    <span class="text-slate-600 text-xs">— Top 200 $vol + $10k+ + &le;5% spread + &le;2h exp</span>
+    <span class="text-slate-600 text-xs">— Top 500 $vol + $10k+ + &le;5% spread + &le;2h/10h exp</span>
   </div>
   {{ market_table(qualified_markets, "qualified-table") }}
 </div>
