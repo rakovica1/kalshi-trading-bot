@@ -352,7 +352,7 @@ def _dashboard_inner():
     except Exception:
         pass
 
-    # Build list of positions expiring within 15 minutes
+    # Build list of positions expiring within 2 hours
     expiring_soon = []
     now_utc = datetime.now(timezone.utc)
     try:
@@ -368,7 +368,7 @@ def _dashboard_inner():
             except Exception:
                 continue
             mins_left = (close_dt - now_utc).total_seconds() / 60
-            if 0 < mins_left <= 15:
+            if 0 < mins_left <= 120:
                 expiring_soon.append({
                     "ticker": p["ticker"],
                     "side": p["side"],
